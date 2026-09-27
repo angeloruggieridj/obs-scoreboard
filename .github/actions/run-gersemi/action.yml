@@ -24,7 +24,10 @@ runs:
       uses: ./.github/actions/check-changes
       id: checks
       with:
-        checkGlob: "'*.cmake' '*CMakeLists.txt'"
+        # Mirrors run-clang-format's exclusions: no vendored .cmake files exist today,
+        # but keep third_party/, .deps/ and build*/ out of scope on principle, and for
+        # the same empty-tree-fallback reason documented there.
+        checkGlob: "'*.cmake' '*CMakeLists.txt' ':(exclude)third_party/*' ':(exclude)third_party/**' ':(exclude).deps/*' ':(exclude).deps/**' ':(exclude)build*/*' ':(exclude)build*/**'"
         diffFilter: 'ACM'
 
     - name: Install Dependencies 🛍️

@@ -24,7 +24,12 @@ runs:
       uses: ./.github/actions/check-changes
       id: checks
       with:
-        checkGlob: "'*.c' '*.h' '*.cpp' '*.hpp' '*.m' '*.mm'"
+        # Vendored headers under third_party/ are never ours to reformat: excluding them
+        # here (rather than relying on the diff base) matters because a push whose
+        # `before` SHA is unusable (e.g. force-push, or the very first push of a
+        # rewritten history) makes check-changes fall back to diffing against the
+        # empty tree, so every tracked file — vendored or not — shows up as "changed".
+        checkGlob: "'*.c' '*.h' '*.cpp' '*.hpp' '*.m' '*.mm' ':(exclude)third_party/*' ':(exclude)third_party/**' ':(exclude).deps/*' ':(exclude).deps/**' ':(exclude)build*/*' ':(exclude)build*/**'"
         diffFilter: 'ACM'
 
     - name: Install Dependencies 🛍️
