@@ -1,0 +1,45 @@
+name: Core tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core-tests:
+    name: Core tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Configure
+        run: cmake -S tests -B build_tests -DSB_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build_tests --config Debug
+      - name: Test
+        run: ctest --test-dir build_tests -C Debug --output-on-failure
+
+  coverage:
+    name: Core line coverage >= 95%
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: sudo apt-get update && sudo apt-get install -y gcovr
+      - run: cmake -S tests -B build_cov -DSB_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+      - run: cmake --build build_cov
+      - run: ctest --test-dir build_cov --output-on-failure
+      - name: Coverage gate
+        run: gcovr -r . --filter 'src/core/' --fail-under-line 95 --print-summary build_cov
+
+  locale-keys:
+    name: Locale keys in sync
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: python3 -m unittest discover -s tools -p "test_*.py"
+      - run: python3 tools/check_locale_keys.py
