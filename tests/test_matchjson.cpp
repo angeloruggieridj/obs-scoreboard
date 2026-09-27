@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include <cstdint>
+#include <limits>
+
 #include "doctest/doctest.h"
 #include "MatchJson.hpp"
 
+#include <nlohmann/json.hpp>
+
 using namespace sb;
+using nlohmann::json;
 
 namespace {
 constexpr Micros sec(std::int64_t s) {
@@ -10,6 +16,14 @@ constexpr Micros sec(std::int64_t s) {
 }
 std::string field(const MatchEngine& e, FieldId id) {
     return e.fields()[static_cast<std::size_t>(id)];
+}
+
+// Wraps snapshotFromJson in CHECK_NOTHROW: every malformed-input case below must come back as
+// nullopt, never as an escaping exception.
+std::optional<MatchSnapshot> parseNoThrow(const std::string& text, std::string* error) {
+    std::optional<MatchSnapshot> result;
+    CHECK_NOTHROW(result = snapshotFromJson(text, error));
+    return result;
 }
 
 MatchEngine busyHockeyMatch() {
@@ -33,6 +47,12 @@ MatchEngine twoPenaltiesOnOneTeam() {
     e.apply(cmd::PenaltyAdd{Team::Away, "8", {{minutes(2), true}}}, 0);
     e.apply(cmd::PenaltyAdd{Team::Away, "9", {{minutes(2), true}}}, 0);
     return e;
+}
+
+// A round-tripped snapshot as a mutable nlohmann tree, for tests that need to inject a specific
+// (wrong) JSON value rather than search-and-replace pretty-printed text.
+json goodJson() {
+    return json::parse(toJson(busyHockeyMatch().snapshot()));
 }
 } // namespace
 
@@ -129,4 +149,135 @@ TEST_CASE("duplicate penalty ids within the same team's box are rejected") {
     duplicated.replace(duplicated.find(needle), needle.size(), "\"id\": 1");
     CHECK_FALSE(snapshotFromJson(duplicated, &error).has_value());
     CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("more than 8 penalties in one box is rejected") {
+    json j = goodJson();
+    const json templatePenalty = j["penalties"][1][0]; // the away team's one penalty
+    json box = json::array();
+    for (int i = 1; i <= 9; ++i) {
+        json p = templatePenalty;
+        p["id"] = i;
+        box.push_back(p);
+    }
+    j["penalties"][1] = box;
+    j["nextPenaltyId"] = 10;
+
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("an unknown enum string is rejected, never mapped to the first entry") {
+    // NLOHMANN_JSON_SERIALIZE_ENUM would silently turn each of these into the first mapped
+    // enumerator (StopAtDuration / Home / Up); a stable roster of values makes that dangerous.
+    {
+        json j = goodJson();
+        j["settings"]["stoppage"] = "bogus";
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+    {
+        json j = goodJson();
+        j["events"][1]["team"] = "referee"; // a string, but not "home"/"away"
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+    {
+        json j = goodJson();
+        j["settings"]["sport"]["direction"] = "sideways";
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
+}
+
+TEST_CASE("a wrong-typed enum value is rejected") {
+    {
+        json j = goodJson();
+        j["settings"]["stoppage"] = 1; // a number, not a string
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+    {
+        json j = goodJson();
+        j["events"][1]["team"] = 42; // the away penalty's event: team must be "home"/"away"/null
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+    {
+        json j = goodJson();
+        j["settings"]["sport"]["direction"] = true;
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
+}
+
+TEST_CASE("a floating point value in an integer field is rejected, never truncated") {
+    // get_arithmetic_value's static_cast<T>(double) is undefined behavior once the value is out
+    // of T's range, and silently drops the fraction even when it isn't (e.g. 1.5 -> 1).
+    {
+        json j = goodJson();
+        j["clockValue"] = 1e300;
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
+    {
+        json j = goodJson();
+        j["clockValue"] = 1.5;
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+}
+
+TEST_CASE("a negative value into the (unsigned) penalty phase index is rejected") {
+    json j = goodJson();
+    j["penalties"][1][0]["phase"] = -1;
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("a negative value into an unsigned field is rejected even with no bounds check to catch"
+          " the wraparound downstream") {
+    // Unlike the penalty phase index above (also caught by validate()'s own
+    // "phase >= phases.size()" once a negative wraps to a huge std::size_t), nextPenaltyId has no
+    // such second line of defense: nothing else in validate() bounds it from below, so a negative
+    // that silently wrapped to a huge PenaltyId would sail through unless strictInt rejects the
+    // negative value itself.
+    json j = goodJson();
+    j["nextPenaltyId"] = -1;
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("a value beyond INT_MAX into an int field is rejected") {
+    json j = goodJson();
+    j["stoppageAnnounced"] = static_cast<std::int64_t>(std::numeric_limits<int>::max()) + 1;
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("an unlimited-overtime sport still bounds the period, at regulation + 99") {
+    // basketball has overtimePeriods == kUnlimited: periods() and displayOffset() loop up to the
+    // period index, so a corrupted huge value must be rejected, not merely accepted forever.
+    const MatchEngine basketball(MatchSettings::forSport(*findSport("basketball"))); // 4 periods
+    const json base = json::parse(toJson(basketball.snapshot()));
+
+    {
+        json j = base;
+        j["period"] = 103; // 4 regulation + 99 (the unlimited-overtime cap)
+        CHECK(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+    {
+        json j = base;
+        j["period"] = 104;
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
+    {
+        json j = base;
+        j["period"] = 1000000;
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
 }

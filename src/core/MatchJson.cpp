@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "MatchJson.hpp"
 
+#include <cstdint>
+#include <limits>
+#include <map>
 #include <set>
+#include <type_traits>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -9,29 +14,182 @@ namespace sb {
 
 using nlohmann::json;
 
-NLOHMANN_JSON_SERIALIZE_ENUM(Team, {{Team::Home, "home"}, {Team::Away, "away"}})
-NLOHMANN_JSON_SERIALIZE_ENUM(Direction, {{Direction::Up, "up"}, {Direction::Down, "down"}})
-NLOHMANN_JSON_SERIALIZE_ENUM(StoppageMode, {{StoppageMode::StopAtDuration, "stop"},
-                                            {StoppageMode::SecondaryCounter, "secondary"},
-                                            {StoppageMode::RunPastDuration, "runPast"}})
-NLOHMANN_JSON_SERIALIZE_ENUM(FoulReset, {{FoulReset::Never, "never"},
-                                         {FoulReset::EachRegulationPeriod, "eachRegulationPeriod"}})
-NLOHMANN_JSON_SERIALIZE_ENUM(StrengthSource, {{StrengthSource::None, "none"},
-                                              {StrengthSource::Penalties, "penalties"},
-                                              {StrengthSource::SecondFouls, "secondFouls"}})
-NLOHMANN_JSON_SERIALIZE_ENUM(TimeFormat, {{TimeFormat::MinutesSeconds, "mmss"},
-                                          {TimeFormat::HoursMinutesSeconds, "hmmss"}})
-NLOHMANN_JSON_SERIALIZE_ENUM(EventType, {{EventType::PeriodStart, "periodStart"},
-                                         {EventType::PeriodEnd, "periodEnd"},
-                                         {EventType::Score, "score"},
-                                         {EventType::Penalty, "penalty"},
-                                         {EventType::MatchEnd, "matchEnd"}})
+namespace {
+
+// -- Strict enum codec -------------------------------------------------------------------------
+// NLOHMANN_JSON_SERIALIZE_ENUM maps an unrecognized or non-string value to the *first* mapped
+// enumerator, silently: e.g. {"stoppage": "bogus"} would quietly become StopAtDuration. The two
+// helpers below give the same string spellings on output but make an unknown or wrongly typed
+// value a hard parse error on input, never a silent fallback.
+template <typename Enum> struct EnumName {
+    Enum value;
+    const char* name;
+};
+
+template <typename Enum, std::size_t N>
+json enumToJsonValue(Enum value, const EnumName<Enum> (&names)[N]) {
+    for (const auto& entry : names)
+        if (entry.value == value) return json(entry.name);
+    return json(names[0].name); // unreachable for a value this codec ever produced
+}
+
+template <typename Enum, std::size_t N>
+Enum enumFromJsonValue(const json& j, const EnumName<Enum> (&names)[N], const char* typeName) {
+    if (!j.is_string())
+        throw json::type_error::create(302, std::string(typeName) + " must be a string", &j);
+    const std::string text = j.get<std::string>();
+    for (const auto& entry : names)
+        if (text == entry.name) return entry.value;
+    throw json::type_error::create(
+        302, std::string("unknown ") + typeName + " value \"" + text + "\"", &j);
+}
+
+constexpr EnumName<Team> kTeamNames[] = {{Team::Home, "home"}, {Team::Away, "away"}};
+constexpr EnumName<Direction> kDirectionNames[] = {{Direction::Up, "up"},
+                                                   {Direction::Down, "down"}};
+constexpr EnumName<StoppageMode> kStoppageModeNames[] = {
+    {StoppageMode::StopAtDuration, "stop"},
+    {StoppageMode::SecondaryCounter, "secondary"},
+    {StoppageMode::RunPastDuration, "runPast"}};
+constexpr EnumName<FoulReset> kFoulResetNames[] = {
+    {FoulReset::Never, "never"}, {FoulReset::EachRegulationPeriod, "eachRegulationPeriod"}};
+constexpr EnumName<StrengthSource> kStrengthSourceNames[] = {
+    {StrengthSource::None, "none"},
+    {StrengthSource::Penalties, "penalties"},
+    {StrengthSource::SecondFouls, "secondFouls"}};
+constexpr EnumName<TimeFormat> kTimeFormatNames[] = {{TimeFormat::MinutesSeconds, "mmss"},
+                                                     {TimeFormat::HoursMinutesSeconds, "hmmss"}};
+constexpr EnumName<EventType> kEventTypeNames[] = {{EventType::PeriodStart, "periodStart"},
+                                                   {EventType::PeriodEnd, "periodEnd"},
+                                                   {EventType::Score, "score"},
+                                                   {EventType::Penalty, "penalty"},
+                                                   {EventType::MatchEnd, "matchEnd"}};
+
+} // namespace
+
+void to_json(json& j, Team t) {
+    j = enumToJsonValue(t, kTeamNames);
+}
+void from_json(const json& j, Team& t) {
+    t = enumFromJsonValue(j, kTeamNames, "team");
+}
+void to_json(json& j, Direction d) {
+    j = enumToJsonValue(d, kDirectionNames);
+}
+void from_json(const json& j, Direction& d) {
+    d = enumFromJsonValue(j, kDirectionNames, "direction");
+}
+void to_json(json& j, StoppageMode m) {
+    j = enumToJsonValue(m, kStoppageModeNames);
+}
+void from_json(const json& j, StoppageMode& m) {
+    m = enumFromJsonValue(j, kStoppageModeNames, "stoppage");
+}
+void to_json(json& j, FoulReset r) {
+    j = enumToJsonValue(r, kFoulResetNames);
+}
+void from_json(const json& j, FoulReset& r) {
+    r = enumFromJsonValue(j, kFoulResetNames, "foulReset");
+}
+void to_json(json& j, StrengthSource s) {
+    j = enumToJsonValue(s, kStrengthSourceNames);
+}
+void from_json(const json& j, StrengthSource& s) {
+    s = enumFromJsonValue(j, kStrengthSourceNames, "strengthSource");
+}
+void to_json(json& j, TimeFormat f) {
+    j = enumToJsonValue(f, kTimeFormatNames);
+}
+void from_json(const json& j, TimeFormat& f) {
+    f = enumFromJsonValue(j, kTimeFormatNames, "playTimeFormat");
+}
+void to_json(json& j, EventType t) {
+    j = enumToJsonValue(t, kEventTypeNames);
+}
+void from_json(const json& j, EventType& t) {
+    t = enumFromJsonValue(j, kEventTypeNames, "type");
+}
+
+namespace {
+
+// -- Strict integer parsing ---------------------------------------------------------------------
+// nlohmann's own get<T>() for an arithmetic T (get_arithmetic_value, json.hpp) converts a
+// number_float JSON value through an unchecked static_cast<T>(double): out-of-range values (e.g.
+// "clockValue": 1e300 into a 64-bit integer) are undefined behavior, and in-range-but-fractional
+// values (e.g. 1.5) are silently truncated. It also never range-checks integer-to-integer
+// narrowing (e.g. a huge unsigned value into `int`, or a negative value into `std::size_t`).
+// strictInt<T> rejects both: only an actual JSON integer (never a float) is accepted, and it must
+// fit in T's range.
+template <typename T> T strictInt(const json& j, std::string_view fieldName) {
+    if (!j.is_number_integer())
+        throw json::type_error::create(302, std::string(fieldName) + " must be an integer", &j);
+    if (j.is_number_unsigned()) {
+        const auto v = j.get<std::uint64_t>();
+        if (v > static_cast<std::uint64_t>(std::numeric_limits<T>::max()))
+            throw json::type_error::create(302, std::string(fieldName) + " out of range", &j);
+        return static_cast<T>(v);
+    }
+    const auto v = j.get<std::int64_t>();
+    if constexpr (std::is_signed_v<T>) {
+        if (v < static_cast<std::int64_t>(std::numeric_limits<T>::min()) ||
+            v > static_cast<std::int64_t>(std::numeric_limits<T>::max()))
+            throw json::type_error::create(302, std::string(fieldName) + " out of range", &j);
+    } else {
+        if (v < 0 || static_cast<std::uint64_t>(v) >
+                         static_cast<std::uint64_t>(std::numeric_limits<T>::max()))
+            throw json::type_error::create(302, std::string(fieldName) + " out of range", &j);
+    }
+    return static_cast<T>(v);
+}
+
+template <typename T> std::vector<T> strictIntArray(const json& j, std::string_view fieldName) {
+    if (!j.is_array())
+        throw json::type_error::create(302, std::string(fieldName) + " must be an array", &j);
+    std::vector<T> out;
+    out.reserve(j.size());
+    for (const auto& element : j) out.push_back(strictInt<T>(element, fieldName));
+    return out;
+}
+
+std::set<int> strictIntSet(const json& j, std::string_view fieldName) {
+    if (!j.is_array())
+        throw json::type_error::create(302, std::string(fieldName) + " must be an array", &j);
+    std::set<int> out;
+    for (const auto& element : j) out.insert(strictInt<int>(element, fieldName));
+    return out;
+}
+
+Counters::Pair strictIntPair(const json& j, std::string_view fieldName) {
+    if (!j.is_array() || j.size() != 2)
+        throw json::type_error::create(302, std::string(fieldName) + " must be a 2-element array",
+                                       &j);
+    return {strictInt<int>(j.at(0), fieldName), strictInt<int>(j.at(1), fieldName)};
+}
+
+// periodEndValues/fouls are std::map<int, V>: nlohmann has no string key for `int`, so it falls
+// back to an array of [key, value] pairs. Both the key and the value go through strictInt/
+// readValue rather than the library's own (unsafe for floats) pair conversion.
+template <typename V, typename ReadValue>
+std::map<int, V> strictIntKeyedMap(const json& j, std::string_view fieldName, ReadValue readValue) {
+    if (!j.is_array())
+        throw json::type_error::create(302, std::string(fieldName) + " must be an array", &j);
+    std::map<int, V> out;
+    for (const auto& entry : j) {
+        if (!entry.is_array() || entry.size() != 2)
+            throw json::type_error::create(
+                302, std::string(fieldName) + " entry must be a [key, value] pair", &entry);
+        out.emplace(strictInt<int>(entry.at(0), fieldName), readValue(entry.at(1), fieldName));
+    }
+    return out;
+}
+
+} // namespace
 
 void to_json(json& j, const PenaltyPhase& p) {
     j = {{"duration", p.duration}, {"reducesStrength", p.reducesStrength}};
 }
 void from_json(const json& j, PenaltyPhase& p) {
-    j.at("duration").get_to(p.duration);
+    p.duration = strictInt<Tenths>(j.at("duration"), "penaltyPhase.duration");
     j.at("reducesStrength").get_to(p.reducesStrength);
 }
 
@@ -69,11 +227,11 @@ void to_json(json& j, const SportPreset& s) {
 void from_json(const json& j, SportPreset& s) {
     j.at("id").get_to(s.id);
     j.at("segment").get_to(s.segment);
-    j.at("periods").get_to(s.periods);
-    j.at("periodDuration").get_to(s.periodDuration);
+    s.periods = strictInt<int>(j.at("periods"), "sport.periods");
+    s.periodDuration = strictInt<Tenths>(j.at("periodDuration"), "sport.periodDuration");
     j.at("direction").get_to(s.direction);
-    j.at("overtimePeriods").get_to(s.overtimePeriods);
-    j.at("overtimeDuration").get_to(s.overtimeDuration);
+    s.overtimePeriods = strictInt<int>(j.at("overtimePeriods"), "sport.overtimePeriods");
+    s.overtimeDuration = strictInt<Tenths>(j.at("overtimeDuration"), "sport.overtimeDuration");
     j.at("continuousDisplay").get_to(s.continuousDisplay);
     j.at("shots").get_to(s.shots);
     j.at("fouls").get_to(s.fouls);
@@ -82,10 +240,10 @@ void from_json(const json& j, SportPreset& s) {
     j.at("foulsLabel").get_to(s.foulsLabel);
     j.at("fouls2Label").get_to(s.fouls2Label);
     j.at("scoreLabel").get_to(s.scoreLabel);
-    j.at("scoreValues").get_to(s.scoreValues);
+    s.scoreValues = strictIntArray<int>(j.at("scoreValues"), "sport.scoreValues");
     j.at("penaltyOptions").get_to(s.penaltyOptions);
-    j.at("playersPerSide").get_to(s.playersPerSide);
-    j.at("minPlayers").get_to(s.minPlayers);
+    s.playersPerSide = strictInt<int>(j.at("playersPerSide"), "sport.playersPerSide");
+    s.minPlayers = strictInt<int>(j.at("minPlayers"), "sport.minPlayers");
     j.at("strengthSource").get_to(s.strengthSource);
     j.at("stoppage").get_to(s.stoppage);
 }
@@ -133,11 +291,11 @@ void to_json(json& j, const Penalty& p) {
          {"remaining", p.remaining}};
 }
 void from_json(const json& j, Penalty& p) {
-    j.at("id").get_to(p.id);
+    p.id = strictInt<PenaltyId>(j.at("id"), "penalty.id");
     j.at("player").get_to(p.player);
     j.at("phases").get_to(p.phases);
-    j.at("phase").get_to(p.phase);
-    j.at("remaining").get_to(p.remaining);
+    p.phase = strictInt<std::size_t>(j.at("phase"), "penalty.phase");
+    p.remaining = strictInt<Tenths>(j.at("remaining"), "penalty.remaining");
 }
 
 void to_json(json& j, const MatchEvent& e) {
@@ -153,18 +311,23 @@ void to_json(json& j, const MatchEvent& e) {
 }
 void from_json(const json& j, MatchEvent& e) {
     j.at("type").get_to(e.type);
-    j.at("at").get_to(e.at);
-    j.at("playTime").get_to(e.playTime);
-    j.at("period").get_to(e.period);
+    e.at = strictInt<Micros>(j.at("at"), "event.at");
+    e.playTime = strictInt<Tenths>(j.at("playTime"), "event.playTime");
+    e.period = strictInt<int>(j.at("period"), "event.period");
     j.at("periodLabel").get_to(e.periodLabel);
     const json& team = j.at("team");
     e.team = team.is_null() ? std::nullopt : std::optional<Team>(team.get<Team>());
-    j.at("homeScore").get_to(e.homeScore);
-    j.at("awayScore").get_to(e.awayScore);
+    e.homeScore = strictInt<int>(j.at("homeScore"), "event.homeScore");
+    e.awayScore = strictInt<int>(j.at("awayScore"), "event.awayScore");
     j.at("detail").get_to(e.detail);
 }
 
 namespace {
+
+// An unlimited number of overtime periods (kUnlimited) does not mean an unbounded snapshot: cap
+// it the same way the UI would ever offer, so a corrupted/huge period value can never make
+// MatchEngine::playTime()/Periods::displayOffset() loop over an absurd period count.
+constexpr int kUnlimitedOvertimeCap = 99;
 
 // Structural checks the types alone cannot express. Returns an empty string when valid.
 // Every rule here is a precondition PenaltyBox::restoreFrom (called downstream by
@@ -173,7 +336,9 @@ std::string validate(const MatchSnapshot& s) {
     const SportPreset& sp = s.settings.sport;
     if (sp.periods < 1) return "sport has no periods";
     if (s.period < 1) return "period out of range";
-    if (sp.overtimePeriods != kUnlimited && s.period > sp.periods + sp.overtimePeriods)
+    const long long effectiveOvertime =
+        sp.overtimePeriods == kUnlimited ? kUnlimitedOvertimeCap : sp.overtimePeriods;
+    if (static_cast<long long>(s.period) > static_cast<long long>(sp.periods) + effectiveOvertime)
         return "period out of range";
     for (const auto& box : s.penalties) {
         if (box.size() > PenaltyBox::kMaxPenalties) return "too many penalties";
@@ -219,22 +384,26 @@ std::optional<MatchSnapshot> snapshotFromJson(std::string_view text, std::string
     try {
         const json j = json::parse(text.begin(), text.end());
         if (!j.is_object()) return fail("not a JSON object");
-        const int version = j.at("version").get<int>();
+        const int version = strictInt<int>(j.at("version"), "version");
         if (version != kMatchJsonVersion)
             return fail("unsupported version " + std::to_string(version));
         MatchSnapshot s;
         j.at("settings").get_to(s.settings);
-        j.at("period").get_to(s.period);
-        j.at("clockValue").get_to(s.clockValue);
-        j.at("periodEndValues").get_to(s.periodEndValues);
-        j.at("score").get_to(s.score);
-        j.at("shots").get_to(s.shots);
-        j.at("fouls2").get_to(s.fouls2);
-        j.at("fouls").get_to(s.fouls);
+        s.period = strictInt<int>(j.at("period"), "period");
+        s.clockValue = strictInt<Tenths>(j.at("clockValue"), "clockValue");
+        s.periodEndValues = strictIntKeyedMap<Tenths>(
+            j.at("periodEndValues"), "periodEndValues",
+            [](const json& v, std::string_view f) { return strictInt<Tenths>(v, f); });
+        s.score = strictIntPair(j.at("score"), "score");
+        s.shots = strictIntPair(j.at("shots"), "shots");
+        s.fouls2 = strictIntPair(j.at("fouls2"), "fouls2");
+        s.fouls = strictIntKeyedMap<Counters::Pair>(
+            j.at("fouls"), "fouls",
+            [](const json& v, std::string_view f) { return strictIntPair(v, f); });
         j.at("penalties").get_to(s.penalties);
-        j.at("nextPenaltyId").get_to(s.nextPenaltyId);
-        j.at("stoppageAnnounced").get_to(s.stoppageAnnounced);
-        j.at("startedPeriods").get_to(s.startedPeriods);
+        s.nextPenaltyId = strictInt<PenaltyId>(j.at("nextPenaltyId"), "nextPenaltyId");
+        s.stoppageAnnounced = strictInt<int>(j.at("stoppageAnnounced"), "stoppageAnnounced");
+        s.startedPeriods = strictIntSet(j.at("startedPeriods"), "startedPeriods");
         j.at("events").get_to(s.events);
         const std::string problem = validate(s);
         if (!problem.empty()) return fail(problem);
