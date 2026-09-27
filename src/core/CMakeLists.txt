@@ -10,6 +10,9 @@ add_library(
   PenaltyBox.cpp
   Strength.cpp
   SportCatalog.cpp
+  Fields.cpp
+  EventLog.cpp
+  MatchEngine.cpp
 )
 target_include_directories(scoreboard-core PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_include_directories(

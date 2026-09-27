@@ -1,0 +1,315 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#include "MatchEngine.hpp"
+
+#include <algorithm>
+#include <utility>
+
+#include "Format.hpp"
+
+namespace sb {
+
+MatchEngine::MatchEngine(MatchSettings settings) : settings_(std::move(settings)) {
+    const SportPreset& sp = settings_.sport;
+    PeriodConfig pc;
+    pc.regulationPeriods = sp.periods;
+    pc.regulationDuration = sp.periodDuration;
+    pc.overtimePeriods = sp.overtimePeriods;
+    pc.overtimeDuration = sp.overtimeDuration;
+    pc.continuousDisplay = sp.continuousDisplay;
+    pc.regulationLabels = settings_.regulationLabels;
+    pc.overtimeLabels = settings_.overtimeLabels;
+    periods_.configure(pc);
+    counters_.setFoulReset(sp.foulReset);
+    enterPeriod(1);
+}
+
+CommandResult MatchEngine::apply(const Command& command, Micros now) {
+    return std::visit([&](const auto& c) { return handle(c, now); }, command);
+}
+
+void MatchEngine::advance(Micros now) {
+    const Clock::Tick tick = clock_.advance(now);
+    if (tick.elapsed > 0)
+        for (PenaltyBox& box : boxes_) box.elapse(tick.elapsed);
+    if (tick.reachedLimit) logEvent(EventType::PeriodEnd, now, std::nullopt, {});
+}
+
+void MatchEngine::enterPeriod(int index) {
+    periods_.setIndex(index);
+    counters_.setPeriod(periods_.index(), settings_.sport.periods);
+    clock_.configure(settings_.sport.direction, periods_.duration(),
+                     settings_.stoppage == StoppageMode::StopAtDuration);
+    const auto it = periodEndValues_.find(periods_.index());
+    if (it != periodEndValues_.end()) clock_.restore(it->second);
+}
+
+Tenths MatchEngine::elapsedIn(int index, Tenths clockValue) const {
+    if (settings_.sport.direction == Direction::Up) return clockValue;
+    return std::max<Tenths>(0, periods_.durationOf(index) - clockValue);
+}
+
+Tenths MatchEngine::playTime() const {
+    Tenths total = 0;
+    for (int i = 1; i < periods_.index(); ++i) {
+        const auto it = periodEndValues_.find(i);
+        if (it != periodEndValues_.end()) total += elapsedIn(i, it->second);
+    }
+    return total + elapsedIn(periods_.index(), clock_.value());
+}
+
+void MatchEngine::shiftPenalties(Tenths gameDelta) {
+    for (PenaltyBox& box : boxes_) {
+        if (gameDelta > 0)
+            box.elapse(gameDelta);
+        else
+            box.restore(-gameDelta);
+    }
+}
+
+void MatchEngine::logEvent(EventType type, Micros now, std::optional<Team> team,
+                           std::string detail) {
+    MatchEvent e;
+    e.type = type;
+    e.at = now;
+    e.playTime = playTime();
+    e.period = periods_.index();
+    e.periodLabel = periods_.label();
+    e.team = team;
+    e.homeScore = counters_.get(Team::Home, Stat::Score);
+    e.awayScore = counters_.get(Team::Away, Stat::Score);
+    e.detail = std::move(detail);
+    events_.add(std::move(e));
+}
+
+CommandResult MatchEngine::handle(const cmd::ClockToggle&, Micros now) {
+    return clock_.running() ? handle(cmd::ClockStop{}, now) : handle(cmd::ClockStart{}, now);
+}
+
+CommandResult MatchEngine::handle(const cmd::ClockStart&, Micros now) {
+    if (clock_.running()) return CommandResult::ok();
+    clock_.start(now);
+    if (!clock_.running()) return CommandResult::rejected("clock.atLimit");
+    if (startedPeriods_.insert(periods_.index()).second)
+        logEvent(EventType::PeriodStart, now, std::nullopt, {});
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::ClockStop&, Micros now) {
+    advance(now); // penalties must see the time that passed up to the stop
+    clock_.stop(now);
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::ClockReset&, Micros) {
+    if (clock_.running()) return CommandResult::rejected("clock.running");
+    clock_.resetToStart();
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::ClockAdjust& c, Micros now) {
+    advance(now);
+    const Tenths applied = clock_.adjust(c.delta, now);
+    // Moving a countdown up gives game time back; moving a count-up clock up adds game time.
+    shiftPenalties(settings_.sport.direction == Direction::Down ? -applied : applied);
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::ClockSet& c, Micros now) {
+    advance(now);
+    return handle(cmd::ClockAdjust{c.value - clock_.value()}, now);
+}
+
+CommandResult MatchEngine::changePeriod(int target, bool confirmed, Micros now) {
+    if (clock_.running()) return CommandResult::rejected("period.clockRunning");
+    if (!confirmed && !clock_.atStart() && !clock_.atLimit())
+        return CommandResult::confirm("period.midPeriod");
+    const int current = periods_.index();
+    if (startedPeriods_.count(current) != 0) {
+        const auto& ev = events_.events();
+        const auto last = std::find_if(ev.rbegin(), ev.rend(),
+                                       [&](const MatchEvent& e) { return e.period == current; });
+        if (last != ev.rend() && last->type != EventType::PeriodEnd)
+            logEvent(EventType::PeriodEnd, now, std::nullopt, {});
+    }
+    periodEndValues_[current] = clock_.value();
+    enterPeriod(target);
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::PeriodNext& c, Micros now) {
+    if (!clock_.running() && !periods_.hasNext()) return CommandResult::rejected("period.noNext");
+    return changePeriod(periods_.index() + 1, c.confirmed, now);
+}
+
+CommandResult MatchEngine::handle(const cmd::PeriodPrev& c, Micros now) {
+    if (!clock_.running() && !periods_.hasPrev()) return CommandResult::rejected("period.noPrev");
+    return changePeriod(periods_.index() - 1, c.confirmed, now);
+}
+
+CommandResult MatchEngine::handle(const cmd::AddStat& c, Micros now) {
+    const SportPreset& sp = settings_.sport;
+    const bool enabled = c.stat == Stat::Score || (c.stat == Stat::Shots && sp.shots) ||
+                         (c.stat == Stat::Fouls && sp.fouls) ||
+                         (c.stat == Stat::Fouls2 && sp.fouls2);
+    if (!enabled) return CommandResult::rejected("stat.disabled");
+    const int applied = counters_.add(c.team, c.stat, c.delta);
+    if (c.stat == Stat::Score && applied > 0) logEvent(EventType::Score, now, c.team, {});
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::SetTeamName& c, Micros) {
+    (c.team == Team::Home ? settings_.homeName : settings_.awayName) = c.name;
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::PenaltyAdd& c, Micros now) {
+    if (!settings_.sport.hasPenalties()) return CommandResult::rejected("penalty.disabled");
+    PenaltyBox& box = boxes_[teamIndex(c.team)];
+    if (box.full()) return CommandResult::rejected("penalty.full");
+    if (!box.add(nextPenaltyId_, c.player, c.phases))
+        return CommandResult::rejected("penalty.invalid");
+    ++nextPenaltyId_;
+    logEvent(EventType::Penalty, now, c.team, c.player);
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::PenaltyEdit& c, Micros) {
+    for (PenaltyBox& box : boxes_)
+        if (box.edit(c.id, c.remaining)) return CommandResult::ok();
+    return CommandResult::rejected("penalty.notFound");
+}
+
+CommandResult MatchEngine::handle(const cmd::PenaltyCancel& c, Micros) {
+    for (PenaltyBox& box : boxes_)
+        if (box.cancel(c.id)) return CommandResult::ok();
+    return CommandResult::rejected("penalty.notFound");
+}
+
+CommandResult MatchEngine::handle(const cmd::PenaltyCancelActive& c, Micros now) {
+    const auto active = boxes_[teamIndex(c.team)].active();
+    if (c.slot < 0 || static_cast<std::size_t>(c.slot) >= active.size())
+        return CommandResult::rejected("penalty.notFound");
+    return handle(cmd::PenaltyCancel{active[static_cast<std::size_t>(c.slot)]->id}, now);
+}
+
+CommandResult MatchEngine::handle(const cmd::StoppageSet& c, Micros) {
+    stoppageAnnounced_ = std::max(0, c.minutes);
+    return CommandResult::ok();
+}
+
+CommandResult MatchEngine::handle(const cmd::EndMatch&, Micros now) {
+    advance(now);
+    clock_.stop(now);
+    logEvent(EventType::MatchEnd, now, std::nullopt, {});
+    return CommandResult::ok();
+}
+
+int MatchEngine::strengthReduction(Team team) const {
+    switch (settings_.sport.strengthSource) {
+    case StrengthSource::Penalties:
+        return boxes_[teamIndex(team)].strengthReduction();
+    case StrengthSource::SecondFouls:
+        return counters_.get(team, Stat::Fouls2);
+    case StrengthSource::None:
+        break;
+    }
+    return 0;
+}
+
+FieldValues MatchEngine::fields() const {
+    FieldValues f;
+    const SportPreset& sp = settings_.sport;
+    const Tenths v = clock_.value();
+    const Tenths duration = clock_.duration();
+    const bool secondary = settings_.stoppage == StoppageMode::SecondaryCounter &&
+                           sp.direction == Direction::Up && duration > 0;
+    const Tenths shown = secondary ? std::min(v, duration) : v;
+
+    fieldAt(f, FieldId::Clock) =
+        formatClock(periods_.displayOffset() + shown, sp.direction, settings_.twoDigitMinutes,
+                    settings_.tenthsInLastMinute);
+    fieldAt(f, FieldId::Stoppage) =
+        secondary && v > duration ? formatStoppage(v - duration) : std::string();
+    fieldAt(f, FieldId::StoppageAnnounced) =
+        stoppageAnnounced_ > 0 ? "+" + std::to_string(stoppageAnnounced_) : std::string();
+    fieldAt(f, FieldId::Period) = periods_.label();
+    fieldAt(f, FieldId::HomeName) = settings_.homeName;
+    fieldAt(f, FieldId::AwayName) = settings_.awayName;
+
+    const auto count = [&](Team t, Stat s, bool enabled) {
+        return enabled ? std::to_string(counters_.get(t, s)) : std::string();
+    };
+    fieldAt(f, FieldId::HomeScore) = count(Team::Home, Stat::Score, true);
+    fieldAt(f, FieldId::AwayScore) = count(Team::Away, Stat::Score, true);
+    fieldAt(f, FieldId::HomeShots) = count(Team::Home, Stat::Shots, sp.shots);
+    fieldAt(f, FieldId::AwayShots) = count(Team::Away, Stat::Shots, sp.shots);
+    fieldAt(f, FieldId::HomeFouls) = count(Team::Home, Stat::Fouls, sp.fouls);
+    fieldAt(f, FieldId::AwayFouls) = count(Team::Away, Stat::Fouls, sp.fouls);
+    fieldAt(f, FieldId::HomeFouls2) = count(Team::Home, Stat::Fouls2, sp.fouls2);
+    fieldAt(f, FieldId::AwayFouls2) = count(Team::Away, Stat::Fouls2, sp.fouls2);
+
+    for (Team team : {Team::Home, Team::Away}) {
+        const auto base = static_cast<std::size_t>(
+            team == Team::Home ? FieldId::HomePenalty1Player : FieldId::AwayPenalty1Player);
+        const auto active = boxes_[teamIndex(team)].active();
+        for (std::size_t slot = 0; slot < active.size(); ++slot) {
+            const Penalty& p = *active[slot];
+            const std::string time = formatPenaltyTime(p.remaining);
+            const std::string phase2 = p.hasNextPhase()
+                                           ? "+" + formatPenaltyTime(p.phases[p.phase + 1].duration)
+                                           : std::string();
+            f[base + slot * 3] = p.player;
+            f[base + slot * 3 + 1] = time;
+            f[base + slot * 3 + 2] =
+                applyTemplate(settings_.penaltyLabelFormat,
+                              {{"player", p.player}, {"time", time}, {"phase2", phase2}});
+        }
+    }
+
+    if (sp.strengthSource != StrengthSource::None) {
+        const int home =
+            playersOnField(sp.playersPerSide, sp.minPlayers, strengthReduction(Team::Home));
+        const int away =
+            playersOnField(sp.playersPerSide, sp.minPlayers, strengthReduction(Team::Away));
+        fieldAt(f, FieldId::Strength) = formatStrength(home, away, settings_.strength);
+    }
+    fieldAt(f, FieldId::PlayTime) = formatDuration(playTime(), settings_.playTimeFormat);
+    return f;
+}
+
+MatchSnapshot MatchEngine::snapshot() const {
+    MatchSnapshot s;
+    s.settings = settings_;
+    s.period = periods_.index();
+    s.clockValue = clock_.value();
+    s.periodEndValues = periodEndValues_;
+    for (Team t : {Team::Home, Team::Away}) {
+        const std::size_t i = teamIndex(t);
+        s.score[i] = counters_.get(t, Stat::Score);
+        s.shots[i] = counters_.get(t, Stat::Shots);
+        s.fouls2[i] = counters_.get(t, Stat::Fouls2);
+        s.penalties[i] = boxes_[i].all();
+    }
+    s.fouls = counters_.foulBuckets();
+    s.nextPenaltyId = nextPenaltyId_;
+    s.stoppageAnnounced = stoppageAnnounced_;
+    s.startedPeriods = startedPeriods_;
+    s.events = events_.events();
+    return s;
+}
+
+MatchEngine MatchEngine::fromSnapshot(const MatchSnapshot& s) {
+    MatchEngine e(s.settings);
+    e.periodEndValues_ = s.periodEndValues;
+    e.startedPeriods_ = s.startedPeriods;
+    e.enterPeriod(s.period);
+    e.clock_.restore(s.clockValue);
+    e.counters_.restore(s.score, s.shots, s.fouls2, s.fouls);
+    for (std::size_t i = 0; i < 2; ++i) e.boxes_[i].restoreFrom(s.penalties[i]);
+    e.nextPenaltyId_ = s.nextPenaltyId;
+    e.stoppageAnnounced_ = std::max(0, s.stoppageAnnounced);
+    e.events_.restoreFrom(s.events);
+    return e;
+}
+
+} // namespace sb
