@@ -19,6 +19,7 @@ add_executable(
   test_clock.cpp
   test_format.cpp
   test_periods.cpp
+  test_counters.cpp
 )
 target_link_libraries(scoreboard-tests PRIVATE scoreboard-core)
 # doctest's fallback forward declaration of std::basic_ostream breaks when stringifying a
