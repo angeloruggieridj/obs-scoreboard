@@ -13,6 +13,7 @@ add_library(
   Fields.cpp
   EventLog.cpp
   MatchEngine.cpp
+  MatchJson.cpp
 )
 target_include_directories(scoreboard-core PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_include_directories(
