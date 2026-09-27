@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-add_library(scoreboard-core STATIC Types.cpp)
+add_library(scoreboard-core STATIC Types.cpp Clock.cpp)
 target_include_directories(scoreboard-core PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_include_directories(
   scoreboard-core
