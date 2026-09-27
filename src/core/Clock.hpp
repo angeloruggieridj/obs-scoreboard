@@ -18,6 +18,9 @@ public:
     // duration 0 means "no limit" (count-up only). stopAtLimit false lets a count-up clock run
     // past its duration (stoppage time); a countdown always stops at zero.
     void configure(Direction dir, Tenths duration, bool stopAtLimit);
+    // Resets the value to the start of the period (duration for a countdown, 0 for a count-up).
+    // Ignored while running: stop the clock first, otherwise the stale anchor would replay the
+    // whole elapsed time on the next advance().
     void resetToStart();
     // Sets the value directly, without the arrows' limits (resuming a saved match). Ignored while
     // running.

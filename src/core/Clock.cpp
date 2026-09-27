@@ -15,6 +15,7 @@ void Clock::configure(Direction dir, Tenths duration, bool stopAtLimit) {
 }
 
 void Clock::resetToStart() {
+    if (running_) return;
     value_ = dir_ == Direction::Down ? duration_ : 0;
     anchorValue_ = value_;
 }

@@ -173,3 +173,17 @@ TEST_CASE("reset and restore") {
     c.restore(minutes(9)); // ignored while running
     CHECK(c.value() == minutes(3));
 }
+
+TEST_CASE("reset while running is ignored, and works again once stopped") {
+    Clock c;
+    c.configure(Direction::Up, minutes(45), true);
+    c.start(0);
+    c.advance(sec(100));
+    c.resetToStart(); // ignored while running: value and anchor stay as they were
+    CHECK(c.value() == seconds(100));
+    c.advance(sec(101));
+    CHECK(c.value() == seconds(101));
+    c.stop(sec(101));
+    c.resetToStart(); // now applies
+    CHECK(c.value() == 0);
+}
