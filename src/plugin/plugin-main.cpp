@@ -27,7 +27,9 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
 
 } // namespace
 
-MODULE_EXPORT const char* obs_module_name(void) { return "ScoreBoard for OBS"; }
+MODULE_EXPORT const char* obs_module_name(void) {
+    return "ScoreBoard for OBS";
+}
 
 MODULE_EXPORT const char* obs_module_description(void) {
     return obs_module_text("Plugin.Description");

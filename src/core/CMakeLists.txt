@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-add_library(scoreboard-core STATIC
-  Types.cpp
-)
-target_include_directories(scoreboard-core
+add_library(scoreboard-core STATIC Types.cpp)
+target_include_directories(
+  scoreboard-core
   PUBLIC "${CMAKE_CURRENT_LIST_DIR}"
   PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../third_party"
 )
 target_compile_features(scoreboard-core PUBLIC cxx_std_17)
-set_target_properties(scoreboard-core PROPERTIES
-  CXX_EXTENSIONS OFF
-  # Linked into the plugin's shared module: position-independent on Linux.
-  POSITION_INDEPENDENT_CODE ON
+set_target_properties(
+  scoreboard-core
+  PROPERTIES
+    CXX_EXTENSIONS OFF
+    # Linked into the plugin's shared module: position-independent on Linux.
+    POSITION_INDEPENDENT_CODE ON
 )
 
 option(SB_WARNINGS_AS_ERRORS "Treat warnings in the core as errors" OFF)

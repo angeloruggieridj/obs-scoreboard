@@ -66,10 +66,10 @@ function(_setup_obs_studio)
   execute_process(
     COMMAND
       "${CMAKE_COMMAND}" -S "${dependencies_dir}/${_obs_destination}" -B
-      "${dependencies_dir}/${_obs_destination}/build_${arch}" -G ${_cmake_generator} "${_cmake_arch}"
-      -DOBS_CMAKE_VERSION:STRING=3.0.0 -DENABLE_PLUGINS:BOOL=OFF -DENABLE_FRONTEND:BOOL=OFF
-      -DOBS_VERSION_OVERRIDE:STRING=${_obs_version} "-DCMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'" ${_is_fresh}
-      ${_cmake_extra}
+      "${dependencies_dir}/${_obs_destination}/build_${arch}" -G ${_cmake_generator}
+      "${_cmake_arch}" -DOBS_CMAKE_VERSION:STRING=3.0.0 -DENABLE_PLUGINS:BOOL=OFF
+      -DENABLE_FRONTEND:BOOL=OFF -DOBS_VERSION_OVERRIDE:STRING=${_obs_version}
+      "-DCMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'" ${_is_fresh} ${_cmake_extra}
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
     OUTPUT_QUIET
@@ -78,7 +78,8 @@ function(_setup_obs_studio)
 
   message(STATUS "Build ${label} (Debug - ${arch})")
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config Debug --parallel
+    COMMAND
+      "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config Debug --parallel
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
@@ -88,7 +89,8 @@ function(_setup_obs_studio)
 
   message(STATUS "Build ${label} (Release - ${arch})")
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config Release --parallel
+    COMMAND
+      "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config Release --parallel
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
@@ -99,7 +101,8 @@ function(_setup_obs_studio)
   message(STATUS "Install ${label} (${arch})")
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Debug --prefix "${dependencies_dir}"
+      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Debug --prefix
+      "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
@@ -107,7 +110,8 @@ function(_setup_obs_studio)
   )
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Release --prefix "${dependencies_dir}"
+      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Release --prefix
+      "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
@@ -201,7 +205,10 @@ function(_check_dependencies)
       endforeach()
 
       if(error_code GREATER 0)
-        message(FATAL_ERROR "Unable to download ${url} after 3 attempts, last error: ${error_message}")
+        message(
+          FATAL_ERROR
+          "Unable to download ${url} after 3 attempts, last error: ${error_message}"
+        )
       endif()
     endif()
 
@@ -214,7 +221,11 @@ function(_check_dependencies)
       if(dependency STREQUAL obs-studio)
         file(ARCHIVE_EXTRACT INPUT "${dependencies_dir}/${file}" DESTINATION "${dependencies_dir}")
       else()
-        file(ARCHIVE_EXTRACT INPUT "${dependencies_dir}/${file}" DESTINATION "${dependencies_dir}/${destination}")
+        file(
+          ARCHIVE_EXTRACT
+          INPUT "${dependencies_dir}/${file}"
+          DESTINATION "${dependencies_dir}/${destination}"
+        )
       endif()
     endif()
 

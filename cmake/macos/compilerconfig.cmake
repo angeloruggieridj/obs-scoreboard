@@ -39,7 +39,11 @@ function(check_sdk_requirements)
       "The macOS ${obs_macos_minimum_sdk} SDK (Xcode ${obs_macos_minimum_xcode}) is required to build OBS."
     )
   endif()
-  execute_process(COMMAND xcrun --find xcodebuild OUTPUT_VARIABLE obs_macos_xcodebuild RESULT_VARIABLE result)
+  execute_process(
+    COMMAND xcrun --find xcodebuild
+    OUTPUT_VARIABLE obs_macos_xcodebuild
+    RESULT_VARIABLE result
+  )
   if(NOT result EQUAL 0)
     message(
       FATAL_ERROR

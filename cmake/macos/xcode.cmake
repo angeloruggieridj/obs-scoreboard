@@ -6,11 +6,19 @@ set(CMAKE_XCODE_GENERATE_SCHEME TRUE)
 
 # Use a compiler wrapper to enable ccache in Xcode projects
 if(ENABLE_CCACHE AND CCACHE_PROGRAM)
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/resources/ccache-launcher-c.in" ccache-launcher-c)
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/resources/ccache-launcher-cxx.in" ccache-launcher-cxx)
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/resources/ccache-launcher-c.in"
+    ccache-launcher-c
+  )
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/resources/ccache-launcher-cxx.in"
+    ccache-launcher-cxx
+  )
 
   execute_process(
-    COMMAND chmod a+rx "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-c" "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-cxx"
+    COMMAND
+      chmod a+rx "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-c"
+      "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-cxx"
   )
   set(CMAKE_XCODE_ATTRIBUTE_CC "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-c")
   set(CMAKE_XCODE_ATTRIBUTE_CXX "${CMAKE_CURRENT_BINARY_DIR}/ccache-launcher-cxx")

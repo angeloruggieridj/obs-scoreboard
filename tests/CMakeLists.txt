@@ -12,10 +12,7 @@ endif()
 
 enable_testing()
 
-add_executable(scoreboard-tests
-  test_main.cpp
-  test_types.cpp
-)
+add_executable(scoreboard-tests test_main.cpp test_types.cpp)
 target_link_libraries(scoreboard-tests PRIVATE scoreboard-core)
 # doctest's fallback forward declaration of std::basic_ostream breaks when stringifying a
 # string_view under the VS 2026 MSVC STL, which defines that operator<< inline: force doctest to

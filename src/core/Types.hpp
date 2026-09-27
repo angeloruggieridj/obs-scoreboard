@@ -20,8 +20,12 @@ constexpr Micros kMicrosPerTenth = 100000;
 // Number of overtime periods with no upper bound (basketball, sudden-death sports).
 constexpr int kUnlimited = -1;
 
-constexpr Tenths seconds(std::int64_t s) { return s * kTenthsPerSecond; }
-constexpr Tenths minutes(std::int64_t m) { return m * kTenthsPerMinute; }
+constexpr Tenths seconds(std::int64_t s) {
+    return s * kTenthsPerSecond;
+}
+constexpr Tenths minutes(std::int64_t m) {
+    return m * kTenthsPerMinute;
+}
 
 enum class Team { Home, Away };
 enum class Direction { Up, Down };
@@ -32,7 +36,9 @@ enum class FoulReset { Never, EachRegulationPeriod };
 enum class StrengthSource { None, Penalties, SecondFouls };
 enum class TimeFormat { MinutesSeconds, HoursMinutesSeconds };
 
-constexpr std::size_t teamIndex(Team t) { return t == Team::Home ? 0 : 1; }
+constexpr std::size_t teamIndex(Team t) {
+    return t == Team::Home ? 0 : 1;
+}
 std::string_view teamKey(Team t);
 std::optional<Team> teamFromKey(std::string_view key);
 

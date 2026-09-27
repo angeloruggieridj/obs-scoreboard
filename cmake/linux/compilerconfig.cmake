@@ -70,9 +70,18 @@ endif()
 
 # Enable compiler and build tracing (requires Ninja generator)
 if(ENABLE_COMPILER_TRACE AND CMAKE_GENERATOR STREQUAL "Ninja")
-  add_compile_options($<$<COMPILE_LANG_AND_ID:C,Clang>:-ftime-trace> $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-ftime-trace>)
+  add_compile_options(
+    $<$<COMPILE_LANG_AND_ID:C,Clang>:-ftime-trace>
+    $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-ftime-trace>
+  )
 else()
-  set(ENABLE_COMPILER_TRACE OFF CACHE STRING "Enable Clang time-trace (required Clang and Ninja)" FORCE)
+  set(
+    ENABLE_COMPILER_TRACE
+    OFF
+    CACHE STRING
+    "Enable Clang time-trace (required Clang and Ninja)"
+    FORCE
+  )
 endif()
 
 add_compile_definitions($<$<CONFIG:DEBUG>:DEBUG> $<$<CONFIG:DEBUG>:_DEBUG> SIMDE_ENABLE_OPENMP)

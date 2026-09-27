@@ -22,7 +22,11 @@ function(set_target_properties_plugin target)
 
   set_target_properties(${target} PROPERTIES VERSION 0 SOVERSION ${PLUGIN_VERSION})
 
-  install(TARGETS ${target} RUNTIME DESTINATION "${target}/bin/64bit" LIBRARY DESTINATION "${target}/bin/64bit")
+  install(
+    TARGETS ${target}
+    RUNTIME DESTINATION "${target}/bin/64bit"
+    LIBRARY DESTINATION "${target}/bin/64bit"
+  )
 
   install(
     FILES "$<TARGET_PDB_FILE:${target}>"
@@ -54,8 +58,14 @@ function(set_target_properties_plugin target)
   list(FILTER target_ui_files INCLUDE REGEX ".+\\.(ui|qrc)")
   source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "UI Files" FILES ${target_ui_files})
 
-  configure_file(cmake/windows/resources/resource.rc.in "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.rc")
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.rc")
+  configure_file(
+    cmake/windows/resources/resource.rc.in
+    "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.rc"
+  )
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.rc"
+  )
 endfunction()
 
 # Helper function to add resources into bundle
@@ -75,12 +85,18 @@ function(target_install_resources target)
       source_group("Resources/${relative_path}" FILES "${data_file}")
     endforeach()
 
-    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/" DESTINATION "${target}/data" USE_SOURCE_PERMISSIONS)
+    install(
+      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/"
+      DESTINATION "${target}/data"
+      USE_SOURCE_PERMISSIONS
+    )
 
     add_custom_command(
       TARGET ${target}
       POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
+      COMMAND
+        "${CMAKE_COMMAND}" -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
       COMMAND
         "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/data"
         "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
@@ -92,15 +108,21 @@ endfunction()
 
 # Helper function to add a specific resource to a bundle
 function(target_add_resource target resource)
-  message(DEBUG "Add resource '${resource}' to target ${target} at destination '${target_destination}'...")
+  message(
+    DEBUG
+    "Add resource '${resource}' to target ${target} at destination '${target_destination}'..."
+  )
 
   install(FILES "${resource}" DESTINATION "${target}/data" COMPONENT Runtime)
 
   add_custom_command(
     TARGET ${target}
     POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
-    COMMAND "${CMAKE_COMMAND}" -E copy "${resource}" "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
+    COMMAND
+      "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy "${resource}"
+      "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
     COMMENT "Copy ${target} resource ${resource} to rundir"
     VERBATIM
   )

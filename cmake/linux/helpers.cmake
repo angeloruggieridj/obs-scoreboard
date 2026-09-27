@@ -38,7 +38,8 @@ function(set_target_properties_plugin target)
     POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>"
     COMMAND
-      "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${target}>" "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>"
+      "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${target}>"
+      "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>"
     COMMENT "Copy ${target} to rundir"
     VERBATIM
   )
@@ -77,7 +78,9 @@ function(target_install_resources target)
     add_custom_command(
       TARGET ${target}
       POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
+      COMMAND
+        "${CMAKE_COMMAND}" -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
       COMMAND
         "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/data"
         "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
@@ -89,15 +92,21 @@ endfunction()
 
 # Helper function to add a specific resource to a bundle
 function(target_add_resource target resource)
-  message(DEBUG "Add resource '${resource}' to target ${target} at destination '${target_destination}'...")
+  message(
+    DEBUG
+    "Add resource '${resource}' to target ${target} at destination '${target_destination}'..."
+  )
 
   install(FILES "${resource}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${target})
 
   add_custom_command(
     TARGET ${target}
     POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
-    COMMAND "${CMAKE_COMMAND}" -E copy "${resource}" "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
+    COMMAND
+      "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
+    COMMAND
+      "${CMAKE_COMMAND}" -E copy "${resource}"
+      "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${target}"
     COMMENT "Copy ${target} resource ${resource} to rundir"
     VERBATIM
   )

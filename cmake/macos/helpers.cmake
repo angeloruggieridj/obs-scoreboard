@@ -38,7 +38,9 @@ function(set_target_properties_plugin target)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements.plist")
     set_target_properties(
       ${target}
-      PROPERTIES XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements.plist"
+      PROPERTIES
+        XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
+          "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/entitlements.plist"
     )
   endif()
 
@@ -67,8 +69,16 @@ function(set_target_properties_plugin target)
   install(TARGETS ${target} LIBRARY DESTINATION .)
   install(FILES "$<TARGET_BUNDLE_DIR:${target}>.dsym" CONFIGURATIONS Release DESTINATION . OPTIONAL)
 
-  configure_file(cmake/macos/resources/distribution.in "${CMAKE_CURRENT_BINARY_DIR}/distribution" @ONLY)
-  configure_file(cmake/macos/resources/create-package.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/create-package.cmake" @ONLY)
+  configure_file(
+    cmake/macos/resources/distribution.in
+    "${CMAKE_CURRENT_BINARY_DIR}/distribution"
+    @ONLY
+  )
+  configure_file(
+    cmake/macos/resources/create-package.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/create-package.cmake"
+    @ONLY
+  )
   install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/create-package.cmake")
 endfunction()
 
@@ -86,7 +96,10 @@ function(target_install_resources target)
       )
       cmake_path(GET relative_path PARENT_PATH relative_path)
       target_sources(${target} PRIVATE "${data_file}")
-      set_property(SOURCE "${data_file}" PROPERTY MACOSX_PACKAGE_LOCATION "Resources/${relative_path}")
+      set_property(
+        SOURCE "${data_file}"
+        PROPERTY MACOSX_PACKAGE_LOCATION "Resources/${relative_path}"
+      )
       source_group("Resources/${relative_path}" FILES "${data_file}")
     endforeach()
   endif()
