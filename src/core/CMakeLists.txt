@@ -8,6 +8,7 @@ add_library(
   Periods.cpp
   Counters.cpp
   PenaltyBox.cpp
+  Strength.cpp
 )
 target_include_directories(scoreboard-core PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_include_directories(
