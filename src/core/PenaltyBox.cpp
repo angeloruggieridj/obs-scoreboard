@@ -78,23 +78,45 @@ std::vector<std::size_t> PenaltyBox::runningIndices() const {
     return out;
 }
 
+void PenaltyBox::pushStep(Tenths amount, std::vector<PenaltyId> runningIds,
+                          std::vector<EndingRecord> endings) {
+    if (!log_.empty() && log_.back().endings.empty() && log_.back().runningIds == runningIds) {
+        log_.back().amount += amount;
+        log_.back().endings = std::move(endings);
+        return;
+    }
+    StepEntry entry;
+    entry.amount = amount;
+    entry.runningIds = std::move(runningIds);
+    entry.endings = std::move(endings);
+    log_.push_back(std::move(entry));
+}
+
 void PenaltyBox::elapse(Tenths t) {
-    while (t > 0 && !list_.empty()) {
-        const std::vector<std::size_t> runningIdx = runningIndices();
-        if (runningIdx.empty()) break; // nothing can run; nothing more can happen
+    while (t > 0) {
+        const std::vector<std::size_t> runningIdx =
+            list_.empty() ? std::vector<std::size_t>{} : runningIndices();
+        if (runningIdx.empty()) {
+            // Nothing can run (the box is empty, or -- defensively -- has nothing eligible): the
+            // rest of this call is idle time, logged so restore() cannot mistake it for the run
+            // that led up to it.
+            pushStep(t, {}, {});
+            t = 0;
+            break;
+        }
 
         Tenths step = t;
         for (std::size_t idx : runningIdx) step = std::min(step, list_[idx].remaining);
         for (std::size_t idx : runningIdx) list_[idx].remaining -= step;
         t -= step;
 
-        StepEntry entry;
-        entry.amount = step;
-        entry.runningIds.reserve(runningIdx.size());
-        for (std::size_t idx : runningIdx) entry.runningIds.push_back(list_[idx].id);
+        std::vector<PenaltyId> runningIds;
+        runningIds.reserve(runningIdx.size());
+        for (std::size_t idx : runningIdx) runningIds.push_back(list_[idx].id);
 
         // Descending index order: erasing a removed penalty shifts later indices, never earlier
         // ones still to be checked.
+        std::vector<EndingRecord> endings;
         for (auto it = runningIdx.rbegin(); it != runningIdx.rend(); ++it) {
             const std::size_t idx = *it;
             if (list_[idx].remaining > 0) continue;
@@ -109,9 +131,9 @@ void PenaltyBox::elapse(Tenths t) {
                 rec.snapshot = list_[idx];
                 endPhase(idx);
             }
-            entry.endings.push_back(std::move(rec));
+            endings.push_back(std::move(rec));
         }
-        log_.push_back(std::move(entry));
+        pushStep(step, std::move(runningIds), std::move(endings));
     }
 }
 

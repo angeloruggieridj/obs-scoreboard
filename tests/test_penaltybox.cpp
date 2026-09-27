@@ -237,3 +237,39 @@ TEST_CASE("elapse(x); restore(y) matches a fresh box that only elapsed x - y (F1
     REQUIRE(reference.find(3) != nullptr);
     CHECK(box.find(3)->remaining == reference.find(3)->remaining);
 }
+
+TEST_CASE("time passing while the box is empty is logged too, so restore cannot resurrect an "
+          "already-expired penalty") {
+    PenaltyBox box;
+    box.add(1, "A", minorPenalty()); // 2:00
+    // 0.1 s ticks, as the game clock advances: 1250 tenths = 2:05, i.e. 5 s past expiry.
+    for (int i = 0; i < 1250; ++i) box.elapse(1);
+    CHECK(box.find(1) == nullptr);
+
+    box.restore(seconds(1));
+    CHECK(box.find(1) == nullptr); // stays gone: the last second was idle, not part of A's run
+}
+
+TEST_CASE("restore can cross back over an expiry buried in idle time") {
+    PenaltyBox box;
+    box.add(1, "A", minorPenalty());     // 2:00
+    box.elapse(minutes(2) + seconds(5)); // expired 5 s ago
+    REQUIRE(box.find(1) == nullptr);
+
+    box.restore(seconds(7)); // 5 s of idle time, then 2 s into A's run
+    REQUIRE(box.find(1) != nullptr);
+    CHECK(box.find(1)->remaining == seconds(2));
+}
+
+TEST_CASE("the undo log stays compact across many elapse calls with no transitions, and "
+          "round-trips exactly") {
+    PenaltyBox box;
+    box.add(1, "A", {{minutes(20000), true}}); // long enough that this never expires it
+    for (int i = 0; i < 10000; ++i) box.elapse(seconds(1));
+    CHECK(box.undoDepth() == 1); // merged into a single running step, not 10000
+    CHECK(box.find(1)->remaining == minutes(20000) - seconds(10000));
+
+    box.restore(seconds(10000));
+    CHECK(box.find(1)->remaining == minutes(20000));
+    CHECK(box.undoDepth() == 0);
+}

@@ -38,14 +38,19 @@ struct Penalty {
 //
 // elapse()/restore() undo log: elapse() advances an internal monotonic amount of game time and
 // may trigger automatic transitions (a phase ending -> the next phase or removal starts; a
-// queued penalty being promoted to running as a slot frees up). Every such step is pushed onto an
+// queued penalty being promoted to running as a slot frees up). Every such step -- including
+// idle time while the box has nothing running, e.g. because it is empty -- is pushed onto an
 // in-memory undo log. restore() pops that log in reverse, so that for any x >= y >= 0,
-// `elapse(x); restore(y);` leaves the box in exactly the state of a fresh `elapse(x - y)`. Once
-// restore() has unwound the whole log, any further time is given back by simply topping up
-// currently running penalties (capped at their phase duration) -- the same fallback used when
-// nothing was ever elapsed. Any manual edit (add, edit, cancel, restoreFrom) clears the log: it
-// only undoes automatic transitions since the last manual change. The log is pure runtime state,
-// never serialized.
+// `elapse(x); restore(y);` leaves the box in exactly the state of a fresh `elapse(x - y)`, even
+// when part of x or y falls in idle time after the last penalty expired: idle time is consumed
+// by restore() like any other step, it just has no penalty to give it back to. Once restore()
+// has unwound the whole log, any further time is given back by simply topping up currently
+// running penalties (capped at their phase duration) -- the same fallback used when nothing was
+// ever elapsed. Consecutive steps that ran the exact same set of penalties with no transition in
+// between are merged into one entry, so the log grows only with transitions (and with entering
+// or leaving idle time), not with every elapse() call. Any manual edit (add, edit, cancel,
+// restoreFrom) clears the log: it only undoes automatic transitions since the last manual change.
+// The log is pure runtime state, never serialized.
 class PenaltyBox {
 public:
     static constexpr std::size_t kMaxPenalties = 8;
@@ -74,6 +79,8 @@ public:
     // Number of running phases that reduce strength (0..kMaxActive).
     int strengthReduction() const;
     bool full() const { return list_.size() >= kMaxPenalties; }
+    // Diagnostic only, for tests: number of entries currently in the undo log.
+    std::size_t undoDepth() const { return log_.size(); }
     void restoreFrom(std::vector<Penalty> list) {
         list_ = std::move(list);
         log_.clear();
@@ -104,6 +111,12 @@ private:
     // Reverses a step's endings in place, in reverse recording order (so re-inserting a removed
     // penalty always lands back at its original index).
     void reverseEndings(std::vector<EndingRecord>& endings);
+    // Appends a step to the log, merging it into the last entry when that entry had no endings
+    // (nothing changed at its end) and covered the exact same running ids: this is what keeps the
+    // log at one entry per transition instead of one per elapse() call, and lets idle time (an
+    // empty running id set, running or not) accumulate into a single entry too.
+    void pushStep(Tenths amount, std::vector<PenaltyId> runningIds,
+                  std::vector<EndingRecord> endings);
 
     std::vector<Penalty> list_;
     std::vector<StepEntry> log_;
