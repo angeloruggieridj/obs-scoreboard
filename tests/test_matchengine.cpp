@@ -2,6 +2,9 @@
 #include "doctest/doctest.h"
 #include "MatchEngine.hpp"
 
+#include <algorithm>
+#include <limits>
+
 using namespace sb;
 
 namespace {
@@ -246,4 +249,190 @@ TEST_CASE("snapshot and fromSnapshot give back the same match, clock stopped") {
     CHECK(back.events().events().size() == e.events().events().size());
     run(back, cmd::PenaltyAdd{Team::Home, "4", {{minutes(2), true}}});
     CHECK(back.penalties(Team::Home).all().back().id == snap.nextPenaltyId);
+}
+
+// --- Fix round 1 -------------------------------------------------------------------------
+
+TEST_CASE("a goal at the buzzer does not duplicate the period's PeriodEnd") {
+    MatchEngine e = engineFor("futsal");
+    run(e, cmd::ClockStart{});
+    e.advance(sec(1200)); // hits 0:00: PeriodEnd logged automatically
+    run(e, cmd::AddStat{Team::Home, Stat::Score, 1}, sec(1200)); // goal right at the buzzer
+    CHECK(run(e, cmd::PeriodNext{}, sec(1200)).isOk());
+    const auto& events = e.events().events();
+    const auto ends = std::count_if(events.begin(), events.end(), [](const MatchEvent& ev) {
+        return ev.type == EventType::PeriodEnd && ev.period == 1;
+    });
+    CHECK(ends == 1);
+}
+
+TEST_CASE("resetting and rerunning an ended period logs the end only once") {
+    MatchEngine e = engineFor("futsal");
+    run(e, cmd::ClockStart{});
+    e.advance(sec(1200)); // reaches 0:00: PeriodEnd logged
+    CHECK_FALSE(e.clock().running());
+    run(e, cmd::ClockReset{}, sec(1200));
+    CHECK(field(e, FieldId::Clock) == "20:00");
+    run(e, cmd::ClockStart{}, sec(1300));
+    e.advance(sec(1300) + sec(1200)); // runs down to 0:00 again
+    const auto& events = e.events().events();
+    const auto ends = std::count_if(events.begin(), events.end(), [](const MatchEvent& ev) {
+        return ev.type == EventType::PeriodEnd && ev.period == 1;
+    });
+    CHECK(ends == 1);
+}
+
+TEST_CASE("the announced stoppage time is cleared when the period changes") {
+    MatchEngine e = engineFor("soccer");
+    run(e, cmd::ClockSet{minutes(45)});
+    run(e, cmd::StoppageSet{3});
+    CHECK(field(e, FieldId::StoppageAnnounced) == "+3");
+    CHECK(run(e, cmd::PeriodNext{}, sec(0)).isOk()); // at the duration limit: no confirmation
+    CHECK(field(e, FieldId::StoppageAnnounced) == "");
+}
+
+TEST_CASE("an arrow that drives a running countdown to zero ends the period") {
+    MatchEngine e = engineFor("futsal");
+    run(e, cmd::ClockStart{});
+    e.advance(sec(1));                              // 19:59
+    run(e, cmd::ClockAdjust{-minutes(20)}, sec(1)); // pulls it straight down to 0:00 while running
+    CHECK(field(e, FieldId::Clock) == "00:00");
+    CHECK_FALSE(e.clock().running());
+    const auto& events = e.events().events();
+    REQUIRE_FALSE(events.empty());
+    CHECK(events.back().type == EventType::PeriodEnd);
+}
+
+TEST_CASE("ClockReset restarts the period clock without touching penalties") {
+    MatchEngine e = engineFor("ice_hockey");
+    run(e, cmd::PenaltyAdd{Team::Home, "9", {{minutes(2), true}}});
+    run(e, cmd::ClockStart{});
+    e.advance(sec(30));
+    CHECK(field(e, FieldId::HomePenalty1Time) == "1:30");
+    run(e, cmd::ClockStop{}, sec(30));
+    run(e, cmd::ClockReset{}, sec(30));
+    CHECK(field(e, FieldId::Clock) == "20:00");           // period clock back to its start
+    CHECK(field(e, FieldId::HomePenalty1Time) == "1:30"); // penalty untouched by the reset
+}
+
+TEST_CASE("ClockSet moves penalties like the arrows do") {
+    MatchEngine e = engineFor("ice_hockey");
+    run(e, cmd::PenaltyAdd{Team::Home, "9", {{minutes(2), true}}});
+    CHECK(field(e, FieldId::HomePenalty1Time) == "2:00");
+    run(e, cmd::ClockSet{minutes(19)}); // countdown pulled down by 1 minute while stopped
+    CHECK(field(e, FieldId::Clock) == "19:00");
+    CHECK(field(e, FieldId::HomePenalty1Time) == "1:00"); // the penalty followed the clock
+}
+
+TEST_CASE("ClockSet works on a countdown and clamps to its bounds") {
+    MatchEngine e = engineFor("futsal");              // 20:00 countdown
+    CHECK(run(e, cmd::ClockSet{minutes(25)}).isOk()); // above the period duration: clamped
+    CHECK(field(e, FieldId::Clock) == "20:00");
+    CHECK(run(e, cmd::ClockSet{minutes(5)}).isOk());
+    CHECK(field(e, FieldId::Clock) == "05:00");
+    CHECK(run(e, cmd::ClockSet{0}).isOk());
+    CHECK(field(e, FieldId::Clock) == "00:00");
+}
+
+TEST_CASE("EndMatch is idempotent") {
+    MatchEngine e = engineFor("rugby_union");
+    run(e, cmd::ClockStart{});
+    CHECK(run(e, cmd::EndMatch{}, sec(3)).isOk());
+    const CommandResult r = run(e, cmd::EndMatch{}, sec(5));
+    CHECK(r.status == CommandResult::Status::Rejected);
+    CHECK(r.reason == "match.ended");
+    const auto& events = e.events().events();
+    const auto ends = std::count_if(events.begin(), events.end(), [](const MatchEvent& ev) {
+        return ev.type == EventType::MatchEnd;
+    });
+    CHECK(ends == 1);
+}
+
+TEST_CASE("AddStat saturates extreme deltas instead of overflowing") {
+    MatchEngine e = engineFor("rugby_union");
+    CHECK(run(e, cmd::AddStat{Team::Home, Stat::Score, std::numeric_limits<int>::max()}).isOk());
+    CHECK(field(e, FieldId::HomeScore) == std::to_string(std::numeric_limits<int>::max()));
+    CHECK(run(e, cmd::AddStat{Team::Home, Stat::Score, std::numeric_limits<int>::max()}).isOk());
+    CHECK(field(e, FieldId::HomeScore) == std::to_string(std::numeric_limits<int>::max()));
+    CHECK(run(e, cmd::AddStat{Team::Home, Stat::Score, std::numeric_limits<int>::min()}).isOk());
+    CHECK(field(e, FieldId::HomeScore) == "0");
+}
+
+TEST_CASE("penalty fields cover both slots and the away side") {
+    MatchEngine e = engineFor("ice_hockey");
+    run(e, cmd::PenaltyAdd{Team::Home, "5", {{minutes(2), true}}});
+    run(e, cmd::PenaltyAdd{Team::Home, "8", {{minutes(5), true}}});
+    run(e, cmd::PenaltyAdd{Team::Away, "17", {{minutes(2), true}}});
+    CHECK(field(e, FieldId::HomePenalty1Player) == "5");
+    CHECK(field(e, FieldId::HomePenalty1Time) == "2:00");
+    CHECK(field(e, FieldId::HomePenalty2Player) == "8");
+    CHECK(field(e, FieldId::HomePenalty2Time) == "5:00");
+    CHECK(field(e, FieldId::HomePenalty2Label) == "8 5:00");
+    CHECK(field(e, FieldId::AwayPenalty1Player) == "17");
+    CHECK(field(e, FieldId::AwayPenalty1Time) == "2:00");
+    CHECK(field(e, FieldId::AwayPenalty1Label) == "17 2:00");
+    CHECK(field(e, FieldId::AwayPenalty2Player) == "");
+}
+
+TEST_CASE("a misconduct runs alongside two running minors without taking a slot") {
+    MatchEngine e = engineFor("ice_hockey");
+    run(e, cmd::PenaltyAdd{Team::Home, "5", {{minutes(2), true}}});
+    run(e, cmd::PenaltyAdd{Team::Home, "8", {{minutes(2), true}}});
+    run(e, cmd::PenaltyAdd{Team::Home, "12", {{minutes(10), false}}}); // misconduct: doesn't reduce
+    CHECK(field(e, FieldId::Strength) == "3-5"); // the two minors reduce; the misconduct does not
+    CHECK(field(e, FieldId::HomePenalty1Player) == "5");
+    CHECK(field(e, FieldId::HomePenalty2Player) == "8");
+}
+
+TEST_CASE("PenaltyCancelActive can target a non-reducing penalty holding the second slot") {
+    MatchEngine e = engineFor("ice_hockey");
+    run(e, cmd::PenaltyAdd{Team::Home, "5", {{minutes(2), true}}});
+    run(e, cmd::PenaltyAdd{Team::Home, "12", {{minutes(10), false}}});
+    CHECK(field(e, FieldId::HomePenalty2Player) == "12");
+    const PenaltyId misconduct = e.penalties(Team::Home).all()[1].id;
+    CHECK(run(e, cmd::PenaltyCancelActive{Team::Home, 1}).isOk());
+    CHECK(e.penalties(Team::Home).find(misconduct) == nullptr);
+    CHECK(field(e, FieldId::HomePenalty2Player) == "");
+}
+
+TEST_CASE("soccer can be configured to stop at duration instead of the secondary counter") {
+    MatchSettings s = MatchSettings::forSport(*findSport("soccer"));
+    s.stoppage = StoppageMode::StopAtDuration;
+    MatchEngine e(s);
+    run(e, cmd::ClockSet{minutes(44) + seconds(50)});
+    run(e, cmd::ClockStart{});
+    e.advance(sec(40));
+    CHECK(field(e, FieldId::Clock) == "45:00");
+    CHECK_FALSE(e.clock().running());
+    CHECK(field(e, FieldId::Stoppage) == "");
+}
+
+TEST_CASE("engine-level snapshot round trip preserves foul buckets, started periods and period "
+          "end values") {
+    MatchEngine e = engineFor("futsal");
+    run(e, cmd::AddStat{Team::Home, Stat::Fouls, 3});
+    run(e, cmd::ClockStart{});
+    e.advance(sec(500));
+    run(e, cmd::ClockStop{}, sec(500));
+    CHECK(run(e, cmd::PeriodNext{true}, sec(500)).isOk());
+    run(e, cmd::AddStat{Team::Home, Stat::Fouls, 1});
+
+    const MatchSnapshot snap = e.snapshot();
+    MatchEngine back = MatchEngine::fromSnapshot(snap);
+
+    CHECK(back.counters().foulBuckets() == e.counters().foulBuckets());
+    CHECK(field(back, FieldId::HomeFouls) == "1"); // current (2nd) half's bucket
+
+    const auto countStarts = [](const MatchEngine& eng) {
+        const auto& ev = eng.events().events();
+        return std::count_if(ev.begin(), ev.end(),
+                             [](const MatchEvent& e) { return e.type == EventType::PeriodStart; });
+    };
+    const auto startsBefore = countStarts(back);
+    CHECK(run(back, cmd::PeriodPrev{}).isOk());
+    CHECK(field(back, FieldId::HomeFouls) == "3"); // 1st half's bucket, via periodEndValues_
+    CHECK(field(back, FieldId::Clock) == "11:40"); // 1st half resumes where it was left
+    CHECK(run(back, cmd::ClockStart{}).isOk());
+    // period 1 was already started before the snapshot: restarting it logs no new PeriodStart.
+    CHECK(countStarts(back) == startsBefore);
 }

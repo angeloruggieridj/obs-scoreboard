@@ -2,6 +2,7 @@
 #include "MatchEngine.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 #include "Format.hpp"
@@ -31,7 +32,8 @@ void MatchEngine::advance(Micros now) {
     const Clock::Tick tick = clock_.advance(now);
     if (tick.elapsed > 0)
         for (PenaltyBox& box : boxes_) box.elapse(tick.elapsed);
-    if (tick.reachedLimit) logEvent(EventType::PeriodEnd, now, std::nullopt, {});
+    if (tick.reachedLimit && !periodEnded(periods_.index()))
+        logEvent(EventType::PeriodEnd, now, std::nullopt, {});
 }
 
 void MatchEngine::enterPeriod(int index) {
@@ -39,8 +41,23 @@ void MatchEngine::enterPeriod(int index) {
     counters_.setPeriod(periods_.index(), settings_.sport.periods);
     clock_.configure(settings_.sport.direction, periods_.duration(),
                      settings_.stoppage == StoppageMode::StopAtDuration);
+    // A stoppage announcement only makes sense for the period it was made in.
+    stoppageAnnounced_ = 0;
     const auto it = periodEndValues_.find(periods_.index());
     if (it != periodEndValues_.end()) clock_.restore(it->second);
+}
+
+bool MatchEngine::periodEnded(int period) const {
+    const auto& ev = events_.events();
+    return std::any_of(ev.begin(), ev.end(), [period](const MatchEvent& e) {
+        return e.period == period && e.type == EventType::PeriodEnd;
+    });
+}
+
+bool MatchEngine::matchEnded() const {
+    const auto& ev = events_.events();
+    return std::any_of(ev.begin(), ev.end(),
+                       [](const MatchEvent& e) { return e.type == EventType::MatchEnd; });
 }
 
 Tenths MatchEngine::elapsedIn(int index, Tenths clockValue) const {
@@ -108,9 +125,13 @@ CommandResult MatchEngine::handle(const cmd::ClockReset&, Micros) {
 
 CommandResult MatchEngine::handle(const cmd::ClockAdjust& c, Micros now) {
     advance(now);
+    const bool wasRunning = clock_.running();
     const Tenths applied = clock_.adjust(c.delta, now);
     // Moving a countdown up gives game time back; moving a count-up clock up adds game time.
     shiftPenalties(settings_.sport.direction == Direction::Down ? -applied : applied);
+    // An arrow can drive a running clock straight to its limit, same as advance() reaching it.
+    if (wasRunning && !clock_.running() && !periodEnded(periods_.index()))
+        logEvent(EventType::PeriodEnd, now, std::nullopt, {});
     return CommandResult::ok();
 }
 
@@ -124,13 +145,10 @@ CommandResult MatchEngine::changePeriod(int target, bool confirmed, Micros now) 
     if (!confirmed && !clock_.atStart() && !clock_.atLimit())
         return CommandResult::confirm("period.midPeriod");
     const int current = periods_.index();
-    if (startedPeriods_.count(current) != 0) {
-        const auto& ev = events_.events();
-        const auto last = std::find_if(ev.rbegin(), ev.rend(),
-                                       [&](const MatchEvent& e) { return e.period == current; });
-        if (last != ev.rend() && last->type != EventType::PeriodEnd)
-            logEvent(EventType::PeriodEnd, now, std::nullopt, {});
-    }
+    // Search the whole log for this period's PeriodEnd, not just the last event: something else
+    // (a goal, a penalty) may have been logged after the period actually ended.
+    if (startedPeriods_.count(current) != 0 && !periodEnded(current))
+        logEvent(EventType::PeriodEnd, now, std::nullopt, {});
     periodEndValues_[current] = clock_.value();
     enterPeriod(target);
     return CommandResult::ok();
@@ -152,7 +170,14 @@ CommandResult MatchEngine::handle(const cmd::AddStat& c, Micros now) {
                          (c.stat == Stat::Fouls && sp.fouls) ||
                          (c.stat == Stat::Fouls2 && sp.fouls2);
     if (!enabled) return CommandResult::rejected("stat.disabled");
-    const int applied = counters_.add(c.team, c.stat, c.delta);
+    // Clamp the delta so current + delta cannot overflow int: Counters::add computes that sum
+    // itself and does not guard against callers (e.g. obs-websocket) sending extreme values.
+    const int current = counters_.get(c.team, c.stat);
+    const std::int64_t target = std::clamp<std::int64_t>(static_cast<std::int64_t>(current) +
+                                                             static_cast<std::int64_t>(c.delta),
+                                                         0, std::numeric_limits<int>::max());
+    const int safeDelta = static_cast<int>(target - current);
+    const int applied = counters_.add(c.team, c.stat, safeDelta);
     if (c.stat == Stat::Score && applied > 0) logEvent(EventType::Score, now, c.team, {});
     return CommandResult::ok();
 }
@@ -198,6 +223,7 @@ CommandResult MatchEngine::handle(const cmd::StoppageSet& c, Micros) {
 }
 
 CommandResult MatchEngine::handle(const cmd::EndMatch&, Micros now) {
+    if (matchEnded()) return CommandResult::rejected("match.ended");
     advance(now);
     clock_.stop(now);
     logEvent(EventType::MatchEnd, now, std::nullopt, {});

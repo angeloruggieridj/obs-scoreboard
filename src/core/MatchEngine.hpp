@@ -46,10 +46,14 @@ namespace cmd {
 struct ClockToggle {};
 struct ClockStart {};
 struct ClockStop {};
+// Resets the period clock to its start value; ignored while running (see Clock::resetToStart).
+// Does not touch penalties: it corrects the period clock itself, not game time already spent.
 struct ClockReset {};
 struct ClockAdjust {
     Tenths delta = 0;
 };
+// Moves the clock to an absolute value, like an arrow press of the matching size: running
+// penalties are shifted by the same amount (see ClockAdjust), unlike ClockReset.
 struct ClockSet {
     Tenths value = 0;
 };
@@ -87,6 +91,7 @@ struct PenaltyCancelActive {
 struct StoppageSet {
     int minutes = 0;
 };
+// Idempotent: rejected with "match.ended" once the match has already been ended.
 struct EndMatch {};
 } // namespace cmd
 
@@ -172,6 +177,11 @@ private:
     void shiftPenalties(Tenths gameDelta);
     int strengthReduction(Team team) const;
     void logEvent(EventType type, Micros now, std::optional<Team> team, std::string detail);
+    // Whether a PeriodEnd for that period is already in the event log: derived from the log
+    // itself (not a separate snapshot field) so it survives a snapshot round trip for free and
+    // stays correct even when other events were logged after the period actually ended.
+    bool periodEnded(int period) const;
+    bool matchEnded() const;
 
     MatchSettings settings_;
     Clock clock_;
