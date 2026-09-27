@@ -97,16 +97,21 @@ TEST_CASE("broken input is an error, never an exception") {
     CHECK_FALSE(snapshotFromJson("{}", nullptr).has_value()); // no error sink: still no crash
 }
 
-TEST_CASE("a non-positive penalty phase duration is rejected") {
+TEST_CASE("a non-positive penalty phase duration is rejected even on a future phase") {
     const std::string good = toJson(busyHockeyMatch().snapshot());
     std::string error;
 
-    // The first phase of the away team's active penalty: "duration": 1200 (minutes(2)).
+    // The away team's penalty is a 2+10: phase 0 (current, duration 1200) is the one "remaining"
+    // is checked against; phase 1 (not yet reached, duration 6000 = minutes(10)) is only covered
+    // by validating every phase, not just the current one. Corrupting phase 1 alone must still be
+    // rejected, and must not be caught merely as "remaining > current phase duration".
+    const std::string needle = "\"duration\": 6000";
+    REQUIRE_MESSAGE(good.find(needle) != std::string::npos, good);
+
     std::string zeroDuration = good;
-    const std::string needle = "\"duration\": 1200";
-    REQUIRE_MESSAGE(zeroDuration.find(needle) != std::string::npos, good);
     zeroDuration.replace(zeroDuration.find(needle), needle.size(), "\"duration\": 0");
     CHECK_FALSE(snapshotFromJson(zeroDuration, &error).has_value());
+    CHECK_FALSE(error.empty());
 
     std::string negativeDuration = good;
     negativeDuration.replace(negativeDuration.find(needle), needle.size(), "\"duration\": -5");
