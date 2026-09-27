@@ -1,4 +1,3 @@
-# SPDX-License-Identifier: GPL-2.0-or-later
 <#
 .SYNOPSIS
 Loads the freshly built plugin into a PORTABLE copy of a given OBS release and
@@ -34,6 +33,9 @@ Exit 0 = every requested layout passed, 1 = at least one failed, 2 = setup.
 
 .EXAMPLE
 pwsh -File scripts/check-obs-load.ps1 -ObsVersion 32.2.2 -Layouts legacy
+
+.NOTES
+SPDX-License-Identifier: GPL-2.0-or-later
 #>
 param(
     [string]$ObsVersion = '32.2.2',
