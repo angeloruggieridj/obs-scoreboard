@@ -50,9 +50,9 @@ jobs:
       #
       # The plugin reports buildspec's `version` + `prerelease` (see
       # PLUGIN_VERSION_FULL in CMakeLists.txt); the release is named by the tag.
-      # If those two ever diverge, an updater comparing versions would silently
-      # stop offering updates -- so they are compared here, and a release whose
-      # tag disagrees is not published at all.
+      # The release name must match the version the plugin reports in the OBS
+      # log, so they are compared here, and a release whose tag disagrees is
+      # not published at all.
       - name: Check Out Sources 📥
         if: github.ref_type == 'tag'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

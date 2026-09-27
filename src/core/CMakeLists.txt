@@ -3,6 +3,7 @@ add_library(scoreboard-core STATIC Types.cpp)
 target_include_directories(
   scoreboard-core
   PUBLIC "${CMAKE_CURRENT_LIST_DIR}"
+  SYSTEM
   PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../third_party"
 )
 target_compile_features(scoreboard-core PUBLIC cxx_std_17)

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
 <#
 .SYNOPSIS
 Loads the freshly built plugin into a PORTABLE copy of a given OBS release and

@@ -228,9 +228,9 @@ jobs:
           config: ${{ needs.check-event.outputs.config }}
           package: ${{ fromJSON(needs.check-event.outputs.package) }}
 
-      # One .deb per Ubuntu release, so the name says which: their FFmpeg and Qt
-      # package names can differ across releases, and a .deb for one release
-      # may not install cleanly on another.
+      # One .deb per Ubuntu release, so the name says which: their Qt package
+      # names can differ across releases, and a .deb for one release may not
+      # install cleanly on another.
       - name: Name the Package After Its Ubuntu 🏷️
         run: |
           : Name the Package After Its Ubuntu 🏷️

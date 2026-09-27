@@ -66,12 +66,6 @@ if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
     )
   }
 
-  # libcurl: obs-multireplay's in-app updater needs it and this script is
-  # shared with that project's template. obs-scoreboard has no updater yet;
-  # this package is harmless to install even when unused, and installing it
-  # here means one less thing to add back the day this plugin gets one.
-  _qt_packages+=(libcurl4-openssl-dev${suffix})
-
   sudo apt-get install ${apt_args} ${_qt_packages}
   log_group
 }

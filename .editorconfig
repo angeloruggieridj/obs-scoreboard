@@ -1,6 +1,5 @@
-# obs-multireplay — editor hints only, no build or CI behavior depends on this.
-# Tabs, UTF-8, LF: what the tree already is (checked with `cat -A` against
-# multireplay-dock.cpp before writing this), not a style being imposed.
+# obs-scoreboard — editor hints only, no build or CI behavior depends on this.
+# UTF-8, LF: what the tree already is, not a style being imposed.
 root = true
 
 [*]
@@ -10,8 +9,8 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 
 [*.{c,h,cpp,hpp,m,mm}]
-indent_style = tab
-indent_size = 8
+indent_style = space
+indent_size = 4
 
 [*.{cmake,txt}]
 indent_style = space

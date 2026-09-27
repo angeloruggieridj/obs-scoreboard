@@ -47,7 +47,8 @@ decision that is verified and one that is hoped for.
 - **Test-first on the core.** Write the failing test, watch it fail for the
   expected reason, write the minimal code to pass it, then run the whole suite.
 - **Zero warnings.** The project builds with `-Wall -Wextra -Wpedantic` (and
-  `/W4` on MSVC); debug presets treat warnings as errors.
+  `/W4` on MSVC); the CI presets (and `-DSB_WARNINGS_AS_ERRORS=ON` for the core
+  tests) treat warnings as errors.
 - **English identifiers and comments**; every source file starts with
   `// SPDX-License-Identifier: GPL-2.0-or-later`.
 - **Every user-visible string** goes through `obs_module_text()`, with the key
