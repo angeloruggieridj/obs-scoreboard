@@ -1,0 +1,47 @@
+{
+  "dependencies": {
+    "obs-studio": {
+      "version": "31.1.1",
+      "baseUrl": "https://github.com/obsproject/obs-studio/archive/refs/tags",
+      "label": "OBS sources",
+      "hashes": {
+        "macos": "39751f067bacc13d44b116c5138491b5f1391f91516d3d590d874edd21292291",
+        "windows-x64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf"
+      }
+    },
+    "prebuilt": {
+      "version": "2026-06-02",
+      "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+      "label": "Pre-Built obs-deps",
+      "hashes": {
+        "macos": "459e98f661485a02b500641c7f647bb2420e9e67a4cdf20641987807ac2ab216",
+        "windows-x64": "9ed086ba79fb174401f7578a82812a161b3c1abb9edb02f85bac8f00253d798f"
+      }
+    },
+    "qt6": {
+      "version": "2026-06-02",
+      "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+      "label": "Pre-Built Qt6",
+      "hashes": {
+        "macos": "a7f972df1fdbe50657955b4613b42dbcbc3201b62a7ed26fb8ef7c7ceff40220",
+        "windows-x64": "99f2a99e9d86d7737103f3b89934ed6b50dceb10e555801ab6394bd7f8168086"
+      },
+      "debugSymbols": {
+        "windows-x64": "dc8b2421b28bf0592c81f2b880b61cc5819a832371d76404d26ed1950cea9a77"
+      }
+    }
+  },
+  "platformConfig": {
+    "macos": {
+      "bundleId": "com.github.angeloruggieridj.obs-scoreboard"
+    }
+  },
+  "name": "obs-scoreboard",
+  "displayName": "ScoreBoard for OBS",
+  "version": "0.1.0",
+  "_prereleaseComment": "Pre-release suffix WITHOUT the dash, e.g. beta9. Empty means a final release. It must agree with the release tag - push.yaml refuses to publish otherwise. See PLUGIN_VERSION_FULL in CMakeLists.txt. NOTE - no semicolons in this file - bootstrap.cmake expands it unquoted and a semicolon splits it into a list.",
+  "prerelease": "",
+  "author": "Angelo Ruggieri",
+  "website": "https://github.com/angeloruggieridj/obs-scoreboard",
+  "email": "angeloruggieridj@gmail.com"
+}
