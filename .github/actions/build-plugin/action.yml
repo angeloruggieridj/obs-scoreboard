@@ -23,7 +23,8 @@ inputs:
   generator:
     description: >-
       CMake generator override (Windows only). Empty uses the windows-ci-x64
-      preset's own generator. See docs/decisions.md for why this exists.
+      preset's own generator. See the windows-build job comment in
+      .github/workflows/build-project.yaml for why this exists.
     required: false
     default: ''
   workingDirectory:

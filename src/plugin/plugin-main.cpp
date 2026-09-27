@@ -15,8 +15,8 @@ namespace {
 
 constexpr const char* kDockId = "obs-scoreboard-dock";
 
-// OBS destroys the dock before obs_module_unload (lesson learned, CLAUDE.md §7): every Qt
-// object held globally is a QPointer, so a late access finds null instead of freed memory.
+// OBS destroys the dock before obs_module_unload: every Qt object held
+// globally is a QPointer, so a late access finds null instead of freed memory.
 QPointer<ScoreboardDock> g_dock;
 
 void onFrontendEvent(enum obs_frontend_event event, void*) {

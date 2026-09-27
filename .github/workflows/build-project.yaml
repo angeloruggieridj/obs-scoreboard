@@ -271,8 +271,9 @@ jobs:
   # own SDK gate at cmake/windows/compilerconfig.cmake:15, which reads
   # CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION — a Visual-Studio-generator-only
   # variable that is always empty under Ninja, so the check fails
-  # unconditionally regardless of the Windows SDK actually installed. See
-  # docs/decisions.md for the exact errors and what changing this would need.
+  # unconditionally regardless of the Windows SDK actually installed. Moving
+  # off windows-2022 (or off the VS generator) needs both of those fixed
+  # first.
   windows-build:
     name: Build for Windows 🪟
     runs-on: windows-2022

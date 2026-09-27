@@ -5,7 +5,8 @@ param(
     [ValidateSet('Debug', 'RelWithDebInfo', 'Release', 'MinSizeRel')]
     [string] $Configuration = 'RelWithDebInfo',
     # CMake generator override. Empty (the default) uses the windows-ci-x64
-    # preset's own generator. See docs/decisions.md for why CI passes one.
+    # preset's own generator. See the windows-build job comment in
+    # .github/workflows/build-project.yaml for why CI passes one.
     [string] $Generator = ''
 )
 
