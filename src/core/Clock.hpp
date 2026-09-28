@@ -29,8 +29,13 @@ public:
     void stop(Micros now);
     Tick advance(Micros now);
     // Arrow keys: moves the value by delta within [0, duration] and returns what was applied.
+    // Saturates instead of overflowing when value_ + delta would be out of Tenths' range (an
+    // extreme delta can reach here from obs-websocket, not just the UI's fixed-size arrows).
     Tenths adjust(Tenths delta, Micros now);
     void set(Tenths value, Micros now);
+    // Delta that would move the clock to `target`, saturated so the subtraction itself can never
+    // overflow: safe to pass to adjust() even for an extreme target.
+    Tenths deltaTo(Tenths target) const;
 
     bool running() const { return running_; }
     Tenths value() const { return value_; }

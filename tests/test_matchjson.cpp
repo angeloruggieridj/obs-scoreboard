@@ -86,6 +86,19 @@ TEST_CASE("futsal fouls of the 1st half come back after a save in the 2nd") {
     CHECK(field(restored, FieldId::HomeFouls) == "4");
 }
 
+TEST_CASE("basketball fouls of an earlier quarter come back after a save in a later one") {
+    MatchEngine e(MatchSettings::forSport(*findSport("basketball")));
+    e.apply(cmd::AddStat{Team::Home, Stat::Fouls, 3}, 0);
+    e.apply(cmd::PeriodNext{}, 0);
+    e.apply(cmd::AddStat{Team::Home, Stat::Fouls, 1}, 0);
+    const auto back = snapshotFromJson(toJson(e.snapshot()), nullptr);
+    REQUIRE(back.has_value());
+    MatchEngine restored = MatchEngine::fromSnapshot(*back);
+    CHECK(field(restored, FieldId::HomeFouls) == "1");
+    restored.apply(cmd::PeriodPrev{}, 0);
+    CHECK(field(restored, FieldId::HomeFouls) == "3");
+}
+
 TEST_CASE("broken input is an error, never an exception") {
     const std::string good = toJson(busyHockeyMatch().snapshot());
     std::string error;
@@ -149,6 +162,92 @@ TEST_CASE("duplicate penalty ids within the same team's box are rejected") {
     duplicated.replace(duplicated.find(needle), needle.size(), "\"id\": 1");
     CHECK_FALSE(snapshotFromJson(duplicated, &error).has_value());
     CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("duplicate penalty ids across the two teams' boxes are rejected") {
+    // validate()'s id set used to be declared per box: the same id reused in both teams' boxes
+    // passed, and PenaltyEdit/PenaltyCancel (which search Home first) would then hit the wrong
+    // penalty.
+    MatchEngine e(MatchSettings::forSport(*findSport("ice_hockey")));
+    e.apply(cmd::PenaltyAdd{Team::Home, "5", {{minutes(2), true}}}, 0);
+    e.apply(cmd::PenaltyAdd{Team::Away, "9", {{minutes(2), true}}}, 0);
+    json j = json::parse(toJson(e.snapshot()));
+    REQUIRE(j["penalties"][0][0]["id"] == 1);
+    REQUIRE(j["penalties"][1][0]["id"] == 2);
+    j["penalties"][1][0]["id"] = 1; // away's penalty now collides with home's
+
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("sport period/overtime durations and the clock/period-end values are bounded to 24h") {
+    // Values near INT64_MAX overflow in MatchEngine::playTime()/Periods::displayOffset() and
+    // Clock::computeAt(): every stored time field must be a plausible tenths-of-a-second value,
+    // never an attacker- or corruption-supplied extreme.
+    const std::int64_t huge = std::numeric_limits<std::int64_t>::max() / 2;
+    {
+        json j = goodJson();
+        j["settings"]["sport"]["periodDuration"] = huge;
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
+    {
+        json j = goodJson();
+        j["settings"]["sport"]["overtimeDuration"] = huge;
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+    {
+        json j = goodJson();
+        j["clockValue"] = huge;
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+    {
+        // futsal has a periodEndValues entry once a period has been completed.
+        MatchEngine e(MatchSettings::forSport(*findSport("futsal")));
+        e.apply(cmd::PeriodNext{}, 0);
+        json j = json::parse(toJson(e.snapshot()));
+        REQUIRE_FALSE(j["periodEndValues"].empty());
+        j["periodEndValues"][0][1] = huge;
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+}
+
+TEST_CASE("penalty phase duration and remaining time are bounded to 24h") {
+    const std::int64_t huge = std::numeric_limits<std::int64_t>::max() / 2;
+    {
+        json j = goodJson();
+        // The away team's first phase duration (2 minutes = 1200 tenths).
+        j["penalties"][1][0]["phases"][0]["duration"] = huge;
+        j["penalties"][1][0]["remaining"] = huge;
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
+    {
+        json j = goodJson();
+        j["penalties"][1][0]["remaining"] = huge; // duration untouched: remaining > duration anyway
+        CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
+    }
+}
+
+TEST_CASE("event playTime is bounded to 24h and event.at must not be negative") {
+    const std::int64_t huge = std::numeric_limits<std::int64_t>::max() / 2;
+    {
+        json j = goodJson();
+        j["events"][0]["playTime"] = huge;
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
+    {
+        json j = goodJson();
+        j["events"][0]["at"] = -1;
+        std::string error;
+        CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+        CHECK_FALSE(error.empty());
+    }
 }
 
 TEST_CASE("more than 8 penalties in one box is rejected") {
@@ -280,4 +379,32 @@ TEST_CASE("an unlimited-overtime sport still bounds the period, at regulation + 
         j["period"] = 1000000;
         CHECK_FALSE(parseNoThrow(j.dump(), nullptr).has_value());
     }
+}
+
+TEST_CASE("a huge sport.periods is rejected instead of looping playTime()/displayOffset()") {
+    // Before this became a bounds check, only kUnlimited overtime was capped: a finite
+    // sport.periods (or a finite overtimePeriods) of ~2e9 sailed through and made
+    // MatchEngine::playTime()/Periods::displayOffset() loop that many times per fields() call.
+    json j = goodJson();
+    j["settings"]["sport"]["periods"] = 2000000000;
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("a huge finite overtimePeriods is rejected") {
+    json j = goodJson();
+    j["settings"]["sport"]["overtimePeriods"] = 2000000000;
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("a negative overtimePeriods other than kUnlimited is rejected") {
+    json j = goodJson();
+    j["settings"]["sport"]["overtimePeriods"] =
+        -2; // kUnlimited is -1, everything else must be >= 0
+    std::string error;
+    CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
+    CHECK_FALSE(error.empty());
 }

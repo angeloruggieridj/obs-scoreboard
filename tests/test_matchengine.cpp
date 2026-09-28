@@ -98,6 +98,31 @@ TEST_CASE("futsal fouls per half, overtime continues the 2nd, going back restore
     CHECK(run(e, cmd::PeriodNext{}).reason == "period.noNext");
 }
 
+TEST_CASE("basketball fouls per quarter, overtime continues the 4th, going back restores") {
+    MatchEngine e = engineFor("basketball");
+    run(e, cmd::AddStat{Team::Home, Stat::Fouls, 2}); // Q1
+    run(e, cmd::PeriodNext{});
+    CHECK(field(e, FieldId::HomeFouls) == "0"); // Q2
+    run(e, cmd::AddStat{Team::Home, Stat::Fouls, 3});
+    run(e, cmd::PeriodNext{});
+    CHECK(field(e, FieldId::HomeFouls) == "0"); // Q3
+    run(e, cmd::PeriodNext{});
+    run(e, cmd::AddStat{Team::Home, Stat::Fouls, 4}); // Q4
+    run(e, cmd::PeriodNext{});
+    CHECK(field(e, FieldId::Period) == "OT");
+    CHECK(field(e, FieldId::HomeFouls) == "4"); // overtime continues the 4th quarter's bucket
+    run(e, cmd::AddStat{Team::Home, Stat::Fouls, 1});
+    CHECK(field(e, FieldId::HomeFouls) == "5");
+    run(e, cmd::PeriodPrev{});
+    CHECK(field(e, FieldId::HomeFouls) == "5"); // back to Q4: same bucket as OT
+    run(e, cmd::PeriodPrev{});
+    CHECK(field(e, FieldId::HomeFouls) == "0"); // back to Q3
+    run(e, cmd::PeriodPrev{});
+    CHECK(field(e, FieldId::HomeFouls) == "3"); // back to Q2
+    run(e, cmd::PeriodPrev{});
+    CHECK(field(e, FieldId::HomeFouls) == "2"); // back to Q1
+}
+
 TEST_CASE("soccer: continuous time and the two stoppage modes") {
     MatchEngine secondary = engineFor("soccer");
     run(secondary, cmd::ClockSet{minutes(44) + seconds(50)});
@@ -435,4 +460,55 @@ TEST_CASE("engine-level snapshot round trip preserves foul buckets, started peri
     CHECK(run(back, cmd::ClockStart{}).isOk());
     // period 1 was already started before the snapshot: restarting it logs no new PeriodStart.
     CHECK(countStarts(back) == startsBefore);
+}
+
+// --- Fix round 2 -------------------------------------------------------------------------
+
+TEST_CASE("apply() advances the clock first, so a command between ticks sees the current time") {
+    // Before apply() called advance(now) itself, a handler that does not advance (PenaltyEdit,
+    // AddStat...) acted on state left over from the caller's last explicit advance() call: the
+    // time between that call and `now` was skipped at the moment of the command, then dumped in
+    // full onto whatever ran next, including a penalty edited (or a stat added) in between.
+    MatchEngine e = engineFor("ice_hockey");
+    run(e, cmd::PenaltyAdd{Team::Home, "9", {{minutes(2), true}}});
+    const PenaltyId id = e.penalties(Team::Home).all().front().id;
+    run(e, cmd::ClockStart{});
+    e.advance(sec(30)); // last explicit sync: 2:00 - 0:30 = 1:30 remaining
+    REQUIRE(field(e, FieldId::HomePenalty1Time) == "1:30");
+
+    // 5 more seconds pass before this edit is applied, with no explicit advance() in between.
+    CHECK(run(e, cmd::PenaltyEdit{id, seconds(60)}, sec(35)).isOk());
+    CHECK(field(e, FieldId::HomePenalty1Time) == "1:00"); // set to exactly 60s at t = 35
+
+    // One more second: a stale internal clock would instead replay the 5 s gap it never
+    // synced, taking the penalty down to 0:54 instead of 0:59.
+    e.advance(sec(36));
+    CHECK(field(e, FieldId::HomePenalty1Time) == "0:59");
+}
+
+TEST_CASE("apply() advances the clock first, so an event's playTime is not stale") {
+    MatchEngine e = engineFor("futsal");
+    run(e, cmd::ClockStart{});
+    e.advance(sec(10)); // last explicit sync at t = 10
+    CHECK(run(e, cmd::AddStat{Team::Home, Stat::Score, 1}, sec(15)).isOk()); // scored at t = 15
+    const auto& events = e.events().events();
+    REQUIRE(events.size() == 2); // period start, score
+    CHECK(events[1].type == EventType::Score);
+    CHECK(events[1].playTime == seconds(15)); // not seconds(10), the stale last-synced value
+}
+
+TEST_CASE("ClockAdjust saturates instead of overflowing on an extreme delta") {
+    MatchEngine e = engineFor("futsal"); // 20:00 countdown
+    CHECK(run(e, cmd::ClockAdjust{std::numeric_limits<Tenths>::max()}).isOk());
+    CHECK(field(e, FieldId::Clock) == "20:00"); // clamped to the period duration, no UB overflow
+    CHECK(run(e, cmd::ClockAdjust{std::numeric_limits<Tenths>::min()}).isOk());
+    CHECK(field(e, FieldId::Clock) == "00:00"); // clamped to zero
+}
+
+TEST_CASE("ClockSet saturates instead of overflowing on an extreme target") {
+    MatchEngine e = engineFor("futsal");
+    CHECK(run(e, cmd::ClockSet{std::numeric_limits<Tenths>::max()}).isOk());
+    CHECK(field(e, FieldId::Clock) == "20:00");
+    CHECK(run(e, cmd::ClockSet{std::numeric_limits<Tenths>::min()}).isOk());
+    CHECK(field(e, FieldId::Clock) == "00:00");
 }

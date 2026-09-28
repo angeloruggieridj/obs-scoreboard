@@ -5,6 +5,20 @@
 #include <limits>
 
 namespace sb {
+namespace {
+
+// a + b, clamped to Tenths' range instead of invoking signed-overflow undefined behavior. Needed
+// because an extreme delta (from an arrow repeat gone wild, or later obs-websocket) combined with
+// an extreme current value can push the raw sum out of range.
+Tenths saturatingAdd(Tenths a, Tenths b) {
+    if (b > 0 && a > std::numeric_limits<Tenths>::max() - b)
+        return std::numeric_limits<Tenths>::max();
+    if (b < 0 && a < std::numeric_limits<Tenths>::min() - b)
+        return std::numeric_limits<Tenths>::min();
+    return a + b;
+}
+
+} // namespace
 
 void Clock::configure(Direction dir, Tenths duration, bool stopAtLimit) {
     dir_ = dir;
@@ -83,7 +97,8 @@ Tenths Clock::upperBoundForAdjust() const {
 
 Tenths Clock::adjust(Tenths delta, Micros now) {
     if (running_) advance(now);
-    const Tenths target = std::clamp<Tenths>(value_ + delta, 0, upperBoundForAdjust());
+    const Tenths target =
+        std::clamp<Tenths>(saturatingAdd(value_, delta), 0, upperBoundForAdjust());
     const Tenths applied = target - value_;
     value_ = target;
     if (running_) {
@@ -100,9 +115,15 @@ Tenths Clock::adjust(Tenths delta, Micros now) {
     return applied;
 }
 
+Tenths Clock::deltaTo(Tenths target) const {
+    // value_ is never negative (resetToStart/restore/adjust all keep it clamped at or above
+    // zero), so negating it here can never overflow.
+    return saturatingAdd(target, -value_);
+}
+
 void Clock::set(Tenths value, Micros now) {
     if (running_) advance(now);
-    adjust(value - value_, now);
+    adjust(deltaTo(value), now);
 }
 
 } // namespace sb

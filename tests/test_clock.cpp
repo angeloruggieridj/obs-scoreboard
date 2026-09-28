@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include <limits>
+
 #include "doctest/doctest.h"
 #include "Clock.hpp"
 
@@ -172,6 +174,37 @@ TEST_CASE("reset and restore") {
     c.start(0);
     c.restore(minutes(9)); // ignored while running
     CHECK(c.value() == minutes(3));
+}
+
+TEST_CASE("adjust saturates an extreme delta instead of overflowing value_ + delta") {
+    Clock down;
+    down.configure(Direction::Down, minutes(20), true); // value_ starts at 12000 (its duration)
+    // 12000 + Tenths::max() overflows a raw std::int64_t addition; the saturating version must
+    // clamp instead of invoking that undefined behavior.
+    CHECK(down.adjust(std::numeric_limits<Tenths>::max(), 0) == 0); // already at the ceiling
+    CHECK(down.value() == minutes(20));
+    CHECK(down.adjust(std::numeric_limits<Tenths>::min(), 0) == -minutes(20));
+    CHECK(down.value() == 0);
+
+    Clock up;
+    up.configure(Direction::Up, 0,
+                 true); // unbounded count-up: upperBoundForAdjust() is Tenths::max()
+    CHECK(up.adjust(std::numeric_limits<Tenths>::max(), 0) == std::numeric_limits<Tenths>::max());
+    CHECK(up.value() == std::numeric_limits<Tenths>::max());
+    // value_ is already Tenths::max(): adding it again is the same overflow shape as above.
+    CHECK(up.adjust(std::numeric_limits<Tenths>::max(), 0) == 0);
+    CHECK(up.value() == std::numeric_limits<Tenths>::max());
+    CHECK(up.adjust(std::numeric_limits<Tenths>::min(), 0) == -std::numeric_limits<Tenths>::max());
+    CHECK(up.value() == 0);
+}
+
+TEST_CASE("set saturates an extreme target instead of overflowing target - value_") {
+    Clock c;
+    c.configure(Direction::Down, minutes(20), true);
+    c.set(std::numeric_limits<Tenths>::max(), 0);
+    CHECK(c.value() == minutes(20));
+    c.set(std::numeric_limits<Tenths>::min(), 0);
+    CHECK(c.value() == 0);
 }
 
 TEST_CASE("reset while running is ignored, and works again once stopped") {

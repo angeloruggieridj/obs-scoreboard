@@ -25,6 +25,13 @@ MatchEngine::MatchEngine(MatchSettings settings) : settings_(std::move(settings)
 }
 
 CommandResult MatchEngine::apply(const Command& command, Micros now) {
+    // Bring the clock (and everything it drives: penalties, the period-end check) up to `now`
+    // before a handler acts, so a handler that does not itself call advance() (PenaltyEdit,
+    // PenaltyCancel, AddStat...) never sees stale state left over from the caller's last explicit
+    // advance() call. Harmless when the clock is stopped (Clock::advance() is a no-op then) and
+    // idempotent for handlers that call advance() again themselves: a second call for the same
+    // `now` measures zero elapsed time.
+    advance(now);
     return std::visit([&](const auto& c) { return handle(c, now); }, command);
 }
 
@@ -137,7 +144,7 @@ CommandResult MatchEngine::handle(const cmd::ClockAdjust& c, Micros now) {
 
 CommandResult MatchEngine::handle(const cmd::ClockSet& c, Micros now) {
     advance(now);
-    return handle(cmd::ClockAdjust{c.value - clock_.value()}, now);
+    return handle(cmd::ClockAdjust{clock_.deltaTo(c.value)}, now);
 }
 
 CommandResult MatchEngine::changePeriod(int target, bool confirmed, Micros now) {

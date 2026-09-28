@@ -328,30 +328,59 @@ namespace {
 // it the same way the UI would ever offer, so a corrupted/huge period value can never make
 // MatchEngine::playTime()/Periods::displayOffset() loop over an absurd period count.
 constexpr int kUnlimitedOvertimeCap = 99;
+// Upper bounds the UI would ever offer for a sport's period count and finite overtime count: a
+// huge finite value (not just kUnlimited) must also be rejected, for the same reason.
+constexpr int kMaxSportPeriods = 20;
+constexpr int kMaxFiniteOvertimePeriods = 99;
+// Every stored time-of-day-scale field (clock/period durations and values, penalty phase
+// durations and remaining time, event play time) is a duration within a single match: 24 hours in
+// tenths of a second is an extremely generous ceiling that still keeps
+// MatchEngine::playTime()/Periods::displayOffset()/Clock::computeAt()/PenaltyBox::restore() far
+// away from any risk of overflowing on a corrupted or attacker-supplied value.
+constexpr Tenths kMaxSnapshotTime = 24 * 60 * 60 * kTenthsPerSecond; // 864000
+
+bool inTimeRange(Tenths t) {
+    return t >= 0 && t <= kMaxSnapshotTime;
+}
 
 // Structural checks the types alone cannot express. Returns an empty string when valid.
 // Every rule here is a precondition PenaltyBox::restoreFrom (called downstream by
 // MatchEngine::fromSnapshot) relies on but does not itself check.
 std::string validate(const MatchSnapshot& s) {
     const SportPreset& sp = s.settings.sport;
-    if (sp.periods < 1) return "sport has no periods";
+    if (sp.periods < 1 || sp.periods > kMaxSportPeriods) return "sport periods out of range";
+    if (sp.overtimePeriods != kUnlimited &&
+        (sp.overtimePeriods < 0 || sp.overtimePeriods > kMaxFiniteOvertimePeriods))
+        return "sport overtime periods out of range";
+    if (!inTimeRange(sp.periodDuration)) return "sport period duration out of range";
+    if (!inTimeRange(sp.overtimeDuration)) return "sport overtime duration out of range";
     if (s.period < 1) return "period out of range";
     const long long effectiveOvertime =
         sp.overtimePeriods == kUnlimited ? kUnlimitedOvertimeCap : sp.overtimePeriods;
     if (static_cast<long long>(s.period) > static_cast<long long>(sp.periods) + effectiveOvertime)
         return "period out of range";
+    if (!inTimeRange(s.clockValue)) return "clock value out of range";
+    for (const auto& entry : s.periodEndValues)
+        if (!inTimeRange(entry.second)) return "period end value out of range";
+    // Duplicate ids are checked across both teams' boxes, not per box: PenaltyEdit/PenaltyCancel
+    // search Home first, so an id shared with Away would silently hit the wrong penalty.
+    std::set<PenaltyId> ids;
     for (const auto& box : s.penalties) {
         if (box.size() > PenaltyBox::kMaxPenalties) return "too many penalties";
-        std::set<PenaltyId> ids;
         for (const Penalty& p : box) {
             if (!ids.insert(p.id).second) return "duplicate penalty id";
             if (p.phases.empty() || p.phase >= p.phases.size()) return "penalty phase out of range";
             for (const PenaltyPhase& phase : p.phases)
-                if (phase.duration <= 0) return "penalty phase duration out of range";
+                if (phase.duration <= 0 || !inTimeRange(phase.duration))
+                    return "penalty phase duration out of range";
             if (p.remaining <= 0 || p.remaining > p.phases[p.phase].duration)
                 return "penalty time out of range";
             if (p.id >= s.nextPenaltyId) return "penalty id not below nextPenaltyId";
         }
+    }
+    for (const MatchEvent& e : s.events) {
+        if (e.at < 0) return "event time out of range";
+        if (!inTimeRange(e.playTime)) return "event play time out of range";
     }
     return {};
 }
