@@ -50,6 +50,12 @@ endif()
 
 target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/plugin")
+# nlohmann/json is third-party: SYSTEM keeps its headers out of our warning level.
+target_include_directories(
+  ${CMAKE_PROJECT_NAME}
+  SYSTEM
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
+)
 
 # The template's cmake/windows/compilerconfig.cmake only applies a blanket /W3 to every
 # target; unlike scoreboard-core, this module never asked for /W4, so our own code (as
@@ -80,6 +86,10 @@ target_sources(
     src/plugin/plugin-main.cpp
     src/plugin/ScoreboardDock.cpp
     src/plugin/ScoreboardDock.hpp
+    src/plugin/SelfTest.cpp
+    src/plugin/SelfTest.hpp
+    src/plugin/SelfTestVerdict.cpp
+    src/plugin/SelfTestVerdict.hpp
     src/plugin/SourcePicker.cpp
     src/plugin/SourcePicker.hpp
     src/plugin/TextSink.cpp

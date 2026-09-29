@@ -8,6 +8,7 @@
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
 #include "ScoreboardDock.hpp"
+#include "SelfTest.hpp"
 #include "SportCatalog.hpp"
 #include "plugin-support.h"
 
@@ -27,6 +28,7 @@ QPointer<FieldSinks> g_sinks;
 QPointer<ScoreboardDock> g_dock;
 
 void tearDown() {
+    selftest::stop(); // the video callback must go before the driver and sinks
     if (g_driver) g_driver->shutdown();
     delete g_sinks.data();
     delete g_driver.data();
@@ -36,6 +38,9 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
     switch (event) {
     case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGING:
         if (g_sinks) g_sinks->unbindAll(); // Phase 4 reloads the bindings of the new collection
+        break;
+    case OBS_FRONTEND_EVENT_FINISHED_LOADING:
+        selftest::maybeStart(g_driver, g_sinks);
         break;
     case OBS_FRONTEND_EVENT_EXIT:
         tearDown(); // while Qt and libobs are both still alive
