@@ -27,12 +27,15 @@ add_executable(
   test_eventlog.cpp
   test_matchengine.cpp
   test_matchjson.cpp
+  test_selftest_verdict.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/../src/plugin/SelfTestVerdict.cpp
 )
 target_link_libraries(scoreboard-tests PRIVATE scoreboard-core)
 # doctest's fallback forward declaration of std::basic_ostream breaks when stringifying a
 # string_view under the VS 2026 MSVC STL, which defines that operator<< inline: force doctest to
 # include the real <ostream>/<istream> headers instead.
 target_compile_definitions(scoreboard-tests PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS)
+target_include_directories(scoreboard-tests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src/plugin")
 target_include_directories(
   scoreboard-tests
   SYSTEM
