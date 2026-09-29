@@ -207,6 +207,27 @@ TEST_CASE("set saturates an extreme target instead of overflowing target - value
     CHECK(c.value() == 0);
 }
 
+TEST_CASE("advance() with a stale now never moves the clock backwards") {
+    Clock c;
+    c.configure(Direction::Down, minutes(20), true);
+    c.start(0);
+    c.advance(sec(90));
+    CHECK(c.value() == minutes(20) - seconds(90)); // 11100
+
+    // A stale/out-of-order timestamp (e.g. a command issued with now = 0, reachable once
+    // MatchEngine::apply() advances the clock before every command) must not undo time that
+    // already elapsed, nor report any elapsed time at all: the previous tick already accounted
+    // for real time up to sec(90), and sec(90) is the most this clock has ever observed.
+    const Clock::Tick stale = c.advance(0);
+    CHECK(c.value() == minutes(20) - seconds(90));
+    CHECK(stale.elapsed == 0);
+    CHECK_FALSE(stale.reachedLimit);
+
+    // Time keeps moving forward normally afterwards.
+    c.advance(sec(91));
+    CHECK(c.value() == minutes(20) - seconds(91));
+}
+
 TEST_CASE("reset while running is ignored, and works again once stopped") {
     Clock c;
     c.configure(Direction::Up, minutes(45), true);

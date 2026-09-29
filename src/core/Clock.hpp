@@ -56,6 +56,7 @@ private:
     Tenths value_ = 0;
     Tenths anchorValue_ = 0;
     Micros anchorTime_ = 0;
+    Micros lastNow_ = 0; // latest time observed while running; a stale `now` is clamped to it
 };
 
 } // namespace sb

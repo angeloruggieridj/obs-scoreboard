@@ -55,6 +55,7 @@ void Clock::start(Micros now) {
     running_ = true;
     anchorValue_ = value_;
     anchorTime_ = now;
+    lastNow_ = now;
 }
 
 Tenths Clock::computeAt(Micros now) const {
@@ -72,7 +73,12 @@ Tenths Clock::computeAt(Micros now) const {
 Clock::Tick Clock::advance(Micros now) {
     Tick tick;
     if (!running_) return tick;
-    const Tenths v = computeAt(now);
+    // A `now` older than the latest one observed (an out-of-order command) counts as no time.
+    now = std::max(now, lastNow_);
+    lastNow_ = now;
+    Tenths v = computeAt(now);
+    // Never move against the counting direction.
+    v = dir_ == Direction::Down ? std::min(v, value_) : std::max(v, value_);
     tick.elapsed = v > value_ ? v - value_ : value_ - v;
     value_ = v;
     if (limitStops() && atLimit()) {

@@ -173,6 +173,22 @@ TEST_CASE("hockey penalties drive strength and follow the clock and its arrows")
     CHECK(field(e, FieldId::Strength) == "");
 }
 
+TEST_CASE("a command with a stale timestamp never moves the clock or the penalties backwards") {
+    MatchEngine e = engineFor("ice_hockey");
+    run(e, cmd::PenaltyAdd{Team::Home, "12", {{minutes(2), true}}});
+    run(e, cmd::ClockStart{});
+    e.advance(sec(90));
+    CHECK(field(e, FieldId::Clock) == "18:30");
+    CHECK(field(e, FieldId::HomePenalty1Time) == "0:30");
+    run(e, cmd::ClockAdjust{0}, 0); // queued command carrying an older timestamp
+    CHECK(field(e, FieldId::Clock) == "18:30");
+    CHECK(field(e, FieldId::HomePenalty1Time) == "0:30");
+    CHECK(field(e, FieldId::HomePenalty1Player) == "12");
+    e.advance(sec(100));
+    CHECK(field(e, FieldId::Clock) == "18:20");
+    CHECK(field(e, FieldId::HomePenalty1Time) == "0:20");
+}
+
 TEST_CASE("penalties do not run while the clock is stopped") {
     MatchEngine e = engineFor("ice_hockey");
     run(e, cmd::PenaltyAdd{Team::Away, "3", {{minutes(2), true}}});
@@ -266,7 +282,9 @@ TEST_CASE("snapshot and fromSnapshot give back the same match, clock stopped") {
     run(e, cmd::PenaltyAdd{Team::Home, "12", {{minutes(2), true}}});
     run(e, cmd::ClockStart{});
     e.advance(sec(90));
-    run(e, cmd::StoppageSet{2});
+    // At the real time this command is actually issued: apply() advances the clock to `now`
+    // before every command, so a stale now = 0 here would otherwise undo the 90 s already played.
+    run(e, cmd::StoppageSet{2}, sec(90));
     const MatchSnapshot snap = e.snapshot();
     MatchEngine back = MatchEngine::fromSnapshot(snap);
     CHECK(back.fields() == e.fields());
