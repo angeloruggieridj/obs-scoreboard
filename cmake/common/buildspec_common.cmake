@@ -242,6 +242,12 @@ function(_check_dependencies)
       set(_obs_version ${version})
       set(_obs_destination "${destination}")
       list(APPEND CMAKE_PREFIX_PATH "${dependencies_dir}")
+      if(OS_WINDOWS)
+        # OBS 30.0 installs its package files as cmake/<target>/<target>Config.cmake, a layout
+        # find_package does not search under a plain prefix; with cmake/ as a prefix they
+        # match its <prefix>/<name>*/ rule.
+        list(APPEND CMAKE_PREFIX_PATH "${dependencies_dir}/cmake")
+      endif()
     endif()
 
     message(STATUS "Setting up ${label} (${arch}) - done")
