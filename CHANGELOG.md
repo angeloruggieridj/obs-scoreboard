@@ -11,3 +11,5 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Project skeleton: OBS module with an empty ScoreBoard dock, core library and unit tests,
   continuous integration on Windows, macOS and Linux.
+- Core game logic: clock, periods, counters, penalties, strength, 14 sport presets,
+  match engine, resumable JSON state.
