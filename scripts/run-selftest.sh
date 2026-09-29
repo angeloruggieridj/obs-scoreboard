@@ -31,6 +31,17 @@ while [ $# -gt 0 ]; do
     esac
 done
 [ -n "$fps" ] && [ -n "$plugin" ] && [ -n "$locale" ] || usage
+case "$fps" in
+    25|30|50|60) ;;
+    *) echo "invalid --fps '$fps' (expected 25, 30, 50 or 60)" >&2; usage ;;
+esac
+case "$seconds" in
+    ''|*[!0-9]*) echo "invalid --seconds '$seconds' (expected an integer 5-120)" >&2; usage ;;
+esac
+if [ "$seconds" -lt 5 ] || [ "$seconds" -gt 120 ]; then
+    echo "invalid --seconds '$seconds' (expected an integer 5-120)" >&2
+    usage
+fi
 [ -f "$plugin" ] || { echo "missing plugin: $plugin" >&2; exit 2; }
 [ -d "$locale" ] || { echo "missing locale dir: $locale" >&2; exit 2; }
 for tool in obs xvfb-run python3; do
@@ -50,6 +61,15 @@ rm -f "$report" "$report.tmp" "$logcopy"
 # (libobs/util/platform-nix.c, os_get_config_path), so this isolates it.
 XDG_CONFIG_HOME="$(mktemp -d)"
 export XDG_CONFIG_HOME
+start_marker=""
+# Removes the throw-away config dir (the log was copied to the artifacts dir
+# before this runs) and the marker file, whatever the exit path.
+# shellcheck disable=SC2329  # invoked through the EXIT trap
+cleanup() {
+    rm -rf "$XDG_CONFIG_HOME"
+    [ -z "$start_marker" ] || rm -f "$start_marker"
+}
+trap cleanup EXIT
 cfg="$XDG_CONFIG_HOME/obs-studio"
 mkdir -p "$cfg/basic/profiles/SBSelftest"
 printf '[General]\nFirstRun=true\n' > "$cfg/user.ini"
@@ -72,9 +92,21 @@ start_marker="$(mktemp)"
 xvfb-run -a -s "-screen 0 1280x720x24" obs --multi --profile SBSelftest &
 xvfb_pid=$!
 
-# $! is xvfb-run, not OBS: find the real obs process.
+# $! is xvfb-run, not OBS: find the real obs process, looking only among the
+# descendants of xvfb-run so that an OBS the developer runs is never touched.
 obs_pid=""
-find_obs() { pgrep -n -x obs || true; }
+find_obs_under() {
+    local child
+    for child in $(pgrep -P "$1" || true); do
+        if [ "$(ps -o comm= -p "$child" 2>/dev/null | tr -d ' ')" = "obs" ]; then
+            echo "$child"
+            return 0
+        fi
+        find_obs_under "$child" && return 0
+    done
+    return 1
+}
+find_obs() { find_obs_under "$xvfb_pid" || true; }
 
 deadline=$((SECONDS + seconds + 90))
 while [ "$SECONDS" -lt "$deadline" ]; do
@@ -118,7 +150,6 @@ crashes=0
 if [ -d "$cfg/crashes" ]; then
     crashes="$(find "$cfg/crashes" -type f -newer "$start_marker" | wc -l)"
 fi
-rm -f "$start_marker"
 
 if [ ! -f "$report" ]; then
     echo "selftest ${fps} fps: NO REPORT (log: $logcopy)"

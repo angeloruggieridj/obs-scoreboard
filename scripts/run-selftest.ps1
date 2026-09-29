@@ -34,37 +34,47 @@ $localeSrc = Join-Path $repo 'data\locale'
 foreach ($need in @($Dll, $localeSrc)) {
     if (-not (Test-Path -LiteralPath $need)) { Write-Host "missing: $need (build first)"; exit 2 }
 }
-Import-Module (Join-Path $PSScriptRoot 'ObsPortable.psm1') -Force
-
-$base = Join-Path $env:TEMP 'obs-scoreboard-selftest'
+# Any failure before a report can exist (unpack, install, launch) is a setup problem: exit 2.
 try {
+    Import-Module (Join-Path $PSScriptRoot 'ObsPortable.psm1') -Force
+
+    $base = Join-Path $env:TEMP 'obs-scoreboard-selftest'
     $zip = Get-ObsZip -Version $ObsVersion -CacheDir $base
     $root = Reset-Obs -Zip $zip -Work (Join-Path $base $ObsVersion)
+    Install-Plugin -Root $root -Layout legacy -Dll $Dll -LocaleDir $localeSrc
+
+    $profileDir = Join-Path $root 'config\obs-studio\basic\profiles\SBSelftest'
+    New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
+    $ini = "[General]`r`nName=SBSelftest`r`n`r`n[Video]`r`nBaseCX=1280`r`nBaseCY=720`r`nOutputCX=1280`r`nOutputCY=720`r`nFPSType=1`r`nFPSInt=$Fps`r`n"
+    [System.IO.File]::WriteAllText((Join-Path $profileDir 'basic.ini'), $ini, (New-Object System.Text.UTF8Encoding($false)))
+
+    # OBS 30 keeps its settings in global.ini, OBS 31+ in user.ini. Without FirstRun the auto-configuration
+    # wizard opens, and without EnableAutoUpdates=false the update prompt does: both are modal windows
+    # and OBS then ignores the close request.
+    $cfgDir = Join-Path $root 'config\obs-studio'
+    New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
+    foreach ($ini in @('global.ini', 'user.ini')) {
+        [System.IO.File]::WriteAllText((Join-Path $cfgDir $ini), "[General]`r`nFirstRun=true`r`nEnableAutoUpdates=false`r`n", (New-Object System.Text.UTF8Encoding($false)))
+    }
+
+    New-Item -ItemType Directory -Force -Path $ArtifactDir | Out-Null
+    $report = Join-Path $ArtifactDir "selftest-${Fps}fps.json"
+    $logCopy = Join-Path $ArtifactDir "obs-${Fps}fps.log"
+    foreach ($old in @($report, "$report.tmp", $logCopy)) { Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue }
+
+    $env:OBS_SCOREBOARD_SELFTEST = '1'
+    $env:OBS_SCOREBOARD_SELFTEST_FPS = "$Fps"
+    $env:OBS_SCOREBOARD_SELFTEST_SECS = "$Seconds"
+    $env:OBS_SCOREBOARD_SELFTEST_OUT = $report
+
+    $started = Get-Date
+    $bin = Join-Path $root 'bin\64bit'
+    $proc = Start-Process -FilePath (Join-Path $bin 'obs64.exe') -WorkingDirectory $bin -PassThru `
+        -ArgumentList '--portable', '--multi', '--profile', 'SBSelftest', '--disable-shutdown-check', '--disable-missing-files-check'
 } catch {
     Write-Host "setup failed: $($_.Exception.Message)"
     exit 2
 }
-Install-Plugin -Root $root -Layout legacy -Dll $Dll -LocaleDir $localeSrc
-
-$profileDir = Join-Path $root 'config\obs-studio\basic\profiles\SBSelftest'
-New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
-$ini = "[General]`r`nName=SBSelftest`r`n`r`n[Video]`r`nBaseCX=1280`r`nBaseCY=720`r`nOutputCX=1280`r`nOutputCY=720`r`nFPSType=1`r`nFPSInt=$Fps`r`n"
-[System.IO.File]::WriteAllText((Join-Path $profileDir 'basic.ini'), $ini, (New-Object System.Text.UTF8Encoding($false)))
-
-New-Item -ItemType Directory -Force -Path $ArtifactDir | Out-Null
-$report = Join-Path $ArtifactDir "selftest-${Fps}fps.json"
-$logCopy = Join-Path $ArtifactDir "obs-${Fps}fps.log"
-foreach ($old in @($report, "$report.tmp", $logCopy)) { Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue }
-
-$env:OBS_SCOREBOARD_SELFTEST = '1'
-$env:OBS_SCOREBOARD_SELFTEST_FPS = "$Fps"
-$env:OBS_SCOREBOARD_SELFTEST_SECS = "$Seconds"
-$env:OBS_SCOREBOARD_SELFTEST_OUT = $report
-
-$started = Get-Date
-$bin = Join-Path $root 'bin\64bit'
-$proc = Start-Process -FilePath (Join-Path $bin 'obs64.exe') -WorkingDirectory $bin -PassThru `
-    -ArgumentList '--portable', '--multi', '--profile', 'SBSelftest', '--disable-shutdown-check', '--disable-missing-files-check'
 
 $deadline = $started.AddSeconds($Seconds + 90)
 while ((Get-Date) -lt $deadline -and -not (Test-Path -LiteralPath $report) -and -not $proc.HasExited) {
