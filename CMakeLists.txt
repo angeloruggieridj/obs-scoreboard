@@ -75,9 +75,13 @@ target_sources(
   PRIVATE
     src/plugin/ClockDriver.cpp
     src/plugin/ClockDriver.hpp
+    src/plugin/FieldSinks.cpp
+    src/plugin/FieldSinks.hpp
     src/plugin/plugin-main.cpp
     src/plugin/ScoreboardDock.cpp
     src/plugin/ScoreboardDock.hpp
+    src/plugin/TextSink.cpp
+    src/plugin/TextSink.hpp
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
