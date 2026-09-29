@@ -43,6 +43,12 @@ void MatchEngine::advance(Micros now) {
         logEvent(EventType::PeriodEnd, now, std::nullopt, {});
 }
 
+std::optional<Micros> MatchEngine::nextClockChangeAt(Micros now) const {
+    const bool tenths = settings_.tenthsInLastMinute && clock_.direction() == Direction::Down &&
+                        clock_.value() <= kTenthsPerMinute;
+    return clock_.nextChangeAt(now, tenths ? 1 : 10);
+}
+
 void MatchEngine::enterPeriod(int index) {
     periods_.setIndex(index);
     counters_.setPeriod(periods_.index(), settings_.sport.periods);

@@ -241,3 +241,53 @@ TEST_CASE("reset while running is ignored, and works again once stopped") {
     c.resetToStart(); // now applies
     CHECK(c.value() == 0);
 }
+
+TEST_CASE("nextChangeAt points at the exact instant the countdown text changes") {
+    Clock c;
+    c.configure(Direction::Down, seconds(25), true);
+    CHECK_FALSE(c.nextChangeAt(0, 10).has_value()); // stopped
+    c.start(1'000'000);
+    // 25.0 s shown as 00:25 until the value reaches 24.0 s, one second after start.
+    CHECK(c.nextChangeAt(1'000'000, 10) == 2'000'000);
+    CHECK(c.nextChangeAt(1'500'000, 10) == 2'000'000);
+    c.advance(2'050'000); // value 24.0 s (tenths floor): next change at 23.0 s
+    CHECK(c.nextChangeAt(2'050'000, 10) == 3'000'000);
+    CHECK(c.nextChangeAt(2'050'000, 1) == 2'100'000); // tenths: next tenth
+}
+
+TEST_CASE("nextChangeAt for a count-up clock and at the limits") {
+    Clock up;
+    up.configure(Direction::Up, seconds(3), true);
+    up.start(0);
+    CHECK(up.nextChangeAt(0, 10) == 1'000'000);
+    up.advance(2'500'000); // 2.5 s
+    CHECK(up.nextChangeAt(2'500'000, 10) == 3'000'000);
+    up.advance(3'000'000); // reached 3 s: stops at its limit
+    CHECK_FALSE(up.nextChangeAt(3'000'000, 10).has_value());
+
+    Clock down;
+    down.configure(Direction::Down, seconds(1), true);
+    down.start(0);
+    down.advance(1'000'000); // 0.0: stopped
+    CHECK_FALSE(down.nextChangeAt(1'000'000, 10).has_value());
+}
+
+TEST_CASE("nextChangeAt on a running clock already at zero or past its limit has no change") {
+    Clock down;
+    down.configure(Direction::Down, seconds(1), true);
+    down.start(0);
+    // Not advanced yet: the derived value at `now` is already 0.
+    CHECK_FALSE(down.nextChangeAt(1'500'000, 10).has_value());
+
+    Clock up;
+    up.configure(Direction::Up, seconds(3), true);
+    up.start(0);
+    // Derived value at `now` is clamped to the 3 s limit, so no further change.
+    CHECK_FALSE(up.nextChangeAt(3'500'000, 10).has_value());
+
+    // Stoppage time: without stopAtLimit a count-up keeps changing past its duration.
+    Clock stoppage;
+    stoppage.configure(Direction::Up, seconds(3), false);
+    stoppage.start(0);
+    CHECK(stoppage.nextChangeAt(3'500'000, 10) == 4'000'000);
+}

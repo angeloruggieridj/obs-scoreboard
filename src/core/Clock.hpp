@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include <optional>
+
 #include "Types.hpp"
 
 namespace sb {
@@ -36,6 +38,11 @@ public:
     // Delta that would move the clock to `target`, saturated so the subtraction itself can never
     // overflow: safe to pass to adjust() even for an extreme target.
     Tenths deltaTo(Tenths target) const;
+
+    // Monotonic instant at which the value next reaches a multiple of `step` tenths in the
+    // counting direction (the moment a text showing that granularity changes). nullopt when the
+    // clock is stopped or will not change again (at zero, or at the limit it stops at).
+    std::optional<Micros> nextChangeAt(Micros now, Tenths step) const;
 
     bool running() const { return running_; }
     Tenths value() const { return value_; }

@@ -3,6 +3,7 @@
 
 #include <array>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -140,6 +141,9 @@ public:
     CommandResult apply(const Command& command, Micros now);
     void advance(Micros now);
     FieldValues fields() const;
+    // Instant at which the clock field's text next changes (whole seconds, or tenths in the last
+    // minute of a countdown when enabled); nullopt when the clock will not change again.
+    std::optional<Micros> nextClockChangeAt(Micros now) const;
 
     const MatchSettings& settings() const { return settings_; }
     const Clock& clock() const { return clock_; }

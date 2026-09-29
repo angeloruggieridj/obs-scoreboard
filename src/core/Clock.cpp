@@ -70,6 +70,20 @@ Tenths Clock::computeAt(Micros now) const {
     return v;
 }
 
+std::optional<Micros> Clock::nextChangeAt(Micros now, Tenths step) const {
+    if (!running_) return std::nullopt;
+    step = std::max<Tenths>(1, step);
+    const Tenths v = computeAt(std::max(now, lastNow_));
+    if (dir_ == Direction::Down) {
+        if (v == 0) return std::nullopt;
+        const Tenths target = ((v - 1) / step) * step;
+        return anchorTime_ + (anchorValue_ - target) * kMicrosPerTenth;
+    }
+    const Tenths target = (v / step + 1) * step;
+    if (stopAtLimit_ && duration_ > 0 && target > duration_) return std::nullopt;
+    return anchorTime_ + (target - anchorValue_) * kMicrosPerTenth;
+}
+
 Clock::Tick Clock::advance(Micros now) {
     Tick tick;
     if (!running_) return tick;

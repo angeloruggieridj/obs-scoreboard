@@ -530,3 +530,29 @@ TEST_CASE("ClockSet saturates instead of overflowing on an extreme target") {
     CHECK(run(e, cmd::ClockSet{std::numeric_limits<Tenths>::min()}).isOk());
     CHECK(field(e, FieldId::Clock) == "00:00");
 }
+
+TEST_CASE("nextClockChangeAt: whole seconds, or tenths in the last minute when enabled") {
+    MatchEngine e = engineFor("futsal");
+    CHECK_FALSE(e.nextClockChangeAt(0).has_value()); // stopped
+    run(e, cmd::ClockSet{seconds(25)});
+    run(e, cmd::ClockStart{});
+    CHECK(e.nextClockChangeAt(0) == 1'000'000);
+
+    MatchSettings s = MatchSettings::forSport(*findSport("futsal"));
+    s.tenthsInLastMinute = true;
+    MatchEngine t(s);
+    run(t, cmd::ClockSet{seconds(30)});
+    run(t, cmd::ClockStart{});
+    CHECK(t.nextClockChangeAt(0) == 100'000);
+
+    run(t, cmd::ClockStop{}, 0);
+    run(t, cmd::ClockSet{seconds(90)});
+    run(t, cmd::ClockStart{});
+    CHECK(t.nextClockChangeAt(0) == 1'000'000); // above one minute: whole seconds
+
+    MatchSettings up = MatchSettings::forSport(*findSport("soccer"));
+    up.tenthsInLastMinute = true;
+    MatchEngine u(up);
+    run(u, cmd::ClockStart{});
+    CHECK(u.nextClockChangeAt(0) == 1'000'000); // a count-up never shows tenths
+}
