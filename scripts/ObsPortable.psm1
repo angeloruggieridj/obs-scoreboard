@@ -32,8 +32,16 @@ function Get-ObsZip {
     New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
     $assets = (gh release view $Version --repo obsproject/obs-studio --json assets | ConvertFrom-Json).assets.name
     if (-not $assets) { throw "could not list the assets of OBS $Version (is gh authenticated?)" }
-    $v = [regex]::Escape($Version)
-    $name = $assets | Where-Object { $_ -match "^OBS-Studio-$v(-Windows)?(-x64)?(-Full)?\.zip$" } | Select-Object -First 1
+    # OBS 30.0.0 ships its zip as "OBS-Studio-30.0.zip" (no patch number), so
+    # "X.Y.0" is also tried as "X.Y".
+    $names = @($Version)
+    if ($Version -match '^(\d+\.\d+)\.0$') { $names += $Matches[1] }
+    $name = $null
+    foreach ($n in $names) {
+        $v = [regex]::Escape($n)
+        $name = $assets | Where-Object { $_ -match "^OBS-Studio-$v(-Windows)?(-x64)?(-Full)?\.zip$" } | Select-Object -First 1
+        if ($name) { break }
+    }
     if (-not $name) {
         $name = $assets | Where-Object { $_ -like "OBS-Studio-$Version*.zip" -and $_ -notmatch 'PDB|arm64|ARM64|Installer|Debug|Symbols' } |
             Select-Object -First 1
@@ -61,15 +69,18 @@ function Reset-Obs {
     # A config of its own: no first-run wizard and no update check (either
     # opens a modal -- a beta offers the newest stable -- and a modal disables
     # the main window, so the close request is refused and OBS gets killed).
-    # Each key only in the file OBS reads it from. FirstRun=true means "the
-    # first run has HAPPENED" and lives in user.ini (OBSBasic.cpp opens the
-    # wizard when it is false). The update check is an app setting, in
-    # global.ini. NOT LastVersion: a made-up one makes OBS try to migrate the
-    # "old" global config and stop on "Unable to migrate global configuration".
+    # FirstRun=true means "the first run has HAPPENED" (OBSBasic.cpp opens the
+    # wizard when it is false). Which file holds the keys depends on the OBS
+    # version: OBS 30 reads them from global.ini, OBS 31+ splits the settings
+    # and reads them from user.ini. Both keys go into both files, which is
+    # harmless: each version ignores what it does not read. NOT LastVersion: a
+    # made-up one makes OBS try to migrate the "old" global config and stop on
+    # "Unable to migrate global configuration".
     $cfg = Join-Path $root 'config\obs-studio'
     New-Item -ItemType Directory -Force -Path $cfg | Out-Null
-    Set-Content -LiteralPath (Join-Path $cfg 'user.ini') -Value "[General]`r`nFirstRun=true`r`n" -Encoding UTF8
-    Set-Content -LiteralPath (Join-Path $cfg 'global.ini') -Value "[General]`r`nEnableAutoUpdates=false`r`n" -Encoding UTF8
+    foreach ($file in @('global.ini', 'user.ini')) {
+        Set-Content -LiteralPath (Join-Path $cfg $file) -Value "[General]`r`nFirstRun=true`r`nEnableAutoUpdates=false`r`n" -Encoding UTF8
+    }
     return $root
 }
 

@@ -48,15 +48,6 @@ try {
     $ini = "[General]`r`nName=SBSelftest`r`n`r`n[Video]`r`nBaseCX=1280`r`nBaseCY=720`r`nOutputCX=1280`r`nOutputCY=720`r`nFPSType=1`r`nFPSInt=$Fps`r`n"
     [System.IO.File]::WriteAllText((Join-Path $profileDir 'basic.ini'), $ini, (New-Object System.Text.UTF8Encoding($false)))
 
-    # OBS 30 keeps its settings in global.ini, OBS 31+ in user.ini. Without FirstRun the auto-configuration
-    # wizard opens, and without EnableAutoUpdates=false the update prompt does: both are modal windows
-    # and OBS then ignores the close request.
-    $cfgDir = Join-Path $root 'config\obs-studio'
-    New-Item -ItemType Directory -Force -Path $cfgDir | Out-Null
-    foreach ($ini in @('global.ini', 'user.ini')) {
-        [System.IO.File]::WriteAllText((Join-Path $cfgDir $ini), "[General]`r`nFirstRun=true`r`nEnableAutoUpdates=false`r`n", (New-Object System.Text.UTF8Encoding($false)))
-    }
-
     New-Item -ItemType Directory -Force -Path $ArtifactDir | Out-Null
     $report = Join-Path $ArtifactDir "selftest-${Fps}fps.json"
     $logCopy = Join-Path $ArtifactDir "obs-${Fps}fps.log"
