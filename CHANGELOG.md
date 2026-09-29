@@ -15,3 +15,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   match engine, resumable JSON state.
 - The dock drives the match clock (start/stop, ±1 min and ±1 s arrows with auto-repeat,
   reset) and writes it straight into a Text source you pick, with no `.txt` file in between.
+
+### Fixed
+
+- The plugin loads in OBS Studio 30, 31 and 32 (it is now built against the OBS 30.0 dependencies).

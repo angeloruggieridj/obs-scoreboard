@@ -54,7 +54,10 @@ function(_setup_obs_studio)
 
   if(OS_WINDOWS)
     set(_cmake_generator "${CMAKE_GENERATOR}")
-    set(_cmake_arch "-A ${arch},version=${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
+    # OBS 30.0's own buildspec.cmake reuses CMAKE_VS_PLATFORM_NAME as its deps architecture,
+    # so the ",version=..." platform suffix breaks it; the SDK is pinned through
+    # CMAKE_SYSTEM_VERSION below instead.
+    set(_cmake_arch "-A ${arch}")
     set(_cmake_extra "-DCMAKE_SYSTEM_VERSION=${CMAKE_SYSTEM_VERSION} -DCMAKE_ENABLE_SCRIPTING=OFF")
   elseif(OS_MACOS)
     set(_cmake_generator "Xcode")
