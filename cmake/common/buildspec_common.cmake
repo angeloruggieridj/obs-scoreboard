@@ -63,6 +63,28 @@ function(_setup_obs_studio)
     set(_cmake_generator "Xcode")
     set(_cmake_arch "-DCMAKE_OSX_ARCHITECTURES:STRING='arm64;x86_64'")
     set(_cmake_extra "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    # OBS 30.0 reads the SDK version from the CMAKE_OSX_SYSROOT path (MacOSX<version>.sdk),
+    # which CMake 4 no longer sets by default: hand it the versioned SDK path explicitly.
+    execute_process(
+      COMMAND xcrun --sdk macosx --show-sdk-path
+      OUTPUT_VARIABLE _sdk_path
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      COMMAND_ERROR_IS_FATAL ANY
+    )
+    execute_process(
+      COMMAND xcrun --sdk macosx --show-sdk-version
+      OUTPUT_VARIABLE _sdk_version
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      COMMAND_ERROR_IS_FATAL ANY
+    )
+    cmake_path(GET _sdk_path PARENT_PATH _sdk_dir)
+    if(EXISTS "${_sdk_dir}/MacOSX${_sdk_version}.sdk")
+      set(_sdk_path "${_sdk_dir}/MacOSX${_sdk_version}.sdk")
+    endif()
+    list(APPEND _cmake_extra "-DCMAKE_OSX_SYSROOT=${_sdk_path}")
+    # OBS 30.0 turns warnings into errors by default; Xcode 16 postdates it and only libobs
+    # and obs-frontend-api are built here, so its new warnings must not stop the build.
+    list(APPEND _cmake_extra "-DCMAKE_COMPILE_WARNING_AS_ERROR:BOOL=OFF")
   endif()
 
   message(STATUS "Configure ${label} (${arch})")
