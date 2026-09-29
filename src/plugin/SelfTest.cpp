@@ -34,6 +34,8 @@
 
 namespace {
 
+// The clock is set this far past the window so it is still running when OBS is closed.
+constexpr int kLeadSeconds = 60;
 constexpr const char* kSourceName = "SB Selftest Clock";
 constexpr const char* kRenamed = "SB Selftest Clock (renamed)";
 constexpr const char* kColorId = "color_source";
@@ -108,6 +110,7 @@ private:
     void checkDelete();
     void checkWrongType();
     void finish();
+    static void snapshotCounters(std::uint32_t& lagged, std::uint32_t& skipped);
 
     QPointer<ClockDriver> driver_;
     QPointer<FieldSinks> sinks_;
@@ -129,13 +132,14 @@ private:
     int boxX_ = 0, boxY_ = 0, boxW_ = 0, boxH_ = 0;
     std::vector<sbtest::FrameSample> frames_;
     std::uint64_t badTimestamps_ = 0;
+    // OBS reports totals since it started; the report also gives the deltas over the window.
+    std::uint32_t laggedAtStart_ = 0, skippedAtStart_ = 0, laggedAtEnd_ = 0, skippedAtEnd_ = 0;
 };
 
 QPointer<Run> g_run;
 std::atomic<bool> g_started{false};
 
 void Run::begin() {
-    if (!driver_ || !sinks_) return;
     secs_ = std::clamp(envInt("OBS_SCOREBOARD_SELFTEST_SECS", 20), 5, 120);
     requestedFps_ = envInt("OBS_SCOREBOARD_SELFTEST_FPS", 0);
     out_ = envPathUtf8("OBS_SCOREBOARD_SELFTEST_OUT");
@@ -143,6 +147,11 @@ void Run::begin() {
         std::error_code ec;
         out_ =
             (std::filesystem::temp_directory_path(ec) / "obs-scoreboard-selftest.json").u8string();
+    }
+    if (!driver_ || !sinks_) {
+        fail("plugin not initialised");
+        finish();
+        return;
     }
 
     obs_video_info ovi{};
@@ -183,7 +192,7 @@ void Run::begin() {
     obs_sceneitem_set_pos(item, &pos);
 
     driver_->apply(sb::cmd::ClockStop{});
-    driver_->apply(sb::cmd::ClockSet{sb::seconds(secs_ + 5)});
+    driver_->apply(sb::cmd::ClockSet{sb::seconds(secs_ + kLeadSeconds)});
     sinks_->setPushObserver([this](sb::FieldId field, const std::string& text, std::uint64_t ns) {
         if (field == sb::FieldId::Clock) input_.pushes.push_back({ns, text});
     });
@@ -260,11 +269,12 @@ void Run::startClock() {
     const sb::Micros t0 = ClockDriver::nowMicros();
     startNs_ = static_cast<std::uint64_t>(t0) * 1000ULL;
     driver_->applyAt(sb::cmd::ClockStart{}, t0);
+    snapshotCounters(laggedAtStart_, skippedAtStart_);
     const bool twoDigits = driver_->engine().settings().twoDigitMinutes;
     input_.fps = actualFps_;
     for (int k = 0; k <= secs_; ++k) {
-        input_.expectedTexts.push_back(
-            sb::formatClock(sb::seconds(secs_ + 5 - k), sb::Direction::Down, twoDigits, false));
+        input_.expectedTexts.push_back(sb::formatClock(sb::seconds(secs_ + kLeadSeconds - k),
+                                                       sb::Direction::Down, twoDigits, false));
         input_.expectedNs.push_back(startNs_ + static_cast<std::uint64_t>(k) * 1'000'000'000ULL);
     }
     after(secs_ * 1000 + 700, &Run::endWindow);
@@ -272,6 +282,7 @@ void Run::startClock() {
 
 void Run::endWindow() {
     stopCapture();
+    snapshotCounters(laggedAtEnd_, skippedAtEnd_);
     {
         std::lock_guard<std::mutex> lock(mutex_);
         input_.frames = frames_;
@@ -352,6 +363,12 @@ void Run::checkWrongType() {
     finish();
 }
 
+void Run::snapshotCounters(std::uint32_t& lagged, std::uint32_t& skipped) {
+    video_t* video = obs_get_video();
+    lagged = obs_get_lagged_frames();
+    skipped = video ? video_output_get_skipped_frames(video) : 0u;
+}
+
 void Run::finish() {
     std::uint64_t captured = 0, bad = 0;
     {
@@ -359,6 +376,9 @@ void Run::finish() {
         captured = frames_.size();
         bad = badTimestamps_;
     }
+    // The run leaves the clock going so that closing OBS with a running clock is exercised.
+    if (driver_ && !driver_->engine().clock().running())
+        fail("clock stopped before the end of the selftest");
     if (bad > 0) fail("frame timestamps are not on the os_gettime_ns base");
     const bool fpsOk = requestedFps_ <= 0 || std::abs(actualFps_ - requestedFps_) <= 0.01;
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
@@ -375,30 +395,32 @@ void Run::finish() {
     }
     nlohmann::json problems = problems_;
     for (const std::string& p : verdict_.problems) problems.push_back(p);
-    video_t* video = obs_get_video();
-    const nlohmann::json report = {
-        {"version", 1},
-        {"pass", pass},
-        {"fps", {{"requested", requestedFps_}, {"actual", actualFps_}}},
-        {"window", {{"seconds", secs_}, {"startNs", startNs_}}},
-        {"criteria",
-         {{"sequence", verdict_.sequenceOk},
-          {"drawn", verdict_.drawnOk},
-          {"latency", verdict_.latencyOk}}},
-        {"budgetMs", verdict_.budgetMs},
-        {"maxLatencyMs", verdict_.maxLatencyMs},
-        {"frames",
-         {{"captured", captured},
-          {"badTimestamps", bad},
-          {"lagged", obs_get_lagged_frames()},
-          {"skipped", video ? video_output_get_skipped_frames(video) : 0u}}},
-        {"changes", changes},
-        {"survival",
-         {{"rename", rename_},
-          {"fileMode", fileMode_},
-          {"delete", delete_},
-          {"wrongType", wrongType_}}},
-        {"problems", problems}};
+    std::uint32_t laggedTotal = 0, skippedTotal = 0;
+    snapshotCounters(laggedTotal, skippedTotal);
+    const nlohmann::json report = {{"version", 1},
+                                   {"pass", pass},
+                                   {"fps", {{"requested", requestedFps_}, {"actual", actualFps_}}},
+                                   {"window", {{"seconds", secs_}, {"startNs", startNs_}}},
+                                   {"criteria",
+                                    {{"sequence", verdict_.sequenceOk},
+                                     {"drawn", verdict_.drawnOk},
+                                     {"latency", verdict_.latencyOk}}},
+                                   {"budgetMs", verdict_.budgetMs},
+                                   {"maxLatencyMs", verdict_.maxLatencyMs},
+                                   {"frames",
+                                    {{"captured", captured},
+                                     {"badTimestamps", bad},
+                                     {"lagged", laggedAtEnd_ - laggedAtStart_},
+                                     {"skipped", skippedAtEnd_ - skippedAtStart_},
+                                     {"laggedTotal", laggedTotal},
+                                     {"skippedTotal", skippedTotal}}},
+                                   {"changes", changes},
+                                   {"survival",
+                                    {{"rename", rename_},
+                                     {"fileMode", fileMode_},
+                                     {"delete", delete_},
+                                     {"wrongType", wrongType_}}},
+                                   {"problems", problems}};
 
     const std::string tmp = out_ + ".tmp";
     {
