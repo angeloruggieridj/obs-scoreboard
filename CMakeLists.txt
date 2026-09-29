@@ -80,6 +80,8 @@ target_sources(
     src/plugin/plugin-main.cpp
     src/plugin/ScoreboardDock.cpp
     src/plugin/ScoreboardDock.hpp
+    src/plugin/SourcePicker.cpp
+    src/plugin/SourcePicker.hpp
     src/plugin/TextSink.cpp
     src/plugin/TextSink.hpp
 )

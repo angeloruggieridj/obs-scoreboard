@@ -166,7 +166,7 @@ foreach ($layout in $Layouts) {
     Set-Content -LiteralPath $copy -Value $text -Encoding UTF8
 
     $ourLines = ($text -split "`r?`n") | Where-Object { $_ -match '\[obs-scoreboard\]' }
-    $errorLines = $ourLines | Where-Object { $_ -match '(?i)\b(could not|failed|error)\b' }
+    $errorLines = $ourLines | Where-Object { $_ -match '(?i)\b(could not|failed|error|missing)\b' }
 
     $check = [ordered]@{
         layout          = $layout

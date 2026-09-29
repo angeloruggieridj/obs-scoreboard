@@ -13,3 +13,5 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   continuous integration on Windows, macOS and Linux.
 - Core game logic: clock, periods, counters, penalties, strength, 14 sport presets,
   match engine, resumable JSON state.
+- The dock drives the match clock (start/stop, ±1 min and ±1 s arrows with auto-repeat,
+  reset) and writes it straight into a Text source you pick, with no `.txt` file in between.
