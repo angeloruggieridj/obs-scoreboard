@@ -37,9 +37,11 @@ private:
     void onTick();
     void publish();
     void syncTimer();
+    void armAligned();
 
     sb::MatchEngine engine_;
     QTimer timer_;
+    QTimer aligned_; // single shot on the exact instant the clock text changes
     sb::FieldValues published_;
     bool running_ = false;
     bool shutDown_ = false;
