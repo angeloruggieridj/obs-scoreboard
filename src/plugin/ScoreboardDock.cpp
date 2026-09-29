@@ -87,8 +87,8 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, QWidget* 
         showRunning(driver_->engine().clock().running());
     }
     if (sinks_) {
-        connect(sinks_, &FieldSinks::bindingChanged, this, [this](sb::FieldId field) {
-            if (field == sb::FieldId::Clock) showStatus();
+        connect(sinks_, &FieldSinks::bindingChanged, this, [this](int field) {
+            if (field == static_cast<int>(sb::FieldId::Clock)) showStatus();
         });
     }
     showStatus();

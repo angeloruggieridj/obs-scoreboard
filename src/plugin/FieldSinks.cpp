@@ -39,27 +39,27 @@ FieldSinks::~FieldSinks() {
 bool FieldSinks::bind(sb::FieldId field, obs_source_t* source) {
     const bool ok = sinks_[index(field)].bind(source);
     if (ok) pushOne(field);
-    emit bindingChanged(field);
+    emit bindingChanged(static_cast<int>(field));
     return ok;
 }
 
 bool FieldSinks::bindTo(sb::FieldId field, const TextSink::Binding& binding) {
     const bool ok = sinks_[index(field)].bindTo(binding);
     if (ok) pushOne(field);
-    emit bindingChanged(field);
+    emit bindingChanged(static_cast<int>(field));
     return ok;
 }
 
 void FieldSinks::unbind(sb::FieldId field) {
     sinks_[index(field)].unbind();
-    emit bindingChanged(field);
+    emit bindingChanged(static_cast<int>(field));
 }
 
 void FieldSinks::unbindAll() {
     for (std::size_t i = 0; i < sinks_.size(); ++i) {
         if (!sinks_[i].bound()) continue;
         sinks_[i].unbind();
-        emit bindingChanged(static_cast<sb::FieldId>(i));
+        emit bindingChanged(static_cast<int>(i));
     }
 }
 
@@ -91,8 +91,7 @@ void FieldSinks::onSourceGone(void* data, calldata_t* cd) {
             for (std::size_t i = 0; i < self->sinks_.size(); ++i) {
                 const bool was = self->sinks_[i].bound();
                 self->sinks_[i].sourceGone(uuid);
-                if (was && !self->sinks_[i].bound())
-                    emit self->bindingChanged(static_cast<sb::FieldId>(i));
+                if (was && !self->sinks_[i].bound()) emit self->bindingChanged(static_cast<int>(i));
             }
         },
         Qt::QueuedConnection);
@@ -110,7 +109,7 @@ void FieldSinks::onSourceRenamed(void* data, calldata_t* cd) {
             for (std::size_t i = 0; i < self->sinks_.size(); ++i) {
                 if (self->sinks_[i].binding().uuid != uuid) continue;
                 self->sinks_[i].sourceRenamed(uuid, name);
-                emit self->bindingChanged(static_cast<sb::FieldId>(i));
+                emit self->bindingChanged(static_cast<int>(i));
             }
         },
         Qt::QueuedConnection);

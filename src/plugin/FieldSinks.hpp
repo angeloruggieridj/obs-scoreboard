@@ -35,7 +35,10 @@ public slots:
     void publish(const sb::FieldValues& fields);
 
 signals:
-    void bindingChanged(sb::FieldId field);
+    // The field's index in FieldValues (its sb::FieldId value). Plain int because Qt 6.4's moc
+    // cannot register an enum whose underlying type is std::size_t (no QDataStream operator
+    // for unsigned long).
+    void bindingChanged(int field);
 
 private:
     static void onSourceGone(void* data, calldata_t* cd);
