@@ -1,0 +1,133 @@
+name: Selftest
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  # Builds the plugin, then runs the in-OBS fps selftest (real OBS, real Text
+  # source, the clock updated every 0.1 s) at 25, 30, 50 and 60 fps. The OBS
+  # comes from the official PPA (latest stable), and the plugin is built
+  # against that same libobs.
+  selftest-linux:
+    name: Selftest on Linux 🐧
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install OBS Studio 📺
+        run: |
+          : Install OBS Studio 📺
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
+          sudo apt-get update
+          sudo apt-get install -y obs-studio xvfb fonts-dejavu-core
+
+      - name: Build Plugin 🧱
+        uses: ./.github/actions/build-plugin
+        with:
+          target: x86_64
+          config: RelWithDebInfo
+
+      - name: Run Selftest at 25/30/50/60 fps 🏒
+        run: |
+          : Run Selftest at 25/30/50/60 fps 🏒
+          plugin="$(find build_x86_64 -type f -name obs-scoreboard.so | head -n 1)"
+          if [[ -z "${plugin}" ]]; then
+            echo "::error::obs-scoreboard.so not found under build_x86_64"
+            exit 2
+          fi
+          echo "plugin: ${plugin}"
+
+          # Every framerate runs even if an earlier one failed; the first
+          # non-zero exit code becomes the job's.
+          status=0
+          for fps in 25 30 50 60; do
+            echo "::group::selftest ${fps} fps"
+            rc=0
+            # Software rendering (llvmpipe) on a shared runner: a smaller
+            # canvas keeps the renderer from lagging. The criteria are the same.
+            scripts/run-selftest.sh --fps "${fps}" --seconds 20 --plugin "${plugin}" \
+              --locale data/locale --artifacts selftest-artifacts --canvas 640x360 || rc=$?
+            echo "::endgroup::"
+            if [[ "${rc}" -ne 0 ]]; then
+              echo "::error::selftest at ${fps} fps exited with ${rc}"
+              if [[ "${status}" -eq 0 ]]; then status="${rc}"; fi
+            fi
+          done
+          exit "${status}"
+
+      - name: Upload Selftest Artifacts 📡
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: selftest-linux
+          path: ${{ github.workspace }}/selftest-artifacts/
+          if-no-files-found: warn
+
+  selftest-windows:
+    name: Selftest on Windows 🪟
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build Plugin 🧱
+        uses: ./.github/actions/build-plugin
+        with:
+          target: x64
+          config: RelWithDebInfo
+          generator: 'Visual Studio 17 2022'
+
+      - name: Run Selftest at 25/30/50/60 fps 🏒
+        run: |
+          # Run Selftest at 25/30/50/60 fps 🏒
+          $dll = Get-ChildItem -Path build_x64 -Recurse -Filter obs-scoreboard.dll |
+            Where-Object { $_.FullName -match 'RelWithDebInfo' } | Select-Object -First 1
+          if (-not $dll) {
+            Write-Host '::error::obs-scoreboard.dll not found under build_x64'
+            exit 2
+          }
+          Write-Host "plugin: $($dll.FullName)"
+
+          # Every framerate runs even if an earlier one failed; the first
+          # non-zero exit code becomes the job's.
+          # OBS runs from its own bin folder, so the artifact folder must be absolute.
+          $artifacts = Join-Path $PWD 'selftest-artifacts'
+          $status = 0
+          foreach ($fps in 25, 30, 50, 60) {
+            Write-Host "::group::selftest $fps fps"
+            pwsh -File scripts/run-selftest.ps1 -Fps $fps -Seconds 20 -Dll $dll.FullName -ArtifactDir $artifacts
+            $rc = $LASTEXITCODE
+            Write-Host '::endgroup::'
+            if ($rc -ne 0) {
+              Write-Host "::error::selftest at $fps fps exited with $rc"
+              if ($status -eq 0) { $status = $rc }
+            }
+          }
+          exit $status
+
+      - name: Upload Selftest Artifacts 📡
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: selftest-windows
+          path: ${{ github.workspace }}/selftest-artifacts/
+          if-no-files-found: warn

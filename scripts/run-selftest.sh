@@ -4,6 +4,7 @@
 # Runs the in-OBS fps selftest with the system OBS under xvfb (Linux).
 #
 #   run-selftest.sh --fps N [--seconds 20] --plugin <.so> --locale <dir> [--artifacts <dir>]
+#                       [--canvas WxH]   (default 1280x720; CI uses a smaller one on software rendering)
 #
 # Exit 0 = PASS, 1 = FAIL (report says FAIL or the shutdown was not clean),
 # 2 = no report (OBS did not start, timeout, crash) or setup problem.
@@ -14,9 +15,10 @@ seconds=20
 plugin=""
 locale=""
 artifacts=""
+canvas="1280x720"
 
 usage() {
-    echo "usage: $0 --fps N [--seconds S] --plugin <obs-scoreboard.so> --locale <dir> [--artifacts <dir>]" >&2
+    echo "usage: $0 --fps N [--seconds S] --plugin <obs-scoreboard.so> --locale <dir> [--artifacts <dir>] [--canvas WxH]" >&2
     exit 2
 }
 
@@ -27,6 +29,7 @@ while [ $# -gt 0 ]; do
         --plugin) plugin="${2:-}"; shift 2 ;;
         --locale) locale="${2:-}"; shift 2 ;;
         --artifacts) artifacts="${2:-}"; shift 2 ;;
+        --canvas) canvas="${2:-}"; shift 2 ;;
         *) usage ;;
     esac
 done
@@ -42,6 +45,12 @@ if [ "$seconds" -lt 5 ] || [ "$seconds" -gt 120 ]; then
     echo "invalid --seconds '$seconds' (expected an integer 5-120)" >&2
     usage
 fi
+case "$canvas" in
+    [0-9]*x[0-9]*) ;;
+    *) echo "invalid --canvas '$canvas' (expected WxH, e.g. 1280x720)" >&2; usage ;;
+esac
+canvas_w="${canvas%x*}"
+canvas_h="${canvas#*x}"
 [ -f "$plugin" ] || { echo "missing plugin: $plugin" >&2; exit 2; }
 [ -d "$locale" ] || { echo "missing locale dir: $locale" >&2; exit 2; }
 for tool in obs xvfb-run python3; do
@@ -74,8 +83,8 @@ cfg="$XDG_CONFIG_HOME/obs-studio"
 mkdir -p "$cfg/basic/profiles/SBSelftest"
 printf '[General]\nFirstRun=true\n' > "$cfg/user.ini"
 printf '[General]\nEnableAutoUpdates=false\n' > "$cfg/global.ini"
-printf '[General]\nName=SBSelftest\n\n[Video]\nBaseCX=1280\nBaseCY=720\nOutputCX=1280\nOutputCY=720\nFPSType=1\nFPSInt=%s\n' \
-    "$fps" > "$cfg/basic/profiles/SBSelftest/basic.ini"
+printf '[General]\nName=SBSelftest\n\n[Video]\nBaseCX=%s\nBaseCY=%s\nOutputCX=%s\nOutputCY=%s\nFPSType=1\nFPSInt=%s\n' \
+    "$canvas_w" "$canvas_h" "$canvas_w" "$canvas_h" "$fps" > "$cfg/basic/profiles/SBSelftest/basic.ini"
 
 dest="$cfg/plugins/obs-scoreboard"
 mkdir -p "$dest/bin/64bit" "$dest/data"

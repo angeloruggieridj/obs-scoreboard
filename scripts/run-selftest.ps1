@@ -22,7 +22,8 @@ param(
     [int]$Seconds = 20,
     [string]$ObsVersion = '32.2.2',
     [string]$Dll,
-    [string]$ArtifactDir
+    [string]$ArtifactDir,
+    [ValidatePattern('^\d+x\d+$')][string]$Canvas = '1280x720'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,9 +44,10 @@ try {
     $root = Reset-Obs -Zip $zip -Work (Join-Path $base $ObsVersion)
     Install-Plugin -Root $root -Layout legacy -Dll $Dll -LocaleDir $localeSrc
 
+    $cw, $ch = $Canvas -split 'x'
     $profileDir = Join-Path $root 'config\obs-studio\basic\profiles\SBSelftest'
     New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
-    $ini = "[General]`r`nName=SBSelftest`r`n`r`n[Video]`r`nBaseCX=1280`r`nBaseCY=720`r`nOutputCX=1280`r`nOutputCY=720`r`nFPSType=1`r`nFPSInt=$Fps`r`n"
+    $ini = "[General]`r`nName=SBSelftest`r`n`r`n[Video]`r`nBaseCX=$cw`r`nBaseCY=$ch`r`nOutputCX=$cw`r`nOutputCY=$ch`r`nFPSType=1`r`nFPSInt=$Fps`r`n"
     [System.IO.File]::WriteAllText((Join-Path $profileDir 'basic.ini'), $ini, (New-Object System.Text.UTF8Encoding($false)))
 
     New-Item -ItemType Directory -Force -Path $ArtifactDir | Out-Null
