@@ -1,4 +1,5 @@
 /build*/
+/cmake/.CMakeBuildNumber
 !/build-aux
 /.deps/
 /release/

@@ -72,7 +72,12 @@ target_compile_options(
 
 target_sources(
   ${CMAKE_PROJECT_NAME}
-  PRIVATE src/plugin/plugin-main.cpp src/plugin/ScoreboardDock.cpp src/plugin/ScoreboardDock.hpp
+  PRIVATE
+    src/plugin/ClockDriver.cpp
+    src/plugin/ClockDriver.hpp
+    src/plugin/plugin-main.cpp
+    src/plugin/ScoreboardDock.cpp
+    src/plugin/ScoreboardDock.hpp
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
