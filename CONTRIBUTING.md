@@ -29,6 +29,15 @@ Loading a built plugin into a local OBS install, to check it in a real session:
 pwsh -File scripts/check-obs-load.ps1 -ObsVersion 32.2.2 -Layouts legacy
 ```
 
+Fps selftest of the direct Text-source write (the plugin's key claim), in a real OBS:
+
+```bash
+# Windows, portable OBS
+pwsh -File scripts/run-selftest.ps1 -Fps 30
+# Linux, system OBS (needs xvfb-run)
+scripts/run-selftest.sh --fps 30 --plugin <path>/obs-scoreboard.so --locale data/locale
+```
+
 ## Layout
 
 | Where | What |
