@@ -291,3 +291,12 @@ TEST_CASE("nextChangeAt on a running clock already at zero or past its limit has
     stoppage.start(0);
     CHECK(stoppage.nextChangeAt(3'500'000, 10) == 4'000'000);
 }
+
+TEST_CASE("nextChangeAt on a countdown whose value is off the display step") {
+    Clock down;
+    down.configure(Direction::Down, seconds(60), true);
+    down.set(seconds(24) + 5, 0); // 24.5 s, stopped
+    down.start(0);
+    // The shown seconds change when the value reaches 24.0 s, half a second later.
+    CHECK(down.nextChangeAt(0, 10) == 500'000);
+}

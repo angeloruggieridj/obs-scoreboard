@@ -26,6 +26,8 @@ constexpr const char* kDefaultSport = "futsal";
 QPointer<ClockDriver> g_driver;
 QPointer<FieldSinks> g_sinks;
 QPointer<ScoreboardDock> g_dock;
+// After EXIT OBS has already cleared the frontend callbacks; removing ours would log an error.
+bool g_exited = false;
 
 void tearDown() {
     selftest::stop(); // the video callback must go before the driver and sinks
@@ -43,6 +45,7 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
         selftest::maybeStart(g_driver, g_sinks);
         break;
     case OBS_FRONTEND_EVENT_EXIT:
+        g_exited = true;
         tearDown(); // while Qt and libobs are both still alive
         break;
     default:
@@ -86,7 +89,7 @@ bool obs_module_load(void) {
 }
 
 void obs_module_unload(void) {
-    obs_frontend_remove_event_callback(onFrontendEvent, nullptr);
+    if (!g_exited) obs_frontend_remove_event_callback(onFrontendEvent, nullptr);
     tearDown(); // no-op when EXIT already ran
     obs_log(LOG_INFO, "unloaded");
 }

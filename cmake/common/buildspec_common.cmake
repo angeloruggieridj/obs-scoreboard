@@ -58,7 +58,7 @@ function(_setup_obs_studio)
     # so the ",version=..." platform suffix breaks it; the SDK is pinned through
     # CMAKE_SYSTEM_VERSION below instead.
     set(_cmake_arch "-A ${arch}")
-    set(_cmake_extra "-DCMAKE_SYSTEM_VERSION=${CMAKE_SYSTEM_VERSION} -DCMAKE_ENABLE_SCRIPTING=OFF")
+    set(_cmake_extra "-DCMAKE_SYSTEM_VERSION=${CMAKE_SYSTEM_VERSION}" "-DENABLE_SCRIPTING:BOOL=OFF")
   elseif(OS_MACOS)
     set(_cmake_generator "Xcode")
     set(_cmake_arch "-DCMAKE_OSX_ARCHITECTURES:STRING='arm64;x86_64'")
@@ -239,6 +239,15 @@ function(_check_dependencies)
 
     if(NOT OBS_DEPENDENCY_${dependency}_${arch}_HASH STREQUAL ${hash})
       file(REMOVE_RECURSE "${dependencies_dir}/${destination}")
+      file(
+        GLOB _stale_packages
+        "${dependencies_dir}/cmake/libobs*.cmake"
+        "${dependencies_dir}/cmake/obs-frontend-api*.cmake"
+        "${dependencies_dir}/cmake/w32-pthreads*.cmake"
+      )
+      if(_stale_packages)
+        file(REMOVE ${_stale_packages})
+      endif()
     endif()
 
     if(NOT EXISTS "${dependencies_dir}/${destination}")

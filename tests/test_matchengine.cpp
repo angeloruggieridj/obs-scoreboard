@@ -556,3 +556,12 @@ TEST_CASE("nextClockChangeAt: whole seconds, or tenths in the last minute when e
     run(u, cmd::ClockStart{});
     CHECK(u.nextClockChangeAt(0) == 1'000'000); // a count-up never shows tenths
 }
+
+TEST_CASE("nextClockChangeAt: a countdown at exactly one minute already counts tenths") {
+    MatchSettings s = MatchSettings::forSport(*findSport("futsal"));
+    s.tenthsInLastMinute = true;
+    MatchEngine e(s);
+    run(e, cmd::ClockSet{seconds(60)});
+    run(e, cmd::ClockStart{});
+    CHECK(e.nextClockChangeAt(0) == 100'000);
+}

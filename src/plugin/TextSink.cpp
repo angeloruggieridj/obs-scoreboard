@@ -33,6 +33,12 @@ bool TextSink::bind(obs_source_t* source) {
         return false;
     }
     binding_ = {orEmpty(obs_source_get_uuid(source)), orEmpty(obs_source_get_name(source))};
+    // Private sources (OBS's own helpers, other plugins' internals) never raise the global
+    // remove/destroy signals, so a binding to one could never dissolve.
+    if (obs_obj_is_private(source)) {
+        unbind(Problem::NotFound);
+        return false;
+    }
     if (!isTextSource(source)) {
         unbind(Problem::WrongType);
         return false;
