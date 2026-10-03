@@ -15,6 +15,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   match engine, resumable JSON state.
 - The dock drives the match clock (start/stop, ±1 min and ±1 s arrows with auto-repeat,
   reset) and writes it straight into a Text source you pick, with no `.txt` file in between.
+- The match is saved as you play and can be resumed after a restart with "Resume previous match" (always asks first; OBS starts with a fresh match).
 
 ### Fixed
 

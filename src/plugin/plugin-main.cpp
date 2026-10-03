@@ -5,12 +5,16 @@
 #include <QMainWindow>
 #include <QPointer>
 
+#include <filesystem>
 #include <memory>
+#include <system_error>
 
+#include "AtomicFile.hpp"
 #include "BindingStore.hpp"
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
 #include "GlobalSettings.hpp"
+#include "MatchStateSaver.hpp"
 #include "ScoreboardDock.hpp"
 #include "SelfTest.hpp"
 #include "SportCatalog.hpp"
@@ -29,6 +33,7 @@ constexpr const char* kDefaultSport = "futsal";
 // QPointer, so a late access finds null instead of freed memory.
 QPointer<ClockDriver> g_driver;
 QPointer<FieldSinks> g_sinks;
+QPointer<MatchStateSaver> g_saver;
 QPointer<ScoreboardDock> g_dock;
 GlobalSettings g_settings;
 std::unique_ptr<BindingStore> g_bindings;
@@ -36,7 +41,8 @@ std::unique_ptr<BindingStore> g_bindings;
 bool g_exited = false;
 
 void tearDown() {
-    selftest::stop(); // the video callback must go before the driver and sinks
+    selftest::stop();      // the video callback must go before the driver and sinks
+    delete g_saver.data(); // before the driver it listens to
     if (g_driver) g_driver->shutdown();
     g_bindings.reset(); // unregisters its save callback before the sinks go
     delete g_sinks.data();
@@ -55,6 +61,7 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
         break;
     case OBS_FRONTEND_EVENT_EXIT:
         g_exited = true;
+        if (g_saver) g_saver->flush();
         tearDown(); // while Qt and libobs are both still alive
         break;
     default:
@@ -72,7 +79,21 @@ MODULE_EXPORT const char* obs_module_description(void) {
     return obs_module_text("Plugin.Description");
 }
 
+// The previous session's match becomes previous-match.json before the saver can write: "Resume"
+// then keeps working after the new session has already started the clock.
+static void rotateLastMatch() {
+    const std::string last = moduleConfigPath("last-match.json");
+    const std::string previous = moduleConfigPath("previous-match.json");
+    if (last.empty() || previous.empty()) return;
+    std::error_code ec;
+    const auto lastPath = std::filesystem::u8path(last);
+    if (!std::filesystem::exists(lastPath, ec)) return;
+    std::filesystem::rename(lastPath, std::filesystem::u8path(previous), ec);
+    if (ec) obs_log(LOG_WARNING, "could not keep the previous match: %s", ec.message().c_str());
+}
+
 bool obs_module_load(void) {
+    rotateLastMatch();
     g_settings.load();
     const sb::SportPreset* sport = sb::findSport(g_settings.prefs().lastSport);
     if (!sport) {
@@ -86,12 +107,13 @@ bool obs_module_load(void) {
     }
     g_driver = new ClockDriver(sb::MatchSettings::forSport(*sport));
     g_sinks = new FieldSinks();
+    g_saver = new MatchStateSaver(g_driver, moduleConfigPath("last-match.json"));
     g_bindings = std::make_unique<BindingStore>(g_sinks);
     QObject::connect(g_driver, &ClockDriver::fieldsChanged, g_sinks, &FieldSinks::publish);
     g_sinks->publish(g_driver->fields());
 
     auto* mainWindow = static_cast<QMainWindow*>(obs_frontend_get_main_window());
-    auto* dock = new ScoreboardDock(g_driver, g_sinks, mainWindow);
+    auto* dock = new ScoreboardDock(g_driver, g_sinks, &g_settings, g_saver, mainWindow);
     if (!obs_frontend_add_dock_by_id(kDockId, obs_module_text("Dock.Title"), dock)) {
         delete dock;
         tearDown();

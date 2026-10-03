@@ -89,6 +89,8 @@ target_sources(
     src/plugin/FieldSinks.hpp
     src/plugin/GlobalSettings.cpp
     src/plugin/GlobalSettings.hpp
+    src/plugin/MatchStateSaver.cpp
+    src/plugin/MatchStateSaver.hpp
     src/plugin/plugin-main.cpp
     src/plugin/ScoreboardDock.cpp
     src/plugin/ScoreboardDock.hpp

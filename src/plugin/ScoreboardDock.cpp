@@ -5,11 +5,16 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
 #include "ClockDriver.hpp"
+#include "AtomicFile.hpp"
 #include "FieldSinks.hpp"
+#include "GlobalSettings.hpp"
+#include "MatchJson.hpp"
+#include "MatchStateSaver.hpp"
 #include "SourcePicker.hpp"
 
 namespace {
@@ -25,8 +30,9 @@ struct Arrow {
 
 } // namespace
 
-ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, QWidget* parent)
-    : QWidget(parent), driver_(driver), sinks_(sinks) {
+ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSettings* settings,
+                               MatchStateSaver* saver, QWidget* parent)
+    : QWidget(parent), driver_(driver), sinks_(sinks), settings_(settings), saver_(saver) {
     auto* layout = new QVBoxLayout(this);
 
     clock_ = new QLabel(this);
@@ -67,6 +73,10 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, QWidget* 
     controls->addWidget(startStop_, 2);
     controls->addWidget(reset, 1);
     layout->addLayout(controls);
+
+    auto* resume = new QPushButton(text("Dock.Resume"), this);
+    connect(resume, &QPushButton::clicked, this, &ScoreboardDock::resumePrevious);
+    layout->addWidget(resume);
 
     auto* sourceRow = new QHBoxLayout();
     sourceRow->addWidget(new QLabel(text("Dock.ClockSource"), this));
@@ -141,4 +151,29 @@ void ScoreboardDock::chooseSource() {
         sinks_->bindTo(sb::FieldId::Clock, *binding);
     else
         sinks_->unbind(sb::FieldId::Clock);
+}
+
+void ScoreboardDock::resumePrevious() {
+    if (!driver_) return;
+    const auto answer = QMessageBox::question(this, text("Resume.Title"), text("Resume.Question"),
+                                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) return;
+    const auto content = readFile(moduleConfigPath("previous-match.json"));
+    if (!content) {
+        QMessageBox::information(this, text("Resume.Title"), text("Resume.NoFile"));
+        return;
+    }
+    std::string error;
+    const auto snapshot = sb::snapshotFromJson(*content, &error);
+    if (!snapshot) {
+        QMessageBox::warning(this, text("Resume.Title"),
+                             text("Resume.Unreadable").arg(QString::fromStdString(error)));
+        return;
+    }
+    // The modal dialog ran a nested event loop: the driver may have been shut down meanwhile.
+    if (!driver_) return;
+    driver_->replaceMatch(sb::MatchEngine::fromSnapshot(*snapshot));
+    if (saver_) saver_->arm();
+    if (settings_) settings_->setLastSport(snapshot->settings.sport.id);
+    if (status_->text() != text("Resume.Done")) status_->setText(text("Resume.Done"));
 }

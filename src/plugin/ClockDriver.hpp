@@ -26,12 +26,17 @@ public:
     const sb::MatchEngine& engine() const { return engine_; }
     const sb::FieldValues& fields() const { return published_; }
 
+    // Replaces the whole match (resume): stops the timers and always republishes every field.
+    void replaceMatch(sb::MatchEngine engine);
+
     // OBS is exiting: stop the timer for good and reject later commands.
     void shutdown();
 
 signals:
     void fieldsChanged(const sb::FieldValues& fields);
     void runningChanged(bool running);
+    // After every accepted command (not after clock ticks).
+    void commandApplied();
 
 private:
     void onTick();

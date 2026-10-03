@@ -35,7 +35,19 @@ sb::CommandResult ClockDriver::applyAt(const sb::Command& command, sb::Micros no
     publish();
     syncTimer();
     armAligned();
+    if (result.isOk()) emit commandApplied();
     return result;
+}
+
+void ClockDriver::replaceMatch(sb::MatchEngine engine) {
+    if (shutDown_) return;
+    timer_.stop();
+    aligned_.stop();
+    engine_ = std::move(engine);
+    published_ = engine_.fields();
+    emit fieldsChanged(published_); // always: every consumer must see the resumed match
+    syncTimer();
+    armAligned();
 }
 
 void ClockDriver::shutdown() {
