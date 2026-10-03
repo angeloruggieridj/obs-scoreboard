@@ -79,10 +79,16 @@ target_compile_options(
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
+    src/plugin/AtomicFile.cpp
+    src/plugin/AtomicFile.hpp
+    src/plugin/BindingStore.cpp
+    src/plugin/BindingStore.hpp
     src/plugin/ClockDriver.cpp
     src/plugin/ClockDriver.hpp
     src/plugin/FieldSinks.cpp
     src/plugin/FieldSinks.hpp
+    src/plugin/GlobalSettings.cpp
+    src/plugin/GlobalSettings.hpp
     src/plugin/plugin-main.cpp
     src/plugin/ScoreboardDock.cpp
     src/plugin/ScoreboardDock.hpp

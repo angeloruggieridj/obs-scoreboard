@@ -5,8 +5,12 @@
 #include <QMainWindow>
 #include <QPointer>
 
+#include <memory>
+
+#include "BindingStore.hpp"
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
+#include "GlobalSettings.hpp"
 #include "ScoreboardDock.hpp"
 #include "SelfTest.hpp"
 #include "SportCatalog.hpp"
@@ -26,20 +30,25 @@ constexpr const char* kDefaultSport = "futsal";
 QPointer<ClockDriver> g_driver;
 QPointer<FieldSinks> g_sinks;
 QPointer<ScoreboardDock> g_dock;
+GlobalSettings g_settings;
+std::unique_ptr<BindingStore> g_bindings;
 // After EXIT OBS has already cleared the frontend callbacks; removing ours would log an error.
 bool g_exited = false;
 
 void tearDown() {
     selftest::stop(); // the video callback must go before the driver and sinks
     if (g_driver) g_driver->shutdown();
+    g_bindings.reset(); // unregisters its save callback before the sinks go
     delete g_sinks.data();
     delete g_driver.data();
 }
 
 void onFrontendEvent(enum obs_frontend_event event, void*) {
     switch (event) {
-    case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGING:
-        if (g_sinks) g_sinks->unbindAll(); // Phase 4 reloads the bindings of the new collection
+    case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CLEANUP:
+        // After the left collection was saved (CHANGING comes before the save); the next
+        // collection's bindings are restored by BindingStore on load.
+        if (g_sinks) g_sinks->unbindAll();
         break;
     case OBS_FRONTEND_EVENT_FINISHED_LOADING:
         selftest::maybeStart(g_driver, g_sinks);
@@ -64,13 +73,20 @@ MODULE_EXPORT const char* obs_module_description(void) {
 }
 
 bool obs_module_load(void) {
-    const sb::SportPreset* sport = sb::findSport(kDefaultSport);
+    g_settings.load();
+    const sb::SportPreset* sport = sb::findSport(g_settings.prefs().lastSport);
+    if (!sport) {
+        obs_log(LOG_WARNING, "saved sport '%s' is unknown, using '%s'",
+                g_settings.prefs().lastSport.c_str(), kDefaultSport);
+        sport = sb::findSport(kDefaultSport);
+    }
     if (!sport) {
         obs_log(LOG_ERROR, "built-in sport '%s' is missing", kDefaultSport);
         return false;
     }
     g_driver = new ClockDriver(sb::MatchSettings::forSport(*sport));
     g_sinks = new FieldSinks();
+    g_bindings = std::make_unique<BindingStore>(g_sinks);
     QObject::connect(g_driver, &ClockDriver::fieldsChanged, g_sinks, &FieldSinks::publish);
     g_sinks->publish(g_driver->fields());
 
