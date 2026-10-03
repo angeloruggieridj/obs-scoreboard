@@ -8,6 +8,7 @@
 #include "Fields.hpp"
 
 class ClockDriver;
+class BindingsDialog;
 class FieldSinks;
 class GlobalSettings;
 class MatchStateSaver;
@@ -29,11 +30,13 @@ private:
     void showStatus();
     void chooseSource();
     void resumePrevious();
+    void openBindings();
 
     QPointer<ClockDriver> driver_;
     QPointer<FieldSinks> sinks_;
     GlobalSettings* settings_ = nullptr; // lives for the whole module
     QPointer<MatchStateSaver> saver_;    // deleted in tearDown() while the dock still exists
+    QPointer<BindingsDialog> bindings_;
     QLabel* clock_ = nullptr;
     QPushButton* startStop_ = nullptr;
     SourcePicker* source_ = nullptr;

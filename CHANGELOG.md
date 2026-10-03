@@ -16,6 +16,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The dock drives the match clock (start/stop, ±1 min and ±1 s arrows with auto-repeat,
   reset) and writes it straight into a Text source you pick, with no `.txt` file in between.
 - The match is saved as you play and can be resumed after a restart with "Resume previous match" (always asks first; OBS starts with a fresh match).
+- Every scoreboard value can be linked to its own Text source from "Source links…", including a one-click "create a new Text source" in the current scene; links are saved with the scene collection.
 
 ### Fixed
 

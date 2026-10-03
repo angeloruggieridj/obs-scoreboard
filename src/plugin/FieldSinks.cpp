@@ -3,9 +3,12 @@
 
 #include <QMetaObject>
 
+#include <util/base.h>
 #include <util/platform.h>
 
 #include <utility>
+
+#include "plugin-support.h"
 
 namespace {
 
@@ -21,6 +24,21 @@ std::string uuidOf(calldata_t* cd) {
 }
 
 } // namespace
+
+// One source, one field: two fields writing to the same source would show only the last one
+// that changed, while the other sink believed its own text was still visible.
+void FieldSinks::releaseFromOthers(sb::FieldId field) {
+    const std::string uuid = sinks_[index(field)].binding().uuid;
+    if (uuid.empty()) return;
+    for (std::size_t j = 0; j < sinks_.size(); ++j) {
+        if (j == index(field) || !sinks_[j].bound() || sinks_[j].binding().uuid != uuid) continue;
+        sinks_[j].unbind();
+        obs_log(LOG_INFO, "source moved from field %s to field %s",
+                std::string(sb::fieldKey(static_cast<sb::FieldId>(j))).c_str(),
+                std::string(sb::fieldKey(field)).c_str());
+        emit bindingChanged(static_cast<int>(j));
+    }
+}
 
 FieldSinks::FieldSinks(QObject* parent) : QObject(parent) {
     signal_handler_t* sh = obs_get_signal_handler();
@@ -38,14 +56,20 @@ FieldSinks::~FieldSinks() {
 
 bool FieldSinks::bind(sb::FieldId field, obs_source_t* source) {
     const bool ok = sinks_[index(field)].bind(source);
-    if (ok) pushOne(field);
+    if (ok) {
+        releaseFromOthers(field);
+        pushOne(field);
+    }
     emit bindingChanged(static_cast<int>(field));
     return ok;
 }
 
 bool FieldSinks::bindTo(sb::FieldId field, const TextSink::Binding& binding) {
     const bool ok = sinks_[index(field)].bindTo(binding);
-    if (ok) pushOne(field);
+    if (ok) {
+        releaseFromOthers(field);
+        pushOne(field);
+    }
     emit bindingChanged(static_cast<int>(field));
     return ok;
 }

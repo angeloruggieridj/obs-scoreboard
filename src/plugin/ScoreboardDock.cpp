@@ -9,8 +9,9 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-#include "ClockDriver.hpp"
 #include "AtomicFile.hpp"
+#include "BindingsDialog.hpp"
+#include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
 #include "GlobalSettings.hpp"
 #include "MatchJson.hpp"
@@ -85,6 +86,10 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     sourceRow->addWidget(source_, 1);
     layout->addLayout(sourceRow);
 
+    auto* bindings = new QPushButton(text("Dock.Bindings"), this);
+    connect(bindings, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
+    layout->addWidget(bindings);
+
     status_ = new QLabel(this);
     status_->setWordWrap(true);
     layout->addWidget(status_);
@@ -151,6 +156,17 @@ void ScoreboardDock::chooseSource() {
         sinks_->bindTo(sb::FieldId::Clock, *binding);
     else
         sinks_->unbind(sb::FieldId::Clock);
+}
+
+void ScoreboardDock::openBindings() {
+    if (!sinks_) return;
+    if (bindings_) {
+        bindings_->raise();
+        bindings_->activateWindow();
+        return;
+    }
+    bindings_ = new BindingsDialog(sinks_, this);
+    bindings_->show();
 }
 
 void ScoreboardDock::resumePrevious() {

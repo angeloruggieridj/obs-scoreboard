@@ -46,6 +46,7 @@ private:
     static void onSourceGone(void* data, calldata_t* cd);
     static void onSourceRenamed(void* data, calldata_t* cd);
     void pushOne(sb::FieldId field);
+    void releaseFromOthers(sb::FieldId field);
 
     std::array<TextSink, sb::kFieldCount> sinks_;
     sb::FieldValues latest_;

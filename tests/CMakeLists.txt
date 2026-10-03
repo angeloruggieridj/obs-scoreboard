@@ -29,6 +29,7 @@ add_executable(
   test_matchjson.cpp
   test_pluginstate.cpp
   test_selftest_verdict.cpp
+  test_locale_fields.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/plugin/SelfTestVerdict.cpp
 )
 target_link_libraries(scoreboard-tests PRIVATE scoreboard-core)
@@ -36,6 +37,10 @@ target_link_libraries(scoreboard-tests PRIVATE scoreboard-core)
 # string_view under the VS 2026 MSVC STL, which defines that operator<< inline: force doctest to
 # include the real <ostream>/<istream> headers instead.
 target_compile_definitions(scoreboard-tests PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS)
+target_compile_definitions(
+  scoreboard-tests
+  PRIVATE SB_LOCALE_DIR="${CMAKE_CURRENT_LIST_DIR}/../data/locale"
+)
 target_include_directories(scoreboard-tests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src/plugin")
 target_include_directories(
   scoreboard-tests
