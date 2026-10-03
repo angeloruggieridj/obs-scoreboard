@@ -34,6 +34,7 @@ void BindingStore::onSave(obs_data_t* data, bool saving, void* param) {
 
 void BindingStore::save(obs_data_t* data) const {
     if (!sinks_) return;
+    sinks_->refreshAll(); // uuids change when a collection is duplicated
     std::vector<sb::FieldBinding> bindings;
     for (std::size_t i = 0; i < sb::kFieldCount; ++i) {
         const auto field = static_cast<sb::FieldId>(i);

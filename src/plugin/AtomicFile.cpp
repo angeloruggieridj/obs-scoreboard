@@ -23,6 +23,10 @@ std::string moduleConfigPath(const char* file) {
 }
 
 bool writeFileAtomic(const std::string& path, const std::string& bytes, std::string* error) {
+    if (path.empty()) {
+        if (error) *error = "empty path";
+        return false;
+    }
     const fs::path target = fs::u8path(path);
     fs::path tmp = target;
     tmp += ".tmp";
@@ -46,6 +50,7 @@ bool writeFileAtomic(const std::string& path, const std::string& bytes, std::str
 }
 
 std::optional<std::string> readFile(const std::string& path) {
+    if (path.empty()) return std::nullopt;
     std::ifstream in(fs::u8path(path), std::ios::binary);
     if (!in) return std::nullopt;
     return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());

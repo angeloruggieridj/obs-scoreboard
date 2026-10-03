@@ -63,6 +63,12 @@ void FieldSinks::unbindAll() {
     }
 }
 
+void FieldSinks::refreshAll() {
+    for (std::size_t i = 0; i < sinks_.size(); ++i) {
+        if (sinks_[i].refresh()) emit bindingChanged(static_cast<int>(i));
+    }
+}
+
 const TextSink& FieldSinks::sink(sb::FieldId field) const {
     return sinks_[index(field)];
 }

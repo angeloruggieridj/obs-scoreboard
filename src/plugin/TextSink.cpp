@@ -2,6 +2,7 @@
 #include "TextSink.hpp"
 
 #include <cstring>
+#include <utility>
 
 namespace {
 
@@ -83,6 +84,16 @@ bool TextSink::push(const std::string& text) {
     obs_data_set_bool(settings, fileKey, false);
     obs_source_update(source, settings);
     lastSent_ = text;
+    return true;
+}
+
+bool TextSink::refresh() {
+    if (!bound_) return false;
+    OBSSourceAutoRelease source = obs_weak_source_get_source(weak_);
+    if (!source) return false;
+    Binding now{orEmpty(obs_source_get_uuid(source)), orEmpty(obs_source_get_name(source))};
+    if (now.uuid == binding_.uuid && now.name == binding_.name) return false;
+    binding_ = std::move(now);
     return true;
 }
 

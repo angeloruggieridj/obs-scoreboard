@@ -56,6 +56,10 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
         // collection's bindings are restored by BindingStore on load.
         if (g_sinks) g_sinks->unbindAll();
         break;
+    case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED:
+        // After "Duplicate" every source has a new uuid and no CLEANUP/load happened.
+        if (g_sinks) g_sinks->refreshAll();
+        break;
     case OBS_FRONTEND_EVENT_FINISHED_LOADING:
         selftest::maybeStart(g_driver, g_sinks);
         break;

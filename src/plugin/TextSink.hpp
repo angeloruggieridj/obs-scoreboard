@@ -31,6 +31,10 @@ public:
     // Sends `text` unless it is what this source last received. True when it sent.
     bool push(const std::string& text);
 
+    // Re-reads uuid and name from the live source (a duplicated scene collection gives every
+    // source a new uuid). True when either changed; a source that is gone is left to sourceGone().
+    bool refresh();
+
     void sourceGone(const std::string& uuid);
     void sourceRenamed(const std::string& uuid, const std::string& newName);
 

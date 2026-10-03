@@ -27,6 +27,8 @@ public:
     bool bindTo(sb::FieldId field, const TextSink::Binding& binding);
     void unbind(sb::FieldId field);
     void unbindAll();
+    // Re-reads uuid/name of every bound source; emits bindingChanged for those that changed.
+    void refreshAll();
     const TextSink& sink(sb::FieldId field) const;
 
     void setPushObserver(PushObserver observer);
