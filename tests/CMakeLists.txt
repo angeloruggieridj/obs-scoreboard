@@ -27,6 +27,7 @@ add_executable(
   test_eventlog.cpp
   test_matchengine.cpp
   test_matchjson.cpp
+  test_pluginstate.cpp
   test_selftest_verdict.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/plugin/SelfTestVerdict.cpp
 )
