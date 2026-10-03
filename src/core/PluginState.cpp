@@ -32,7 +32,8 @@ std::string bindingsToJson(const std::vector<FieldBinding>& bindings) {
     for (const FieldBinding& b : bindings)
         list.push_back(
             {{"field", std::string(fieldKey(b.field))}, {"uuid", b.uuid}, {"name", b.name}});
-    return json{{"version", kBindingsJsonVersion}, {"bindings", list}}.dump(2);
+    return json{{"version", kBindingsJsonVersion}, {"bindings", list}}.dump(
+        2, ' ', false, json::error_handler_t::replace);
 }
 
 std::optional<std::vector<FieldBinding>> bindingsFromJson(std::string_view text,
@@ -65,7 +66,8 @@ std::optional<std::vector<FieldBinding>> bindingsFromJson(std::string_view text,
 }
 
 std::string prefsToJson(const GlobalPrefs& prefs) {
-    return json{{"version", kPrefsJsonVersion}, {"lastSport", prefs.lastSport}}.dump(2);
+    return json{{"version", kPrefsJsonVersion}, {"lastSport", prefs.lastSport}}.dump(
+        2, ' ', false, json::error_handler_t::replace);
 }
 
 std::optional<GlobalPrefs> prefsFromJson(std::string_view text, std::string* error) {

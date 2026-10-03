@@ -81,3 +81,20 @@ TEST_CASE("prefs round-trip and fall back on bad input") {
     REQUIRE(missing.has_value());
     CHECK(missing->lastSport == "futsal");
 }
+
+TEST_CASE("writers never throw on invalid UTF-8") {
+    const std::string bad = "\xC3\x28";
+    std::string json;
+    CHECK_NOTHROW(json = bindingsToJson({{FieldId::Clock, "u", bad}}));
+    const auto b = bindingsFromJson(json);
+    REQUIRE(b.has_value());
+    REQUIRE(b->size() == 1);
+    CHECK((*b)[0].name.find("\xEF\xBF\xBD") != std::string::npos);
+
+    GlobalPrefs p;
+    p.lastSport = bad;
+    CHECK_NOTHROW(json = prefsToJson(p));
+    const auto q = prefsFromJson(json);
+    REQUIRE(q.has_value());
+    CHECK(q->lastSport.find("\xEF\xBF\xBD") != std::string::npos);
+}

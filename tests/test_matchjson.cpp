@@ -408,3 +408,14 @@ TEST_CASE("a negative overtimePeriods other than kUnlimited is rejected") {
     CHECK_FALSE(parseNoThrow(j.dump(), &error).has_value());
     CHECK_FALSE(error.empty());
 }
+
+TEST_CASE("toJson never throws on an invalid UTF-8 team name") {
+    MatchSettings s = MatchSettings::forSport(*findSport("ice_hockey"));
+    s.homeName = "\xC3\x28";
+    const MatchEngine e(s);
+    std::string json;
+    CHECK_NOTHROW(json = toJson(e.snapshot()));
+    std::string error;
+    const auto back = snapshotFromJson(json, &error);
+    CHECK_MESSAGE(back.has_value(), error);
+}

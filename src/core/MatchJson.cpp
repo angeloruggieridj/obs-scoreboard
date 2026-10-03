@@ -402,7 +402,7 @@ std::string toJson(const MatchSnapshot& s) {
                     {"stoppageAnnounced", s.stoppageAnnounced},
                     {"startedPeriods", s.startedPeriods},
                     {"events", s.events}};
-    return j.dump(2);
+    return j.dump(2, ' ', false, json::error_handler_t::replace);
 }
 
 std::optional<MatchSnapshot> snapshotFromJson(std::string_view text, std::string* error) {
