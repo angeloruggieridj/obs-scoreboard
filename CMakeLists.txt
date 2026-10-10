@@ -87,6 +87,8 @@ target_sources(
     src/plugin/BindingStore.hpp
     src/plugin/ClockDriver.cpp
     src/plugin/ClockDriver.hpp
+    src/plugin/CounterControl.cpp
+    src/plugin/CounterControl.hpp
     src/plugin/FieldSinks.cpp
     src/plugin/FieldSinks.hpp
     src/plugin/GlobalSettings.cpp
