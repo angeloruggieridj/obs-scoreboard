@@ -23,7 +23,12 @@ std::string freeName(const std::string& base) {
 } // namespace
 
 OBSSourceAutoRelease createTextSource(const std::string& baseName, std::string* error) {
-    OBSSourceAutoRelease sceneSource = obs_frontend_get_current_scene();
+    // In Studio Mode obs_frontend_get_current_scene() returns the program (on-air) scene, so a new
+    // source would go on air empty. Use the preview scene instead; it returns a new reference
+    // (api-interface.cpp:623-631) and is only non-null in Studio Mode.
+    OBSSourceAutoRelease sceneSource = obs_frontend_preview_program_mode_active()
+                                           ? obs_frontend_get_current_preview_scene()
+                                           : obs_frontend_get_current_scene();
     obs_scene_t* scene = obs_scene_from_source(sceneSource);
     if (!scene) {
         if (error) *error = "no current scene";

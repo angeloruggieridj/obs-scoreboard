@@ -5,6 +5,7 @@
 
 #include <string>
 
-// Creates a Text source of the platform's type in the current scene, under a free name derived
-// from baseName ("X", then "X (2)", "X (3)", ...). Never renames or replaces an existing source.
+// Creates a Text source of the platform's type in the current scene (the preview scene in Studio
+// Mode, so nothing appears on air before it is set up), under a free name derived from baseName
+// ("X", then "X (2)", "X (3)", ...). Never renames or replaces an existing source.
 OBSSourceAutoRelease createTextSource(const std::string& baseName, std::string* error);
