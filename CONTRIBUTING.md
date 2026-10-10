@@ -38,6 +38,15 @@ pwsh -File scripts/run-selftest.ps1 -Fps 30
 scripts/run-selftest.sh --fps 30 --plugin <path>/obs-scoreboard.so --locale data/locale
 ```
 
+`-Reopen` / `--reopen` adds a second OBS start on the same config: it checks that
+the source links came back and that the saved match was rotated untouched (exit 0
+only if both starts say pass and the file hashes match):
+
+```bash
+pwsh -File scripts/run-selftest.ps1 -Fps 30 -Reopen
+scripts/run-selftest.sh --fps 30 --plugin <path>/obs-scoreboard.so --locale data/locale --reopen
+```
+
 ## Layout
 
 | Where | What |
