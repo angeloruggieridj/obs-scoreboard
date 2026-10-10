@@ -37,7 +37,21 @@ bool GlobalSettings::save() {
 }
 
 void GlobalSettings::setLastSport(std::string sportId) {
-    if (prefs_.lastSport == sportId) return;
+    if (prefs_.lastSport == sportId && prefs_.sportChosen) return;
     prefs_.lastSport = std::move(sportId);
+    prefs_.sportChosen = true;
+    save();
+}
+
+void GlobalSettings::rememberSettings(const sb::MatchSettings& settings) {
+    const std::string before = sb::prefsToJson(prefs_);
+    sb::rememberSettings(prefs_, settings); // the free function of PluginState.hpp
+    if (sb::prefsToJson(prefs_) != before) save();
+}
+
+void GlobalSettings::setColors(std::string scoreColor, std::string foulColor) {
+    if (prefs_.scoreColor == scoreColor && prefs_.foulColor == foulColor) return;
+    prefs_.scoreColor = std::move(scoreColor);
+    prefs_.foulColor = std::move(foulColor);
     save();
 }

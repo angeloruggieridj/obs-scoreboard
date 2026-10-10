@@ -37,6 +37,9 @@ signals:
     void runningChanged(bool running);
     // After every accepted command (not after clock ticks).
     void commandApplied();
+    // After replaceMatch(): the sport, the labels or the whole match may have changed, so views
+    // must re-read the layout, not only the values.
+    void matchReplaced();
 
 private:
     void onTick();

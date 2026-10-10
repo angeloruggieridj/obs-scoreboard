@@ -48,6 +48,7 @@ void ClockDriver::replaceMatch(sb::MatchEngine engine) {
     emit fieldsChanged(published_); // always: every consumer must see the resumed match
     syncTimer();
     armAligned();
+    emit matchReplaced();
 }
 
 void ClockDriver::shutdown() {

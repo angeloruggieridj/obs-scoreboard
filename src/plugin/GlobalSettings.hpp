@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "MatchEngine.hpp"
 #include "PluginState.hpp"
 
 // settings.json in the module's config folder. An unreadable file is logged and ignored.
@@ -12,6 +13,10 @@ public:
     bool save();
     const sb::GlobalPrefs& prefs() const { return prefs_; }
     void setLastSport(std::string sportId);
+
+    // Remembers these settings for their sport (team names excluded) and makes it the last sport.
+    void rememberSettings(const sb::MatchSettings& settings);
+    void setColors(std::string scoreColor, std::string foulColor);
 
 private:
     sb::GlobalPrefs prefs_;

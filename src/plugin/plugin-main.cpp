@@ -26,8 +26,9 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 namespace {
 
 constexpr const char* kDockId = "obs-scoreboard-dock";
-// Temporary: until Phase 5 adds match settings, where the user picks the sport.
-constexpr const char* kDefaultSport = "futsal";
+// Used only when settings.json names a sport that no longer exists; the user chooses the sport in
+// the match settings.
+constexpr const char* kFallbackSport = "futsal";
 
 // OBS destroys the dock before obs_module_unload: every Qt object held globally is a
 // QPointer, so a late access finds null instead of freed memory.
@@ -102,14 +103,14 @@ bool obs_module_load(void) {
     const sb::SportPreset* sport = sb::findSport(g_settings.prefs().lastSport);
     if (!sport) {
         obs_log(LOG_WARNING, "saved sport '%s' is unknown, using '%s'",
-                g_settings.prefs().lastSport.c_str(), kDefaultSport);
-        sport = sb::findSport(kDefaultSport);
+                g_settings.prefs().lastSport.c_str(), kFallbackSport);
+        sport = sb::findSport(kFallbackSport);
     }
     if (!sport) {
-        obs_log(LOG_ERROR, "built-in sport '%s' is missing", kDefaultSport);
+        obs_log(LOG_ERROR, "built-in sport '%s' is missing", kFallbackSport);
         return false;
     }
-    g_driver = new ClockDriver(sb::MatchSettings::forSport(*sport));
+    g_driver = new ClockDriver(sb::settingsForSport(g_settings.prefs(), *sport));
     g_sinks = new FieldSinks();
     g_saver = new MatchStateSaver(g_driver, moduleConfigPath("last-match.json"));
     g_bindings = std::make_unique<BindingStore>(g_sinks);
