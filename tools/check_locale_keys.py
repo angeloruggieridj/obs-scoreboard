@@ -10,7 +10,7 @@ from pathlib import Path
 
 LOCALES = ("en-US.ini", "it-IT.ini")
 KEY_LINE = re.compile(r'^\s*([A-Za-z0-9_.]+)\s*=', re.MULTILINE)
-USED_KEY = re.compile(r'obs_module_text\(\s*"([^"]+)"')
+USED_KEY = re.compile(r'(?:obs_module_text|\btext)\(\s*"([^"]+)"')
 
 
 def keys_of(path: Path) -> set[str]:

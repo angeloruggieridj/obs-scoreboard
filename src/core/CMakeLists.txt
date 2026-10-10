@@ -15,6 +15,7 @@ add_library(
   MatchEngine.cpp
   MatchJson.cpp
   PluginState.cpp
+  PanelLayout.cpp
 )
 target_include_directories(scoreboard-core PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_include_directories(

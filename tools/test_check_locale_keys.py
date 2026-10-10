@@ -28,6 +28,11 @@ class LocaleKeysTest(unittest.TestCase):
         root = self.make_repo('A="a"\n', 'A="a"\n', 'obs_module_text("Z")')
         self.assertIn("en-US.ini: missing key Z (used in code)", clk.problems(root))
 
+    def test_helper_text_calls_are_checked_too(self):
+        root = self.make_repo('A="a"\n', 'A="a"\n', 'text("A"); label->setText(text("Z")); x.text()')
+        self.assertIn("en-US.ini: missing key Z (used in code)", clk.problems(root))
+        self.assertNotIn("en-US.ini: missing key A (used in code)", clk.problems(root))
+
 
 if __name__ == "__main__":
     unittest.main()
