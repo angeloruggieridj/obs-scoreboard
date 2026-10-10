@@ -26,10 +26,14 @@
 #include <string>
 #include <vector>
 
+#include "AtomicFile.hpp"
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
 #include "Format.hpp"
+#include "MatchJson.hpp"
+#include "PluginState.hpp"
 #include "SelfTestVerdict.hpp"
+#include "TextSourceFactory.hpp"
 #include "plugin-support.h"
 
 namespace {
@@ -83,6 +87,49 @@ std::string sourceText(obs_source_t* source) {
     return t ? std::string(t) : std::string();
 }
 
+// Source lookups by uuid. The selftest keeps only uuid and name of the sources it creates and
+// finds them again in a local variable: a strong reference held across a scene collection
+// change is reported by OBS as a leaked source and blocks saving.
+std::string textByUuid(const std::string& uuid, bool* found = nullptr) {
+    OBSSourceAutoRelease source = obs_get_source_by_uuid(uuid.c_str());
+    if (found) *found = source != nullptr;
+    return source ? sourceText(source) : std::string();
+}
+
+std::string uuidByName(const std::string& name) {
+    OBSSourceAutoRelease source = obs_get_source_by_name(name.c_str());
+    const char* uuid = source ? obs_source_get_uuid(source) : nullptr;
+    return uuid ? std::string(uuid) : std::string();
+}
+
+bool writeJsonAtomic(const std::string& out, const nlohmann::json& report) {
+    const std::string tmp = out + ".tmp";
+    {
+        std::ofstream file(std::filesystem::u8path(tmp), std::ios::binary | std::ios::trunc);
+        file << report.dump(2);
+    }
+    std::error_code ec;
+    std::filesystem::rename(std::filesystem::u8path(tmp), std::filesystem::u8path(out), ec);
+    if (ec)
+        obs_log(LOG_ERROR, "selftest could not write %s: %s", out.c_str(), ec.message().c_str());
+    return !ec;
+}
+
+std::string readTextFile(const std::string& path) {
+    std::ifstream in(std::filesystem::u8path(path), std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+}
+
+std::string outPath() {
+    std::string out = envPathUtf8("OBS_SCOREBOARD_SELFTEST_OUT");
+    if (out.empty()) {
+        std::error_code ec;
+        out =
+            (std::filesystem::temp_directory_path(ec) / "obs-scoreboard-selftest.json").u8string();
+    }
+    return out;
+}
+
 class Run : public QObject {
 public:
     Run(ClockDriver* driver, FieldSinks* sinks) : driver_(driver), sinks_(sinks) {}
@@ -109,7 +156,19 @@ private:
     void checkFileMode();
     void checkDelete();
     void checkWrongType();
+    void startMultiField();
+    void checkMultiField();
+    void startCollection();
+    void checkCollectionLeft();
+    void checkCollectionBack();
+    void checkDuplicate();
+    void checkDuplicateRename();
+    void startPersist();
+    void checkPersist();
     void finish();
+    std::string clockText() const {
+        return driver_->fields()[static_cast<std::size_t>(sb::FieldId::Clock)];
+    }
     static void snapshotCounters(std::uint32_t& lagged, std::uint32_t& skipped);
 
     QPointer<ClockDriver> driver_;
@@ -124,6 +183,10 @@ private:
     sbtest::VerdictInput input_;
     sbtest::Verdict verdict_;
     bool rename_ = false, fileMode_ = false, delete_ = false, wrongType_ = false;
+    bool multiField_ = false, collection_ = false, duplicate_ = false, persistSaved_ = false;
+    // Only uuid and name of the sources made by the later checks (see textByUuid).
+    std::string homeUuid_, collUuid_, collName_, persistName_, collectionName_;
+    bool leftCollection_ = false;
     std::vector<std::string> problems_;
 
     std::mutex mutex_; // guards everything the video thread touches
@@ -142,12 +205,7 @@ std::atomic<bool> g_started{false};
 void Run::begin() {
     secs_ = std::clamp(envInt("OBS_SCOREBOARD_SELFTEST_SECS", 20), 5, 120);
     requestedFps_ = envInt("OBS_SCOREBOARD_SELFTEST_FPS", 0);
-    out_ = envPathUtf8("OBS_SCOREBOARD_SELFTEST_OUT");
-    if (out_.empty()) {
-        std::error_code ec;
-        out_ =
-            (std::filesystem::temp_directory_path(ec) / "obs-scoreboard-selftest.json").u8string();
-    }
+    out_ = outPath();
     if (!driver_ || !sinks_) {
         fail("plugin not initialised");
         finish();
@@ -358,8 +416,135 @@ void Run::checkWrongType() {
         obs_sceneitem_t* item = scene ? obs_scene_find_source(scene, kSourceName) : nullptr;
         if (item) obs_sceneitem_remove(item);
         obs_source_remove(color_);
-        color_ = nullptr;
+        color_ = nullptr; // from here on no strong reference outlives a step
     }
+    startMultiField();
+}
+
+void Run::startMultiField() {
+    std::string error;
+    {
+        OBSSourceAutoRelease source = createTextSource("SB Selftest Home Score", &error);
+        if (!source) {
+            fail("multiField: " + error);
+            startCollection();
+            return;
+        }
+        homeUuid_ = obs_source_get_uuid(source);
+        if (!sinks_->bind(sb::FieldId::HomeScore, source))
+            fail("multiField: the home score source was not bound");
+    }
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Score, 1});
+    after(1200, &Run::checkMultiField);
+}
+
+void Run::checkMultiField() {
+    multiField_ = sinks_->sink(sb::FieldId::HomeScore).bound() && textByUuid(homeUuid_) == "1";
+    if (!multiField_) fail("multiField: the home score source did not show 1");
+    startCollection();
+}
+
+void Run::startCollection() {
+    std::string error;
+    {
+        OBSSourceAutoRelease source = createTextSource("SB Selftest Collection Clock", &error);
+        if (!source) {
+            fail("collection: " + error);
+            startPersist();
+            return;
+        }
+        collUuid_ = obs_source_get_uuid(source);
+        collName_ = obs_source_get_name(source);
+        if (!sinks_->bind(sb::FieldId::Clock, source))
+            fail("collection: the clock was not bound to the new source");
+    } // the strong reference is gone before the collection changes
+    obs_frontend_save();
+    char* current = obs_frontend_get_current_scene_collection();
+    collectionName_ = current ? current : "";
+    bfree(current);
+    // Both frontend calls are synchronous on the UI thread (api-interface.cpp:187-205 ->
+    // window-basic-main-scene-collections.cpp:134, :444), so the waits only cover the redraw.
+    if (collectionName_.empty() || !obs_frontend_add_scene_collection("SB Selftest Other")) {
+        fail("collection: could not create the second scene collection");
+        startPersist();
+        return;
+    }
+    after(2000, &Run::checkCollectionLeft);
+}
+
+void Run::checkCollectionLeft() {
+    leftCollection_ = !sinks_->sink(sb::FieldId::Clock).bound();
+    if (!leftCollection_) fail("collection: the clock stayed bound in the other collection");
+    obs_frontend_set_current_scene_collection(collectionName_.c_str());
+    after(2000, &Run::checkCollectionBack);
+}
+
+void Run::checkCollectionBack() {
+    const TextSink& sink = sinks_->sink(sb::FieldId::Clock);
+    bool found = false;
+    const std::string text = textByUuid(collUuid_, &found);
+    collection_ = leftCollection_ && sink.bound() && sink.binding().uuid == collUuid_ && found &&
+                  text == clockText();
+    if (!collection_) fail("collection: the clock binding did not come back with its collection");
+
+    // "Duplicate" has no frontend API in OBS 30: do to the sources what
+    // OBSBasic::AddSceneCollection(false) does (window-basic-main-scene-collections.cpp:164),
+    // then what the plugin's SCENE_COLLECTION_CHANGED handler does afterwards.
+    obs_reset_source_uuids();
+    sinks_->refreshAll();
+    after(1200, &Run::checkDuplicate);
+}
+
+void Run::checkDuplicate() {
+    const std::string fresh = uuidByName(collName_);
+    const TextSink& sink = sinks_->sink(sb::FieldId::Clock);
+    duplicate_ =
+        !fresh.empty() && fresh != collUuid_ && sink.bound() && sink.binding().uuid == fresh;
+    if (!duplicate_) fail("duplicate: the binding did not follow the new uuid");
+    collUuid_ = fresh;
+    const std::string renamed = collName_ + " (renamed)";
+    {
+        OBSSourceAutoRelease source = obs_get_source_by_uuid(fresh.c_str());
+        if (source) obs_source_set_name(source, renamed.c_str());
+    }
+    collName_ = renamed;
+    after(1200, &Run::checkDuplicateRename);
+}
+
+void Run::checkDuplicateRename() {
+    const TextSink& sink = sinks_->sink(sb::FieldId::Clock);
+    if (!sink.bound() || sink.binding().name != collName_ || textByUuid(collUuid_) != clockText()) {
+        duplicate_ = false;
+        fail("duplicate: the binding did not follow the rename after the new uuid");
+    }
+    startPersist();
+}
+
+void Run::startPersist() {
+    std::string error;
+    {
+        OBSSourceAutoRelease source = createTextSource("SB Persist Clock", &error);
+        if (!source) {
+            fail("persistSaved: " + error);
+            finish();
+            return;
+        }
+        persistName_ = obs_source_get_name(source);
+        if (!sinks_->bind(sb::FieldId::Clock, source))
+            fail("persistSaved: the clock was not bound to the persisted source");
+    }
+    obs_frontend_save(); // queued by OBS (SaveProjectDeferred): the wait lets it run
+    after(1200, &Run::checkPersist);
+}
+
+void Run::checkPersist() {
+    std::error_code ec;
+    const std::string settings = moduleConfigPath("settings.json");
+    const TextSink& sink = sinks_->sink(sb::FieldId::Clock);
+    persistSaved_ = !settings.empty() &&
+                    std::filesystem::exists(std::filesystem::u8path(settings), ec) &&
+                    sink.bound() && sink.binding().name == persistName_;
+    if (!persistSaved_) fail("persistSaved: settings.json is missing or the clock lost its source");
     finish();
 }
 
@@ -382,7 +567,8 @@ void Run::finish() {
     if (bad > 0) fail("frame timestamps are not on the os_gettime_ns base");
     const bool fpsOk = requestedFps_ <= 0 || std::abs(actualFps_ - requestedFps_) <= 0.01;
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
-                      bad == 0 && fpsOk && problems_.empty();
+                      multiField_ && collection_ && duplicate_ && persistSaved_ && bad == 0 &&
+                      fpsOk && problems_.empty();
 
     nlohmann::json changes = nlohmann::json::array();
     for (const sbtest::ChangeResult& c : verdict_.changes) {
@@ -419,18 +605,14 @@ void Run::finish() {
                                     {{"rename", rename_},
                                      {"fileMode", fileMode_},
                                      {"delete", delete_},
-                                     {"wrongType", wrongType_}}},
+                                     {"wrongType", wrongType_},
+                                     {"multiField", multiField_},
+                                     {"collection", collection_},
+                                     {"duplicate", duplicate_},
+                                     {"persistSaved", persistSaved_}}},
                                    {"problems", problems}};
 
-    const std::string tmp = out_ + ".tmp";
-    {
-        std::ofstream file(std::filesystem::u8path(tmp), std::ios::binary | std::ios::trunc);
-        file << report.dump(2);
-    }
-    std::error_code ec;
-    std::filesystem::rename(std::filesystem::u8path(tmp), std::filesystem::u8path(out_), ec);
-    if (ec)
-        obs_log(LOG_ERROR, "selftest could not write %s: %s", out_.c_str(), ec.message().c_str());
+    writeJsonAtomic(out_, report);
     obs_log(LOG_INFO, "selftest %s: %s", pass ? "PASS" : "FAIL", out_.c_str());
 
     // Keep a capture running until OBS exits, so closing OBS with the video callback live is
@@ -453,6 +635,58 @@ void Run::finish() {
     // There is no public quit API: the runner script closes OBS once the report exists.
 }
 
+// The second launch of the same portable OBS: nothing is commanded, it only looks at what the
+// first launch left behind.
+class Reopen : public QObject {
+public:
+    Reopen(ClockDriver* driver, FieldSinks* sinks) : driver_(driver), sinks_(sinks) {}
+    void check();
+
+private:
+    QPointer<ClockDriver> driver_;
+    QPointer<FieldSinks> sinks_;
+};
+
+QPointer<Reopen> g_reopen;
+
+void Reopen::check() {
+    std::vector<std::string> problems;
+    bool restored = false, receiving = false, settingsFile = false, previousMatch = false;
+    if (!driver_ || !sinks_) {
+        problems.push_back("plugin not initialised");
+    } else {
+        const TextSink& sink = sinks_->sink(sb::FieldId::Clock);
+        restored = sink.bound() && sink.binding().name == "SB Persist Clock";
+        if (!restored)
+            problems.push_back("bindingRestored: the clock is not bound to SB Persist Clock");
+        const std::string clock = driver_->fields()[static_cast<std::size_t>(sb::FieldId::Clock)];
+        receiving = restored && textByUuid(sink.binding().uuid) == clock;
+        if (!receiving) problems.push_back("receiving: the source does not show the clock");
+
+        std::string error;
+        const std::string settings = moduleConfigPath("settings.json");
+        settingsFile = !settings.empty() && sb::prefsFromJson(readTextFile(settings), &error);
+        if (!settingsFile) problems.push_back("settingsFile: " + error);
+
+        error.clear();
+        const std::string previous = moduleConfigPath("previous-match.json");
+        previousMatch = !previous.empty() && sb::snapshotFromJson(readTextFile(previous), &error);
+        if (!previousMatch) problems.push_back("previousMatch: " + error);
+    }
+    const bool pass = restored && receiving && settingsFile && previousMatch && problems.empty();
+    const nlohmann::json report = {{"version", 1},
+                                   {"pass", pass},
+                                   {"reopen",
+                                    {{"bindingRestored", restored},
+                                     {"receiving", receiving},
+                                     {"settingsFile", settingsFile},
+                                     {"previousMatch", previousMatch},
+                                     {"problems", problems}}}};
+    const std::string out = outPath();
+    writeJsonAtomic(out, report);
+    obs_log(LOG_INFO, "selftest reopen %s: %s", pass ? "PASS" : "FAIL", out.c_str());
+}
+
 } // namespace
 
 namespace selftest {
@@ -460,6 +694,13 @@ namespace selftest {
 void maybeStart(ClockDriver* driver, FieldSinks* sinks) {
     if (env("OBS_SCOREBOARD_SELFTEST") != "1") return;
     if (g_started.exchange(true)) return;
+    if (env("OBS_SCOREBOARD_SELFTEST_PASS") == "reopen") {
+        g_reopen = new Reopen(driver, sinks);
+        QTimer::singleShot(2000, g_reopen, []() {
+            if (g_reopen) g_reopen->check();
+        });
+        return;
+    }
     g_run = new Run(driver, sinks);
     // FINISHED_LOADING fires while OBSBasic is still building docks (a lesson from
     // obs-multireplay): wait on a timer, never by sleeping on the UI thread.
@@ -469,6 +710,7 @@ void maybeStart(ClockDriver* driver, FieldSinks* sinks) {
 }
 
 void stop() {
+    delete g_reopen.data();
     if (!g_run) return;
     if (g_run->stopCapture()) obs_log(LOG_INFO, "selftest: capture stopped on exit");
     delete g_run.data();
