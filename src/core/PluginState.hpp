@@ -4,12 +4,14 @@
 // Persistent formats of the plugin: field bindings (stored in the OBS scene collection) and
 // global preferences (settings.json). Pure: no OBS, no Qt, no file access.
 
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "Fields.hpp"
+#include "MatchEngine.hpp"
 
 namespace sb {
 
@@ -21,10 +23,18 @@ struct FieldBinding {
 
 struct GlobalPrefs {
     std::string lastSport = "futsal";
+    // False until the user picked a sport (the first launch shows the picker). Version 1 files
+    // never recorded a choice, so they read as false.
+    bool sportChosen = false;
+    // The last settings used for each sport, so switching sport and back finds them again.
+    std::map<std::string, MatchSettings> sportSettings;
+    // "#RRGGBB" or empty = the default color.
+    std::string scoreColor;
+    std::string foulColor;
 };
 
 constexpr int kBindingsJsonVersion = 1;
-constexpr int kPrefsJsonVersion = 1;
+constexpr int kPrefsJsonVersion = 2; // version 1 files are still read
 
 std::string bindingsToJson(const std::vector<FieldBinding>& bindings);
 // nullopt (with *error) for a document that is not a supported bindings object; entries that are
@@ -34,5 +44,11 @@ std::optional<std::vector<FieldBinding>> bindingsFromJson(std::string_view json,
 
 std::string prefsToJson(const GlobalPrefs& prefs);
 std::optional<GlobalPrefs> prefsFromJson(std::string_view json, std::string* error = nullptr);
+
+// The settings to start a match of `sport` with: the remembered ones, or the preset's defaults.
+MatchSettings settingsForSport(const GlobalPrefs& prefs, const SportPreset& sport);
+// Remembers `settings` under its sport id (team names reset to the defaults) and makes that
+// sport the last one used.
+void rememberSettings(GlobalPrefs& prefs, const MatchSettings& settings);
 
 } // namespace sb

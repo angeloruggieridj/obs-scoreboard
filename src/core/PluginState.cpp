@@ -5,13 +5,17 @@
 
 #include <nlohmann/json.hpp>
 
+#include "MatchJson.hpp"
+#include "PanelModel.hpp"
+
 namespace sb {
 
 namespace {
 
 using nlohmann::json;
 
-std::optional<json> parseObject(std::string_view text, int version, std::string* error) {
+std::optional<json> parseObject(std::string_view text, int minVersion, int maxVersion,
+                                std::string* error) {
     const auto fail = [error](const std::string& why) -> std::optional<json> {
         if (error) *error = why;
         return std::nullopt;
@@ -21,8 +25,18 @@ std::optional<json> parseObject(std::string_view text, int version, std::string*
     if (!j.is_object()) return fail("not a JSON object");
     const auto v = j.find("version");
     if (v == j.end() || !v->is_number_integer()) return fail("missing or non-integer version");
-    if (v->get<long long>() != version) return fail("unsupported version " + v->dump());
+    const long long version = v->get<long long>();
+    if (version < minVersion || version > maxVersion)
+        return fail("unsupported version " + v->dump());
     return j;
+}
+
+// A valid "#RRGGBB" in canonical form, or empty.
+std::string colorOf(const json& object, const char* key) {
+    const auto it = object.find(key);
+    if (it == object.end() || !it->is_string()) return {};
+    const auto rgb = parseColor(it->get<std::string>());
+    return rgb ? formatColor(*rgb) : std::string();
 }
 
 } // namespace
@@ -38,7 +52,7 @@ std::string bindingsToJson(const std::vector<FieldBinding>& bindings) {
 
 std::optional<std::vector<FieldBinding>> bindingsFromJson(std::string_view text,
                                                           std::string* error) {
-    const auto j = parseObject(text, kBindingsJsonVersion, error);
+    const auto j = parseObject(text, kBindingsJsonVersion, kBindingsJsonVersion, error);
     if (!j) return std::nullopt;
     const auto list = j->find("bindings");
     if (list == j->end() || !list->is_array()) {
@@ -66,12 +80,17 @@ std::optional<std::vector<FieldBinding>> bindingsFromJson(std::string_view text,
 }
 
 std::string prefsToJson(const GlobalPrefs& prefs) {
-    return json{{"version", kPrefsJsonVersion}, {"lastSport", prefs.lastSport}}.dump(
-        2, ' ', false, json::error_handler_t::replace);
+    json stored = json::object();
+    for (const auto& entry : prefs.sportSettings)
+        stored[entry.first] = json::parse(settingsToJson(entry.second));
+    return json{{"version", kPrefsJsonVersion},   {"lastSport", prefs.lastSport},
+                {"scoreColor", prefs.scoreColor}, {"sportChosen", prefs.sportChosen},
+                {"foulColor", prefs.foulColor},   {"sportSettings", stored}}
+        .dump(2, ' ', false, json::error_handler_t::replace);
 }
 
 std::optional<GlobalPrefs> prefsFromJson(std::string_view text, std::string* error) {
-    const auto j = parseObject(text, kPrefsJsonVersion, error);
+    const auto j = parseObject(text, 1, kPrefsJsonVersion, error);
     if (!j) return std::nullopt;
     GlobalPrefs prefs;
     const auto sport = j->find("lastSport");
@@ -82,7 +101,35 @@ std::optional<GlobalPrefs> prefsFromJson(std::string_view text, std::string* err
         }
         if (!sport->get<std::string>().empty()) prefs.lastSport = sport->get<std::string>();
     }
+    prefs.scoreColor = colorOf(*j, "scoreColor");
+    prefs.foulColor = colorOf(*j, "foulColor");
+    const auto chosen = j->find("sportChosen");
+    prefs.sportChosen = chosen != j->end() && chosen->is_boolean() && chosen->get<bool>();
+    const auto stored = j->find("sportSettings");
+    if (stored != j->end() && stored->is_object()) {
+        for (auto it = stored->begin(); it != stored->end(); ++it) {
+            auto settings = settingsFromJson(it.value().dump(), nullptr);
+            if (!settings || settings->sport.id != it.key()) continue;
+            prefs.sportSettings[it.key()] = std::move(*settings);
+        }
+    }
     return prefs;
+}
+
+MatchSettings settingsForSport(const GlobalPrefs& prefs, const SportPreset& sport) {
+    const auto it = prefs.sportSettings.find(sport.id);
+    if (it != prefs.sportSettings.end()) return it->second;
+    return MatchSettings::forSport(sport);
+}
+
+void rememberSettings(GlobalPrefs& prefs, const MatchSettings& settings) {
+    MatchSettings stored = settings;
+    const MatchSettings defaults;
+    stored.homeName = defaults.homeName;
+    stored.awayName = defaults.awayName;
+    prefs.sportSettings[settings.sport.id] = std::move(stored);
+    prefs.lastSport = settings.sport.id;
+    prefs.sportChosen = true;
 }
 
 } // namespace sb

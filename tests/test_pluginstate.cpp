@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "doctest/doctest.h"
+#include "MatchEngine.hpp"
 #include "PluginState.hpp"
 
 #include <string>
@@ -97,4 +98,115 @@ TEST_CASE("writers never throw on invalid UTF-8") {
     const auto q = prefsFromJson(json);
     REQUIRE(q.has_value());
     CHECK(q->lastSport.find("\xEF\xBF\xBD") != std::string::npos);
+}
+
+TEST_CASE("a version 1 settings file is still read") {
+    const auto p = prefsFromJson("{\"version\": 1, \"lastSport\": \"ice_hockey\"}");
+    REQUIRE(p.has_value());
+    CHECK(p->lastSport == "ice_hockey");
+    CHECK(p->sportSettings.empty());
+    CHECK(p->scoreColor.empty());
+    CHECK(p->foulColor.empty());
+    CHECK_FALSE(p->sportChosen); // the Phase 4 default was never a choice
+}
+
+TEST_CASE("version 2 prefs round-trip with per-sport settings and colors") {
+    GlobalPrefs p;
+    p.lastSport = "soccer";
+    p.scoreColor = "#112233";
+    p.foulColor = "#AABBCC";
+    p.sportChosen = true;
+    MatchSettings soccer = MatchSettings::forSport(*findSport("soccer"));
+    soccer.twoDigitMinutes = false;
+    soccer.sport.periodDuration = minutes(40);
+    p.sportSettings["soccer"] = soccer;
+    p.sportSettings["futsal"] = MatchSettings::forSport(*findSport("futsal"));
+
+    std::string error;
+    const auto out = prefsFromJson(prefsToJson(p), &error);
+    REQUIRE_MESSAGE(out.has_value(), error);
+    CHECK(out->lastSport == "soccer");
+    CHECK(out->scoreColor == "#112233");
+    CHECK(out->foulColor == "#AABBCC");
+    CHECK(out->sportChosen);
+    REQUIRE(out->sportSettings.size() == 2);
+    CHECK(out->sportSettings.at("soccer").sport.periodDuration == minutes(40));
+    CHECK_FALSE(out->sportSettings.at("soccer").twoDigitMinutes);
+}
+
+TEST_CASE("bad colors fall back to the default without failing the file") {
+    const auto lower = prefsFromJson("{\"version\": 2, \"scoreColor\": \"#aabbcc\"}");
+    REQUIRE(lower.has_value());
+    CHECK(lower->scoreColor == "#AABBCC");
+    for (const char* text :
+         {"{\"version\": 2, \"scoreColor\": \"red\"}", "{\"version\": 2, \"scoreColor\": 5}",
+          "{\"version\": 2, \"scoreColor\": \"#12345\"}"}) {
+        CAPTURE(text);
+        const auto out = prefsFromJson(text);
+        REQUIRE(out.has_value());
+        CHECK(out->scoreColor.empty());
+    }
+}
+
+TEST_CASE("broken per-sport entries are skipped, the rest is kept") {
+    GlobalPrefs p;
+    p.sportSettings["futsal"] = MatchSettings::forSport(*findSport("futsal"));
+    p.sportSettings["soccer"] = MatchSettings::forSport(*findSport("soccer"));
+    std::string json = prefsToJson(p);
+    // Make the soccer entry invalid (zero periods) and keep the futsal one.
+    const auto soccerStart = json.find("\"soccer\"");
+    REQUIRE(soccerStart != std::string::npos);
+    const auto periods = json.find("\"periods\": 2", soccerStart);
+    REQUIRE(periods != std::string::npos);
+    json.replace(periods, std::string("\"periods\": 2").size(), "\"periods\": 0");
+    const auto out = prefsFromJson(json);
+    REQUIRE(out.has_value());
+    CHECK(out->sportSettings.count("futsal") == 1);
+    CHECK(out->sportSettings.count("soccer") == 0);
+}
+
+TEST_CASE("an entry stored under the wrong sport id is skipped") {
+    GlobalPrefs p;
+    p.sportSettings["futsal"] = MatchSettings::forSport(*findSport("futsal"));
+    std::string json = prefsToJson(p);
+    const auto key = json.find("\"futsal\": {");
+    REQUIRE(key != std::string::npos);
+    json.replace(key, std::string("\"futsal\"").size(), "\"soccer\"");
+    const auto out = prefsFromJson(json);
+    REQUIRE(out.has_value());
+    CHECK(out->sportSettings.empty());
+}
+
+TEST_CASE("sportSettings of the wrong JSON type is ignored") {
+    const auto out = prefsFromJson("{\"version\": 2, \"sportSettings\": [1, 2]}");
+    REQUIRE(out.has_value());
+    CHECK(out->sportSettings.empty());
+}
+
+TEST_CASE("sportChosen is true only for a real boolean") {
+    CHECK_FALSE(GlobalPrefs{}.sportChosen);
+    CHECK(prefsFromJson("{\"version\": 2, \"sportChosen\": true}")->sportChosen);
+    CHECK_FALSE(prefsFromJson("{\"version\": 2, \"sportChosen\": false}")->sportChosen);
+    CHECK_FALSE(prefsFromJson("{\"version\": 2, \"sportChosen\": \"yes\"}")->sportChosen);
+    CHECK_FALSE(prefsFromJson("{\"version\": 2}")->sportChosen);
+}
+
+TEST_CASE("settingsForSport returns the remembered settings or the preset") {
+    GlobalPrefs p;
+    CHECK_FALSE(p.sportChosen);
+    const SportPreset& futsal = *findSport("futsal");
+    CHECK(settingsForSport(p, futsal).sport.periodDuration == futsal.periodDuration);
+
+    MatchSettings custom = MatchSettings::forSport(futsal);
+    custom.sport.periodDuration = minutes(25);
+    custom.homeName = "Roseville";
+    rememberSettings(p, custom);
+    CHECK(p.lastSport == "futsal");
+    CHECK(p.sportChosen);
+    const MatchSettings back = settingsForSport(p, futsal);
+    CHECK(back.sport.periodDuration == minutes(25));
+    CHECK(back.homeName == MatchSettings{}.homeName); // names are match state, not a preference
+    CHECK(back.awayName == MatchSettings{}.awayName);
+    // Other sports are untouched.
+    CHECK(settingsForSport(p, *findSport("soccer")).sport.periodDuration == minutes(45));
 }
