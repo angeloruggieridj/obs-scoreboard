@@ -118,6 +118,11 @@ void FieldSinks::onSourceGone(void* data, calldata_t* cd) {
     QMetaObject::invokeMethod(
         self,
         [self, uuid]() {
+            // This signal is queued: a scene-collection switch can run in between and rebind the
+            // fields to new sources that reuse the old uuids (a collection imported from a copy
+            // of the current one). If any live source still has the uuid, nothing was removed.
+            OBSSourceAutoRelease live = obs_get_source_by_uuid(uuid.c_str());
+            if (live) return;
             for (std::size_t i = 0; i < self->sinks_.size(); ++i) {
                 const bool was = self->sinks_[i].bound();
                 self->sinks_[i].sourceGone(uuid);

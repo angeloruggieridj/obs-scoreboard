@@ -135,6 +135,7 @@ run_pass() {
         unset OBS_SCOREBOARD_SELFTEST_PASS
     fi
 
+    [ -z "$start_marker" ] || rm -f "$start_marker"
     start_marker="$(mktemp)"
     # No --minimize-to-tray: Xvfb has no notification area.
     xvfb-run -a -s "-screen 0 1280x720x24" obs --multi --profile SBSelftest &
@@ -280,7 +281,11 @@ fi
 echo "  previous-match.json same SHA-256 as last-match.json: $same_hash"
 echo "  last-match.json removed: $last_gone"
 echo "  clean shutdown: closed=$obs_closed unloaded=$obs_unloaded crashes=$obs_crashes"
-if [ "$reopen_pass" = "1" ] && [ "$same_hash" -eq 1 ] && [ "$last_gone" -eq 1 ]; then
+reopen_ok=0
+if [ "$obs_closed" -eq 1 ] && [ "$obs_unloaded" -eq 1 ] && [ "$obs_crashes" -eq 0 ]; then
+    reopen_ok=1
+fi
+if [ "$reopen_pass" = "1" ] && [ "$same_hash" -eq 1 ] && [ "$last_gone" -eq 1 ] && [ "$reopen_ok" -eq 1 ]; then
     echo "SELFTEST PASS"
     exit 0
 fi

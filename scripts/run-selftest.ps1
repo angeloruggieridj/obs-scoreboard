@@ -198,6 +198,7 @@ $lastGone = -not (Test-Path -LiteralPath $last)
 Write-Host ("  previous-match.json same SHA-256 as last-match.json: {0}" -f $sameHash)
 Write-Host ("  last-match.json removed: {0}" -f $lastGone)
 Write-Host ("  clean shutdown: closed={0} unloaded={1} crashes={2}" -f $second.Closed, $second.Unloaded, $second.Crashes)
-if ($rr.pass -and $sameHash -and $lastGone) { Write-Host 'SELFTEST PASS'; exit 0 }
+$reopenClean = $second.Closed -and $second.Unloaded -and ($second.Crashes -eq 0)
+if ($rr.pass -and $sameHash -and $lastGone -and $reopenClean) { Write-Host 'SELFTEST PASS'; exit 0 }
 Write-Host 'SELFTEST FAIL'
 exit 1
