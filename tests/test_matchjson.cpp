@@ -419,3 +419,89 @@ TEST_CASE("toJson never throws on an invalid UTF-8 team name") {
     const auto back = snapshotFromJson(json, &error);
     CHECK_MESSAGE(back.has_value(), error);
 }
+
+namespace {
+std::string mutated(std::string text, const std::string& from, const std::string& to) {
+    const auto pos = text.find(from);
+    REQUIRE(pos != std::string::npos);
+    text.replace(pos, from.size(), to);
+    return text;
+}
+std::string settingsJsonFor(const char* sportId) {
+    return settingsToJson(MatchSettings::forSport(*findSport(sportId)));
+}
+bool accepted(const std::string& text, std::nullptr_t) {
+    return settingsFromJson(text, nullptr).has_value();
+}
+} // namespace
+
+TEST_CASE("settings round-trip through JSON") {
+    MatchSettings s = MatchSettings::forSport(*findSport("rugby_union"));
+    s.homeName = "Città";
+    s.awayName = "Ospiti";
+    s.twoDigitMinutes = false;
+    s.tenthsInLastMinute = true;
+    s.stoppage = StoppageMode::SecondaryCounter;
+    s.penaltyLabelFormat = "#{player} {time}";
+    s.strength.even = "even";
+    s.playTimeFormat = TimeFormat::HoursMinutesSeconds;
+    s.regulationLabels = {"1T", "2T"};
+    s.overtimeLabels = {"1TS", "2TS"};
+    s.sport.scoreValues = {5, 1};
+    std::string error;
+    const auto out = settingsFromJson(settingsToJson(s), &error);
+    REQUIRE_MESSAGE(out.has_value(), error);
+    CHECK(settingsToJson(*out) == settingsToJson(s));
+    CHECK(out->homeName == "Città");
+    CHECK(out->sport.scoreValues == std::vector<int>{5, 1});
+    CHECK(out->regulationLabels == std::vector<std::string>{"1T", "2T"});
+    CHECK(out->stoppage == StoppageMode::SecondaryCounter);
+}
+
+TEST_CASE("every built-in sport's settings round-trip") {
+    for (const SportPreset& sport : builtInSports()) {
+        INFO(sport.id);
+        const std::string json = settingsToJson(MatchSettings::forSport(sport));
+        const auto out = settingsFromJson(json, nullptr);
+        REQUIRE(out.has_value());
+        CHECK(settingsToJson(*out) == json);
+    }
+}
+
+TEST_CASE("a name with invalid UTF-8 does not make settingsToJson throw") {
+    MatchSettings s = MatchSettings::forSport(*findSport("futsal"));
+    s.homeName = "\xC3(";
+    CHECK_NOTHROW(settingsToJson(s));
+}
+
+TEST_CASE("broken or unreasonable settings are rejected without throwing") {
+    std::string error;
+    for (const char* text : {"", "not json", "[]", "null", "{}", "{\"sport\": 5}"}) {
+        CAPTURE(text);
+        error.clear();
+        std::optional<MatchSettings> out;
+        CHECK_NOTHROW(out = settingsFromJson(text, &error));
+        CHECK_FALSE(out.has_value());
+        CHECK_FALSE(error.empty());
+    }
+    const std::string generic = settingsJsonFor("generic");
+    CHECK(settingsFromJson(generic, nullptr).has_value());
+    CHECK_FALSE(accepted(mutated(generic, "\"periods\":1", "\"periods\":0"), nullptr));
+    CHECK_FALSE(accepted(mutated(generic, "\"periods\":1", "\"periods\":21"), nullptr));
+    CHECK_FALSE(accepted(mutated(generic, "\"scoreValues\":[1]", "\"scoreValues\":[]"), nullptr));
+    CHECK_FALSE(accepted(mutated(generic, "\"scoreValues\":[1]", "\"scoreValues\":[0]"), nullptr));
+    CHECK_FALSE(
+        accepted(mutated(generic, "\"scoreValues\":[1]", "\"scoreValues\":[100]"), nullptr));
+    CHECK_FALSE(accepted(
+        mutated(generic, "\"scoreValues\":[1]", "\"scoreValues\":[1,2,3,4,5,6,7,8,9]"), nullptr));
+    CHECK_FALSE(
+        accepted(mutated(generic, "\"periodDuration\":0", "\"periodDuration\":-1"), nullptr));
+    CHECK_FALSE(
+        accepted(mutated(generic, "\"periodDuration\":0", "\"periodDuration\":99999999"), nullptr));
+    CHECK_FALSE(accepted(mutated(generic, "\"homeName\":\"HOME\"", "\"homeName\":7"), nullptr));
+    const std::string hockey = settingsJsonFor("ice_hockey"); // 5 players, minimum 3
+    CHECK(settingsFromJson(hockey, nullptr).has_value());
+    CHECK_FALSE(accepted(mutated(hockey, "\"minPlayers\":3", "\"minPlayers\":9"), nullptr));
+    CHECK_FALSE(
+        accepted(mutated(hockey, "\"playersPerSide\":5", "\"playersPerSide\":100"), nullptr));
+}

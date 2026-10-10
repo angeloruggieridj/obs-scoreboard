@@ -343,17 +343,22 @@ bool inTimeRange(Tenths t) {
     return t >= 0 && t <= kMaxSnapshotTime;
 }
 
-// Structural checks the types alone cannot express. Returns an empty string when valid.
-// Every rule here is a precondition PenaltyBox::restoreFrom (called downstream by
-// MatchEngine::fromSnapshot) relies on but does not itself check.
-std::string validate(const MatchSnapshot& s) {
-    const SportPreset& sp = s.settings.sport;
+std::string validateSport(const SportPreset& sp) {
     if (sp.periods < 1 || sp.periods > kMaxSportPeriods) return "sport periods out of range";
     if (sp.overtimePeriods != kUnlimited &&
         (sp.overtimePeriods < 0 || sp.overtimePeriods > kMaxFiniteOvertimePeriods))
         return "sport overtime periods out of range";
     if (!inTimeRange(sp.periodDuration)) return "sport period duration out of range";
     if (!inTimeRange(sp.overtimeDuration)) return "sport overtime duration out of range";
+    return {};
+}
+
+// Structural checks the types alone cannot express. Returns an empty string when valid.
+// Every rule here is a precondition PenaltyBox::restoreFrom (called downstream by
+// MatchEngine::fromSnapshot) relies on but does not itself check.
+std::string validate(const MatchSnapshot& s) {
+    const SportPreset& sp = s.settings.sport;
+    if (auto p = validateSport(sp); !p.empty()) return p;
     if (s.period < 1) return "period out of range";
     const long long effectiveOvertime =
         sp.overtimePeriods == kUnlimited ? kUnlimitedOvertimeCap : sp.overtimePeriods;
@@ -385,7 +390,42 @@ std::string validate(const MatchSnapshot& s) {
     return {};
 }
 
+// Limits for settings that arrive from a file the user can edit (settings.json).
+std::string validateSettings(const MatchSettings& s) {
+    if (auto problem = validateSport(s.sport); !problem.empty()) return problem;
+    const SportPreset& sp = s.sport;
+    if (sp.scoreValues.empty() || sp.scoreValues.size() > 8) return "score buttons out of range";
+    for (int v : sp.scoreValues)
+        if (v < 1 || v > 99) return "score button out of range";
+    if (sp.playersPerSide < 0 || sp.playersPerSide > 99) return "players per side out of range";
+    if (sp.minPlayers < 0 || sp.minPlayers > sp.playersPerSide)
+        return "minimum players out of range";
+    return {};
+}
+
 } // namespace
+
+std::string settingsToJson(const MatchSettings& settings) {
+    return json(settings).dump(-1, ' ', false, json::error_handler_t::replace);
+}
+
+std::optional<MatchSettings> settingsFromJson(std::string_view text, std::string* error) {
+    const auto fail = [&](std::string message) -> std::optional<MatchSettings> {
+        if (error) *error = std::move(message);
+        return std::nullopt;
+    };
+    try {
+        const json j = json::parse(text.begin(), text.end());
+        if (!j.is_object()) return fail("not a JSON object");
+        MatchSettings s;
+        j.get_to(s);
+        const std::string problem = validateSettings(s);
+        if (!problem.empty()) return fail(problem);
+        return s;
+    } catch (const json::exception& e) {
+        return fail(e.what());
+    }
+}
 
 std::string toJson(const MatchSnapshot& s) {
     const json j = {{"version", kMatchJsonVersion},

@@ -17,4 +17,11 @@ std::string toJson(const MatchSnapshot& snapshot);
 // nullopt and, when `error` is given, a one-line reason.
 std::optional<MatchSnapshot> snapshotFromJson(std::string_view text, std::string* error);
 
+// The match settings alone, as a compact JSON object (the same fields toJson() stores under
+// "settings"). Used by GlobalPrefs to remember the last settings of each sport.
+std::string settingsToJson(const MatchSettings& settings);
+// Never throws; the same sanity limits as snapshotFromJson, plus the score buttons and player
+// counts, since these settings come from a user-editable file.
+std::optional<MatchSettings> settingsFromJson(std::string_view text, std::string* error);
+
 } // namespace sb
