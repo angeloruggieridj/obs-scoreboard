@@ -95,6 +95,8 @@ target_sources(
     src/plugin/GlobalSettings.hpp
     src/plugin/MatchStateSaver.cpp
     src/plugin/MatchStateSaver.hpp
+    src/plugin/PenaltyList.cpp
+    src/plugin/PenaltyList.hpp
     src/plugin/plugin-main.cpp
     src/plugin/ScoreboardDock.cpp
     src/plugin/ScoreboardDock.hpp
@@ -104,6 +106,8 @@ target_sources(
     src/plugin/SelfTestVerdict.hpp
     src/plugin/SourcePicker.cpp
     src/plugin/SourcePicker.hpp
+    src/plugin/TeamPanel.cpp
+    src/plugin/TeamPanel.hpp
     src/plugin/TextSink.cpp
     src/plugin/TextSink.hpp
     src/plugin/TextSourceFactory.cpp
