@@ -4,6 +4,7 @@
 #include <obs-module.h>
 
 #include <QCheckBox>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -19,6 +20,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "Format.hpp"
 #include "PanelModel.hpp"
 #include "SettingsChange.hpp"
 #include "SportCatalog.hpp"
@@ -44,11 +46,20 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
       openedAway_(current.awayName), applier_(std::move(applier)) {
     setWindowTitle(text("Settings.Title"));
     setAttribute(Qt::WA_DeleteOnClose);
+    scoreColor_ = prefs_.scoreColor;
+    foulColor_ = prefs_.foulColor;
+
     auto* outer = new QVBoxLayout(this);
     tabs_ = new QTabWidget(this);
     auto* matchPage = new QWidget(tabs_);
+    auto* textsPage = new QWidget(tabs_);
+    auto* lookPage = new QWidget(tabs_);
     buildMatchTab(matchPage);
+    buildTextsTab(textsPage);
+    buildLookTab(lookPage);
     tabs_->addTab(matchPage, text("Settings.Tab.Match"));
+    tabs_->addTab(textsPage, text("Settings.Tab.Texts"));
+    tabs_->addTab(lookPage, text("Settings.Tab.Look"));
     outer->addWidget(tabs_);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -56,7 +67,17 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     outer->addWidget(buttons);
 
-    loadFrom(current, false);
+    // Cross-tab connections: every widget exists now.
+    connect(direction_, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [this](int) { updateEnabled(); });
+    connect(durationMinutes_, qOverload<int>(&QSpinBox::valueChanged), this,
+            [this](int) { updateEnabled(); });
+    connect(durationSeconds_, qOverload<int>(&QSpinBox::valueChanged), this,
+            [this](int) { updateEnabled(); });
+    connect(penaltyFormat_, &QLineEdit::textChanged, this,
+            [this](const QString&) { updatePreview(); });
+
+    loadFrom(current, false); // LAST: fills every tab, then updateEnabled() and updatePreview()
 }
 
 void MatchSettingsDialog::buildMatchTab(QWidget* page) {
@@ -121,6 +142,75 @@ void MatchSettingsDialog::buildMatchTab(QWidget* page) {
     form->addRow(defaults);
 }
 
+void MatchSettingsDialog::buildTextsTab(QWidget* page) {
+    auto* form = new QFormLayout(page);
+    regulationLabels_ = new QLineEdit(page);
+    regulationLabels_->setToolTip(text("Settings.LabelsHelp"));
+    form->addRow(text("Settings.RegulationLabels"), regulationLabels_);
+    overtimeLabels_ = new QLineEdit(page);
+    overtimeLabels_->setToolTip(text("Settings.LabelsHelp"));
+    form->addRow(text("Settings.OvertimeLabels"), overtimeLabels_);
+    twoDigit_ = new QCheckBox(text("Settings.TwoDigit"), page);
+    form->addRow(twoDigit_);
+    tenths_ = new QCheckBox(text("Settings.Tenths"), page);
+    form->addRow(tenths_);
+    stoppage_ = new QComboBox(page);
+    stoppage_->addItem(text("Settings.Stoppage.Stop"),
+                       static_cast<int>(sb::StoppageMode::StopAtDuration));
+    stoppage_->addItem(text("Settings.Stoppage.Counter"),
+                       static_cast<int>(sb::StoppageMode::SecondaryCounter));
+    stoppage_->addItem(text("Settings.Stoppage.RunPast"),
+                       static_cast<int>(sb::StoppageMode::RunPastDuration));
+    form->addRow(text("Settings.Stoppage"), stoppage_);
+    penaltyFormat_ = new QLineEdit(page);
+    penaltyFormat_->setToolTip(text("Settings.PenaltyHelp"));
+    form->addRow(text("Settings.PenaltyFormat"), penaltyFormat_);
+    penaltyPreview_ = new QLabel(page);
+    form->addRow(QString(), penaltyPreview_);
+    strengthEven_ = new QLineEdit(page);
+    form->addRow(text("Settings.StrengthEven"), strengthEven_);
+    strengthUneven_ = new QLineEdit(page);
+    form->addRow(text("Settings.StrengthUneven"), strengthUneven_);
+    playTime_ = new QComboBox(page);
+    playTime_->addItem(text("Settings.PlayTime.MS"),
+                       static_cast<int>(sb::TimeFormat::MinutesSeconds));
+    playTime_->addItem(text("Settings.PlayTime.HMS"),
+                       static_cast<int>(sb::TimeFormat::HoursMinutesSeconds));
+    form->addRow(text("Settings.PlayTime"), playTime_);
+}
+
+void MatchSettingsDialog::buildLookTab(QWidget* page) {
+    auto* form = new QFormLayout(page);
+
+    scoreSwatch_ = new QPushButton(page);
+    auto* scoreDefault = new QPushButton(text("Settings.Default"), page);
+    auto* scoreRow = new QHBoxLayout();
+    scoreRow->addWidget(scoreSwatch_, 1);
+    scoreRow->addWidget(scoreDefault);
+    connect(scoreSwatch_, &QPushButton::clicked, this,
+            [this]() { pickColor(scoreColor_, scoreSwatch_); });
+    connect(scoreDefault, &QPushButton::clicked, this, [this]() {
+        scoreColor_.clear();
+        showColor(scoreSwatch_, scoreColor_);
+    });
+    form->addRow(text("Settings.ScoreColor"), scoreRow);
+    showColor(scoreSwatch_, scoreColor_);
+
+    foulSwatch_ = new QPushButton(page);
+    auto* foulDefault = new QPushButton(text("Settings.Default"), page);
+    auto* foulRow = new QHBoxLayout();
+    foulRow->addWidget(foulSwatch_, 1);
+    foulRow->addWidget(foulDefault);
+    connect(foulSwatch_, &QPushButton::clicked, this,
+            [this]() { pickColor(foulColor_, foulSwatch_); });
+    connect(foulDefault, &QPushButton::clicked, this, [this]() {
+        foulColor_.clear();
+        showColor(foulSwatch_, foulColor_);
+    });
+    form->addRow(text("Settings.FoulColor"), foulRow);
+    showColor(foulSwatch_, foulColor_);
+}
+
 std::string MatchSettingsDialog::currentSportId() const {
     return sport_->currentData().toString().toStdString();
 }
@@ -147,6 +237,18 @@ void MatchSettingsDialog::loadFrom(const sb::MatchSettings& s, bool keepNames) {
     minPlayers_->setMaximum(s.sport.playersPerSide);
     minPlayers_->setValue(s.sport.minPlayers);
     scoreValues_->setText(QString::fromStdString(sb::formatScoreValues(s.sport.scoreValues)));
+
+    regulationLabels_->setText(QString::fromStdString(sb::formatLabelList(s.regulationLabels)));
+    overtimeLabels_->setText(QString::fromStdString(sb::formatLabelList(s.overtimeLabels)));
+    twoDigit_->setChecked(s.twoDigitMinutes);
+    tenths_->setChecked(s.tenthsInLastMinute);
+    stoppage_->setCurrentIndex(stoppage_->findData(static_cast<int>(s.stoppage)));
+    penaltyFormat_->setText(QString::fromStdString(s.penaltyLabelFormat));
+    strengthEven_->setText(QString::fromStdString(s.strength.even));
+    strengthUneven_->setText(QString::fromStdString(s.strength.uneven));
+    playTime_->setCurrentIndex(playTime_->findData(static_cast<int>(s.playTimeFormat)));
+    updateEnabled();
+    updatePreview();
 }
 
 void MatchSettingsDialog::sportActivated() {
@@ -159,6 +261,46 @@ void MatchSettingsDialog::resetToSportDefaults() {
     const sb::SportPreset* preset = sb::findSport(currentSportId());
     if (!preset) return;
     loadFrom(sb::MatchSettings::forSport(*preset), true);
+}
+
+void MatchSettingsDialog::updateEnabled() {
+    const bool up =
+        static_cast<sb::Direction>(direction_->currentData().toInt()) == sb::Direction::Up;
+    const bool hasDuration = durationMinutes_->value() > 0 || durationSeconds_->value() > 0;
+    stoppage_->setEnabled(up && hasDuration);
+    penaltyFormat_->setEnabled(base_.sport.hasPenalties());
+    const bool hasStrength = base_.sport.strengthSource != sb::StrengthSource::None;
+    strengthEven_->setEnabled(hasStrength);
+    strengthUneven_->setEnabled(hasStrength);
+}
+
+void MatchSettingsDialog::updatePreview() {
+    const QString preview = QString::fromStdString(
+        sb::applyTemplate(penaltyFormat_->text().toStdString(),
+                          {{"player", "24"}, {"time", "1:32"}, {"phase2", "+2:00"}}));
+    if (penaltyPreview_->text() != preview) penaltyPreview_->setText(preview);
+}
+
+void MatchSettingsDialog::showColor(QPushButton* swatch, const std::string& hex) {
+    const QString label = hex.empty() ? text("Settings.ColorDefault") : QString::fromStdString(hex);
+    if (swatch->text() != label) swatch->setText(label);
+    const auto rgb = sb::parseColor(hex);
+    QString style;
+    if (rgb)
+        style =
+            QStringLiteral("QPushButton{background:%1;color:%2;}")
+                .arg(QString::fromStdString(hex),
+                     sb::darkTextOn(*rgb) ? QStringLiteral("#111111") : QStringLiteral("#FFFFFF"));
+    if (swatch->styleSheet() != style) swatch->setStyleSheet(style);
+}
+
+void MatchSettingsDialog::pickColor(std::string& target, QPushButton* swatch) {
+    const auto rgb = sb::parseColor(target);
+    const QColor initial = rgb ? QColor::fromRgb(*rgb) : QColor(Qt::white);
+    const QColor chosen = QColorDialog::getColor(initial, this); // nested event loop: harmless here
+    if (!chosen.isValid()) return;
+    target = sb::formatColor(chosen.rgb() & 0xFFFFFFu);
+    showColor(swatch, target);
 }
 
 bool MatchSettingsDialog::collect(Result& out, QString* problem) const {
@@ -180,6 +322,16 @@ bool MatchSettingsDialog::collect(Result& out, QString* problem) const {
         return false;
     }
     s.sport.scoreValues = *values;
+    s.regulationLabels = sb::parseLabelList(regulationLabels_->text().toStdString());
+    s.overtimeLabels = sb::parseLabelList(overtimeLabels_->text().toStdString());
+    s.twoDigitMinutes = twoDigit_->isChecked();
+    s.tenthsInLastMinute = tenths_->isChecked();
+    if (stoppage_->isEnabled()) // a countdown or a sport without a length keeps the loaded mode
+        s.stoppage = static_cast<sb::StoppageMode>(stoppage_->currentData().toInt());
+    s.penaltyLabelFormat = penaltyFormat_->text().toStdString();
+    s.strength.even = strengthEven_->text().toStdString();
+    s.strength.uneven = strengthUneven_->text().toStdString();
+    s.playTimeFormat = static_cast<sb::TimeFormat>(playTime_->currentData().toInt());
     if (const std::string why = sb::settingsProblem(s); !why.empty()) { // rules live in the core
         const std::string key = "Settings.Problem." + why;
         *problem = text(key.c_str());
@@ -188,8 +340,8 @@ bool MatchSettingsDialog::collect(Result& out, QString* problem) const {
     out.settings = std::move(s);
     out.homeNameEdited = out.settings.homeName != openedHome_;
     out.awayNameEdited = out.settings.awayName != openedAway_;
-    out.scoreColor = prefs_.scoreColor;
-    out.foulColor = prefs_.foulColor;
+    out.scoreColor = scoreColor_;
+    out.foulColor = foulColor_;
     return true;
 }
 

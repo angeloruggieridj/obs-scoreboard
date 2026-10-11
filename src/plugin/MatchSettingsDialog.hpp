@@ -11,7 +11,9 @@
 
 class QCheckBox;
 class QComboBox;
+class QLabel;
 class QLineEdit;
+class QPushButton;
 class QSpinBox;
 class QTabWidget;
 
@@ -36,8 +38,14 @@ public:
 
 private:
     void buildMatchTab(QWidget* page);
+    void buildTextsTab(QWidget* page);
+    void buildLookTab(QWidget* page);
     void loadFrom(const sb::MatchSettings& settings, bool keepNames);
     bool collect(Result& out, QString* problem) const;
+    void updateEnabled();
+    void updatePreview();
+    void pickColor(std::string& target, QPushButton* swatch);
+    void showColor(QPushButton* swatch, const std::string& hex);
     void sportActivated();
     void resetToSportDefaults();
     std::string currentSportId() const;
@@ -62,4 +70,19 @@ private:
     QSpinBox* players_ = nullptr;
     QSpinBox* minPlayers_ = nullptr;
     QLineEdit* scoreValues_ = nullptr;
+
+    QLineEdit* regulationLabels_ = nullptr;
+    QLineEdit* overtimeLabels_ = nullptr;
+    QLineEdit* penaltyFormat_ = nullptr;
+    QLineEdit* strengthEven_ = nullptr;
+    QLineEdit* strengthUneven_ = nullptr;
+    QLabel* penaltyPreview_ = nullptr;
+    QCheckBox* twoDigit_ = nullptr;
+    QCheckBox* tenths_ = nullptr;
+    QComboBox* stoppage_ = nullptr;
+    QComboBox* playTime_ = nullptr;
+    QPushButton* scoreSwatch_ = nullptr;
+    QPushButton* foulSwatch_ = nullptr;
+    std::string scoreColor_;
+    std::string foulColor_;
 };
