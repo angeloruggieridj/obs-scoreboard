@@ -69,6 +69,9 @@ foreach ($layout in $Layouts) {
     $root = Reset-Obs -Zip $zip -Work $work
     Install-Plugin -Root $root -Layout $layout -Dll $dll -LocaleDir $localeSrc
     $bin = Join-Path $root 'bin\64bit'
+    # The first-launch sport picker must not appear: check-obs-load only asks whether the
+    # plugin loads and shuts down cleanly, not whether a dialog is waiting for input.
+    $env:OBS_SCOREBOARD_NO_PICKER = '1'
     $proc = Start-Process -FilePath (Join-Path $bin 'obs64.exe') -WorkingDirectory $bin -PassThru `
         -ArgumentList '--portable', '--multi', '--disable-shutdown-check', '--disable-missing-files-check'
     # NOT --minimize-to-tray: a window in the tray is no main window, and

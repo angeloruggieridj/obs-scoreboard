@@ -9,6 +9,7 @@
 #include <optional>
 
 #include "MatchEngine.hpp"
+#include "MatchSettingsDialog.hpp"
 #include "PanelLayout.hpp"
 
 class BindingsDialog;
@@ -18,6 +19,7 @@ class FieldSinks;
 class GlobalSettings;
 class MatchStateSaver;
 class QCheckBox;
+class QInputDialog;
 class QLabel;
 class QPushButton;
 class QToolButton;
@@ -36,6 +38,10 @@ public:
     // status line. Safe to call while a modal window of this dock is open.
     void dispatch(const sb::Command& command);
 
+    // Offers the first-launch sport choice once, unless the sport was already chosen or a picker
+    // is already open. Called on OBS_FRONTEND_EVENT_FINISHED_LOADING.
+    void offerSportChoice();
+
 private:
     TeamPanel* panel(sb::Team team) const;
     void connectTeam(sb::Team team);
@@ -46,6 +52,8 @@ private:
     void clearMessage();
     void resumePrevious();
     void openBindings();
+    void openSettings();
+    bool applyDialogResult(const MatchSettingsDialog::Result& result);
 
     // Applies `next` to the running match, classifying the change (5.3). False only when the user
     // answered NO to the "new match?" question.
@@ -60,6 +68,8 @@ private:
     GlobalSettings* settings_ = nullptr; // lives for the whole module
     QPointer<MatchStateSaver> saver_;    // deleted in tearDown() while the dock still exists
     QPointer<BindingsDialog> bindings_;
+    QPointer<MatchSettingsDialog> settingsDialog_;
+    QPointer<QInputDialog> sportPicker_;
     QLabel* title_ = nullptr;
     QPushButton* link_ = nullptr;
     QToolButton* menu_ = nullptr;

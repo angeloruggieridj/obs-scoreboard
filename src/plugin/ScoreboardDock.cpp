@@ -6,6 +6,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
@@ -78,6 +79,8 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     menu_->setText(QStringLiteral("⋮"));
     menu_->setPopupMode(QToolButton::InstantPopup);
     auto* menu = new QMenu(menu_);
+    connect(menu->addAction(text("Menu.Settings")), &QAction::triggered, this,
+            &ScoreboardDock::openSettings);
     connect(menu->addAction(text("Dock.Bindings")), &QAction::triggered, this,
             &ScoreboardDock::openBindings);
     connect(menu->addAction(text("Menu.NewMatch")), &QAction::triggered, this,
@@ -372,6 +375,67 @@ void ScoreboardDock::openBindings() {
     }
     bindings_ = new BindingsDialog(sinks_, this);
     bindings_->show();
+}
+
+void ScoreboardDock::openSettings() {
+    if (!driver_) return;
+    if (settingsDialog_) {
+        settingsDialog_->raise();
+        settingsDialog_->activateWindow();
+        return;
+    }
+    const sb::GlobalPrefs none;
+    settingsDialog_ = new MatchSettingsDialog(
+        driver_->engine().settings(), settings_ ? settings_->prefs() : none,
+        [this](const MatchSettingsDialog::Result& r) { return applyDialogResult(r); }, this);
+    settingsDialog_->show();
+}
+
+bool ScoreboardDock::applyDialogResult(const MatchSettingsDialog::Result& r) {
+    if (!driver_) return true;
+    sb::MatchSettings next = r.settings;
+    // The clock kept running while the dialog was open: names the user did not touch come from
+    // the engine as it is now.
+    const sb::MatchSettings& current = driver_->engine().settings();
+    if (!r.homeNameEdited) next.homeName = current.homeName;
+    if (!r.awayNameEdited) next.awayName = current.awayName;
+    if (!applySettings(next)) return false; // NO to "start a new match": nothing is saved
+    if (settings_) settings_->setColors(r.scoreColor, r.foulColor);
+    applyColors();
+    return true;
+}
+
+void ScoreboardDock::offerSportChoice() {
+    if (!driver_ || !settings_ || settings_->prefs().sportChosen || sportPicker_) return;
+    QStringList names;
+    for (const sb::SportPreset& sport : sb::builtInSports()) {
+        const std::string key = "Sport." + sport.id;
+        names << text(key.c_str());
+    }
+    auto* dialog = new QInputDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(text("Sport.PickTitle"));
+    dialog->setLabelText(text("Sport.PickLabel"));
+    dialog->setOption(QInputDialog::UseListViewForComboBoxItems);
+    dialog->setComboBoxItems(names);
+    const std::string currentKey = "Sport." + driver_->engine().settings().sport.id;
+    dialog->setTextValue(text(currentKey.c_str()));
+    connect(dialog, &QInputDialog::textValueSelected, this, [this, names](const QString& chosen) {
+        const int index = names.indexOf(chosen);
+        if (index < 0 || !driver_ || !settings_) return;
+        const sb::SportPreset& preset = sb::builtInSports()[static_cast<std::size_t>(index)];
+        sb::MatchSettings next = sb::settingsForSport(settings_->prefs(), preset);
+        const sb::MatchSettings& current = driver_->engine().settings();
+        next.homeName = current.homeName; // names typed in the meantime survive
+        next.awayName = current.awayName;
+        applySettings(next);
+        settings_->rememberSettings(next); // marks the sport as chosen even if nothing changed
+    });
+    connect(dialog, &QDialog::rejected, this, [this]() {
+        if (driver_ && settings_) settings_->rememberSettings(driver_->engine().settings());
+    });
+    sportPicker_ = dialog;
+    dialog->open();
 }
 
 void ScoreboardDock::resumePrevious() {

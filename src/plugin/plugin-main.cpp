@@ -41,6 +41,12 @@ std::unique_ptr<BindingStore> g_bindings;
 // After EXIT OBS has already cleared the frontend callbacks; removing ours would log an error.
 bool g_exited = false;
 
+// The selftest and check-obs-load.ps1 must not find a modal dialog: they set one of these.
+bool pickerSuppressed() {
+    return qEnvironmentVariableIsSet("OBS_SCOREBOARD_SELFTEST") ||
+           qEnvironmentVariableIsSet("OBS_SCOREBOARD_NO_PICKER");
+}
+
 void tearDown() {
     selftest::stop();      // the video callback must go before the driver and sinks
     delete g_saver.data(); // before the driver it listens to
@@ -63,6 +69,7 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
         break;
     case OBS_FRONTEND_EVENT_FINISHED_LOADING:
         selftest::maybeStart(g_driver, g_sinks);
+        if (g_dock && !pickerSuppressed()) g_dock->offerSportChoice();
         break;
     case OBS_FRONTEND_EVENT_EXIT:
         g_exited = true;
