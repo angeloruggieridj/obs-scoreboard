@@ -7,6 +7,7 @@ check-obs-load.ps1 and run-selftest.ps1.
 Get-ObsZip           downloads (or finds in the cache) the Windows x64 zip of a release
 Reset-Obs            unpacks it fresh, in portable mode, with a quiet config
 Install-Plugin       copies the plugin in the "new" and/or "legacy" folder layout
+                     (dll, locale and fonts)
 Close-ObsMainWindow  posts WM_CLOSE to the OBS main window of a process
 
 .NOTES
@@ -89,13 +90,15 @@ function Install-Plugin {
         [Parameter(Mandatory)][string]$Root,
         [Parameter(Mandatory)][ValidateSet('new', 'legacy', 'both')][string]$Layout,
         [Parameter(Mandatory)][string]$Dll,
-        [Parameter(Mandatory)][string]$LocaleDir
+        [Parameter(Mandatory)][string]$LocaleDir,
+        [string]$FontsDir = ''
     )
     if ($Layout -in @('new', 'both')) {
         $dir = Join-Path $Root 'plugins\obs-scoreboard'
         New-Item -ItemType Directory -Force -Path (Join-Path $dir 'data') | Out-Null
         Copy-Item -LiteralPath $Dll -Destination $dir -Force
         Copy-Item -LiteralPath $LocaleDir -Destination (Join-Path $dir 'data') -Recurse -Force
+        if ($FontsDir) { Copy-Item -LiteralPath $FontsDir -Destination (Join-Path $dir 'data') -Recurse -Force }
     }
     if ($Layout -in @('legacy', 'both')) {
         $bin = Join-Path $Root 'obs-plugins\64bit'
@@ -103,6 +106,7 @@ function Install-Plugin {
         New-Item -ItemType Directory -Force -Path $bin, $data | Out-Null
         Copy-Item -LiteralPath $Dll -Destination $bin -Force
         Copy-Item -LiteralPath $LocaleDir -Destination $data -Recurse -Force
+        if ($FontsDir) { Copy-Item -LiteralPath $FontsDir -Destination $data -Recurse -Force }
     }
 }
 

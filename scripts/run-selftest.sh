@@ -3,8 +3,8 @@
 #
 # Runs the in-OBS fps selftest with the system OBS under xvfb (Linux).
 #
-#   run-selftest.sh --fps N [--seconds 20] --plugin <.so> --locale <dir> [--artifacts <dir>]
-#                       [--canvas WxH] [--reopen]
+#   run-selftest.sh --fps N [--seconds 20] --plugin <.so> --locale <dir> --fonts <dir>
+#                       [--artifacts <dir>] [--canvas WxH] [--reopen]
 #                       (default canvas 1280x720; CI uses a smaller one on software rendering)
 #
 # With --reopen, after a first run that passed, OBS is started a second time on
@@ -23,12 +23,13 @@ fps=""
 seconds=20
 plugin=""
 locale=""
+fonts=""
 artifacts=""
 canvas="1280x720"
 reopen=0
 
 usage() {
-    echo "usage: $0 --fps N [--seconds S] --plugin <obs-scoreboard.so> --locale <dir> [--artifacts <dir>] [--canvas WxH] [--reopen]" >&2
+    echo "usage: $0 --fps N [--seconds S] --plugin <obs-scoreboard.so> --locale <dir> --fonts <dir> [--artifacts <dir>] [--canvas WxH] [--reopen]" >&2
     exit 2
 }
 
@@ -38,13 +39,14 @@ while [ $# -gt 0 ]; do
         --seconds) seconds="${2:-}"; shift 2 ;;
         --plugin) plugin="${2:-}"; shift 2 ;;
         --locale) locale="${2:-}"; shift 2 ;;
+        --fonts) fonts="${2:-}"; shift 2 ;;
         --artifacts) artifacts="${2:-}"; shift 2 ;;
         --canvas) canvas="${2:-}"; shift 2 ;;
         --reopen) reopen=1; shift ;;
         *) usage ;;
     esac
 done
-[ -n "$fps" ] && [ -n "$plugin" ] && [ -n "$locale" ] || usage
+[ -n "$fps" ] && [ -n "$plugin" ] && [ -n "$locale" ] && [ -n "$fonts" ] || usage
 case "$fps" in
     25|30|50|60) ;;
     *) echo "invalid --fps '$fps' (expected 25, 30, 50 or 60)" >&2; usage ;;
@@ -64,12 +66,14 @@ canvas_w="${canvas%x*}"
 canvas_h="${canvas#*x}"
 [ -f "$plugin" ] || { echo "missing plugin: $plugin" >&2; exit 2; }
 [ -d "$locale" ] || { echo "missing locale dir: $locale" >&2; exit 2; }
+[ -d "$fonts" ] || { echo "missing fonts dir: $fonts" >&2; exit 2; }
 for tool in obs xvfb-run python3 sha256sum; do
     command -v "$tool" >/dev/null || { echo "missing tool: $tool" >&2; exit 2; }
 done
 
 plugin="$(realpath "$plugin")"
 locale="$(realpath "$locale")"
+fonts="$(realpath "$fonts")"
 [ -n "$artifacts" ] || artifacts="${TMPDIR:-/tmp}/obs-scoreboard-selftest/artifacts"
 mkdir -p "$artifacts"
 artifacts="$(realpath "$artifacts")"
@@ -102,6 +106,7 @@ dest="$cfg/plugins/obs-scoreboard"
 mkdir -p "$dest/bin/64bit" "$dest/data"
 cp "$plugin" "$dest/bin/64bit/obs-scoreboard.so"
 cp -r "$locale" "$dest/data/locale"
+cp -r "$fonts" "$dest/data/fonts"
 
 # $! is xvfb-run, not OBS: find the real obs process, looking only among the
 # descendants of xvfb-run so that an OBS the developer runs is never touched.

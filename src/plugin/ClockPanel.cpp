@@ -3,7 +3,10 @@
 
 #include <obs-module.h>
 
+#include <QByteArray>
+#include <QFile>
 #include <QFontDatabase>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -13,6 +16,7 @@
 #include <algorithm>
 
 #include "Types.hpp"
+#include "plugin-support.h"
 
 namespace {
 
@@ -21,6 +25,36 @@ constexpr int kArrowColumn = 52;
 
 QString text(const char* key) {
     return QString::fromUtf8(obs_module_text(key));
+}
+
+// DSEG7 Classic Bold (the 7-segment look), installed next to the locale as data/fonts. Loaded
+// once for the whole process; any failure silently keeps the fixed bold font. obs_module_file()
+// returns a char* owned by the module, freed with bfree().
+const QString& digitalFontFamily() {
+    static const QString family = [] {
+        char* path = obs_module_file("fonts/DSEG7Classic-Bold.ttf");
+        if (!path) {
+            obs_log(LOG_WARNING, "digital clock font not found, using the default clock font");
+            return QString();
+        }
+        QFile file(QString::fromUtf8(path));
+        bfree(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            obs_log(LOG_WARNING,
+                    "could not open the digital clock font, using the default clock font");
+            return QString();
+        }
+        const int id = QFontDatabase::addApplicationFontFromData(file.readAll());
+        const QStringList families =
+            id >= 0 ? QFontDatabase::applicationFontFamilies(id) : QStringList();
+        if (families.isEmpty()) {
+            obs_log(LOG_WARNING,
+                    "could not load the digital clock font, using the default clock font");
+            return QString();
+        }
+        return families.first();
+    }();
+    return family;
 }
 
 // A lone "-" or "+" in a narrow button is elided by the OBS theme's button padding: drop the
@@ -165,13 +199,20 @@ void ClockPanel::resizeEvent(QResizeEvent* event) {
 }
 
 void ClockPanel::updateClockFont() {
-    const int chars = std::max(5, static_cast<int>(clock_->text().size()));
-    const double available = width() - 2.0 * kArrowColumn - 16.0;
-    const int pixels = std::clamp(static_cast<int>(available / (chars * 0.62)), 22, 72);
+    const QString family = digitalFontFamily();
+    const double available = std::max(40.0, width() - 2.0 * kArrowColumn - 16.0);
+    // DSEG7's digit advances differ from the fixed font's, so measure instead of guessing a ratio:
+    // size the text at a reference pixel size and scale it to the width the clock has.
+    QFont font =
+        family.isEmpty() ? QFontDatabase::systemFont(QFontDatabase::FixedFont) : QFont(family);
+    font.setBold(true);
+    constexpr int kReference = 64;
+    font.setPixelSize(kReference);
+    const int textWidth = QFontMetrics(font).horizontalAdvance(clock_->text());
+    const int pixels = std::clamp(
+        textWidth > 0 ? static_cast<int>(kReference * available / textWidth) : kReference, 22, 72);
     if (pixels == shownPixelSize_) return;
     shownPixelSize_ = pixels;
-    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    font.setBold(true);
     font.setPixelSize(pixels);
     clock_->setFont(font);
 }

@@ -43,8 +43,9 @@ $repo = Split-Path -Parent $PSScriptRoot
 if (-not $Dll) { $Dll = Join-Path $repo 'build_x64\RelWithDebInfo\obs-scoreboard.dll' }
 if (-not $ArtifactDir) { $ArtifactDir = Join-Path $env:TEMP 'obs-scoreboard-selftest\artifacts' }
 $localeSrc = Join-Path $repo 'data\locale'
+$fontsSrc = Join-Path $repo 'data\fonts'
 
-foreach ($need in @($Dll, $localeSrc)) {
+foreach ($need in @($Dll, $localeSrc, $fontsSrc)) {
     if (-not (Test-Path -LiteralPath $need)) { Write-Host "missing: $need (build first)"; exit 2 }
 }
 
@@ -114,7 +115,7 @@ try {
     $base = Join-Path $env:TEMP 'obs-scoreboard-selftest'
     $zip = Get-ObsZip -Version $ObsVersion -CacheDir $base
     $root = Reset-Obs -Zip $zip -Work (Join-Path $base $ObsVersion)
-    Install-Plugin -Root $root -Layout legacy -Dll $Dll -LocaleDir $localeSrc
+    Install-Plugin -Root $root -Layout legacy -Dll $Dll -LocaleDir $localeSrc -FontsDir $fontsSrc
 
     $cw, $ch = $Canvas -split 'x'
     $profileDir = Join-Path $root 'config\obs-studio\basic\profiles\SBSelftest'

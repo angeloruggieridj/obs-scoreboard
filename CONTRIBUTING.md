@@ -35,7 +35,7 @@ Fps selftest of the direct Text-source write (the plugin's key claim), in a real
 # Windows, portable OBS
 pwsh -File scripts/run-selftest.ps1 -Fps 30
 # Linux, system OBS (needs xvfb-run)
-scripts/run-selftest.sh --fps 30 --plugin <path>/obs-scoreboard.so --locale data/locale
+scripts/run-selftest.sh --fps 30 --plugin <path>/obs-scoreboard.so --locale data/locale --fonts data/fonts
 ```
 
 `-Reopen` / `--reopen` adds a second OBS start on the same config: it checks that
@@ -44,7 +44,7 @@ only if both starts say pass and the file hashes match):
 
 ```bash
 pwsh -File scripts/run-selftest.ps1 -Fps 30 -Reopen
-scripts/run-selftest.sh --fps 30 --plugin <path>/obs-scoreboard.so --locale data/locale --reopen
+scripts/run-selftest.sh --fps 30 --plugin <path>/obs-scoreboard.so --locale data/locale --fonts data/fonts --reopen
 ```
 
 ## Layout

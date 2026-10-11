@@ -57,7 +57,7 @@ jobs:
             # Software rendering (llvmpipe) on a shared runner: a smaller
             # canvas keeps the renderer from lagging. The criteria are the same.
             args=(--fps "${fps}" --seconds 20 --plugin "${plugin}"
-              --locale data/locale --artifacts selftest-artifacts --canvas 640x360)
+              --locale data/locale --fonts data/fonts --artifacts selftest-artifacts --canvas 640x360)
             # The restart does not depend on the framerate: only 30 fps exercises it.
             if [[ "${fps}" -eq 30 ]]; then args+=(--reopen); fi
             scripts/run-selftest.sh "${args[@]}" || rc=$?

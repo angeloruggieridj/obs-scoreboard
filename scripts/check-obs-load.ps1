@@ -47,8 +47,9 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $dll = Join-Path $repo 'build_x64\RelWithDebInfo\obs-scoreboard.dll'
 $localeSrc = Join-Path $repo 'data\locale'
+$fontsSrc = Join-Path $repo 'data\fonts'
 
-foreach ($need in @($dll, $localeSrc)) {
+foreach ($need in @($dll, $localeSrc, $fontsSrc)) {
     if (-not (Test-Path -LiteralPath $need)) { Write-Error "missing: $need (build first)"; exit 2 }
 }
 
@@ -67,7 +68,7 @@ $results = @()
 foreach ($layout in $Layouts) {
     Write-Host "=== OBS $ObsVersion, layout '$layout'"
     $root = Reset-Obs -Zip $zip -Work $work
-    Install-Plugin -Root $root -Layout $layout -Dll $dll -LocaleDir $localeSrc
+    Install-Plugin -Root $root -Layout $layout -Dll $dll -LocaleDir $localeSrc -FontsDir $fontsSrc
     $bin = Join-Path $root 'bin\64bit'
     # The first-launch sport picker must not appear: check-obs-load only asks whether the
     # plugin loads and shuts down cleanly, not whether a dialog is waiting for input.
