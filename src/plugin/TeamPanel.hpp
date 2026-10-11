@@ -14,6 +14,7 @@ class CounterControl;
 class PenaltyList;
 class QLabel;
 class QLineEdit;
+class QToolButton;
 
 // One team's column: name, score, shots, fouls, second fouls, penalties. Shows what it is told;
 // every user action leaves as a signal and goes through the dock's dispatch().
@@ -30,11 +31,15 @@ public:
     // "shots", "fouls", "fouls2" or "penalties": whether applyLayout() left that row shown.
     bool rowShown(const char* id) const;
     std::size_t penaltyRowCount() const;
+    // Whether the "+" add-penalty button is currently shown (same as the penalties row).
+    bool penaltyAddShown() const { return penaltiesShown_; }
 
 signals:
     void nameEdited(const QString& name);
     void statDelta(int stat, int delta); // stat = static_cast<int>(sb::Stat)
     void penaltyCancelRequested(unsigned id);
+    void penaltyEditRequested(unsigned id);
+    void penaltyAddRequested();
 
 private:
     struct Row {
@@ -52,6 +57,7 @@ private:
     Row fouls_;
     Row fouls2_;
     QLabel* penaltiesCaption_ = nullptr;
+    QToolButton* penaltiesAdd_ = nullptr;
     PenaltyList* penalties_ = nullptr;
     bool penaltiesShown_ = false;
     std::optional<sb::PanelLayout> applied_;

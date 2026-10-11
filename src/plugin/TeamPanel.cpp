@@ -3,8 +3,10 @@
 
 #include <obs-module.h>
 
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <cstring>
@@ -61,12 +63,22 @@ TeamPanel::TeamPanel(QWidget* parent) : QWidget(parent) {
         layout->addWidget(row->counter);
     }
 
+    auto* penaltiesRow = new QHBoxLayout();
     penaltiesCaption_ = makeCaption(this);
+    penaltiesAdd_ = new QToolButton(this);
+    penaltiesAdd_->setText(QStringLiteral("+"));
+    penaltiesAdd_->setAutoRaise(true);
+    penaltiesAdd_->setToolTip(QString::fromUtf8(obs_module_text("Panel.PenaltyAdd")));
+    connect(penaltiesAdd_, &QToolButton::clicked, this, &TeamPanel::penaltyAddRequested);
+    penaltiesRow->addWidget(penaltiesCaption_, 1);
+    penaltiesRow->addWidget(penaltiesAdd_);
     penaltiesCaption_->hide();
+    penaltiesAdd_->hide();
     penalties_ = new PenaltyList(this);
     penalties_->hide();
     connect(penalties_, &PenaltyList::cancelRequested, this, &TeamPanel::penaltyCancelRequested);
-    layout->addWidget(penaltiesCaption_);
+    connect(penalties_, &PenaltyList::editRequested, this, &TeamPanel::penaltyEditRequested);
+    layout->addLayout(penaltiesRow);
     layout->addWidget(penalties_);
     layout->addStretch(1);
 }
@@ -112,6 +124,7 @@ void TeamPanel::applyLayout(const sb::PanelLayout& layout) {
     if (penaltiesShown_ != layout.penalties) {
         penaltiesShown_ = layout.penalties;
         penaltiesCaption_->setVisible(penaltiesShown_);
+        penaltiesAdd_->setVisible(penaltiesShown_);
         penalties_->setVisible(penaltiesShown_);
     }
 }

@@ -37,15 +37,26 @@ void PenaltyList::ensureSlots(std::size_t count) {
         auto* row = new QHBoxLayout(slot.box);
         row->setContentsMargins(0, 0, 0, 0);
         slot.label = new QLabel(slot.box);
+        // Never let a long row (player + "queued"/"in coda" + "+2:00") widen the team column:
+        // the label yields, the edit/cancel buttons keep their size.
+        slot.label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        slot.label->setMinimumWidth(0);
+        slot.edit = new QToolButton(slot.box);
+        slot.edit->setText(QString::fromUtf8(obs_module_text("Panel.PenaltyEditShort")));
+        slot.edit->setAutoRaise(true);
+        slot.edit->setToolTip(QString::fromUtf8(obs_module_text("Panel.PenaltyEdit")));
         slot.cancel = new QToolButton(slot.box);
         slot.cancel->setText(QStringLiteral("X"));
         slot.cancel->setAutoRaise(true);
         slot.cancel->setToolTip(QString::fromUtf8(obs_module_text("Panel.PenaltyCancel")));
         row->addWidget(slot.label, 1);
+        row->addWidget(slot.edit);
         row->addWidget(slot.cancel);
         slot.box->hide(); // explicit: setRows() decides which slots are shown
         layout_->addWidget(slot.box);
         const std::size_t index = slots_.size();
+        connect(slot.edit, &QToolButton::clicked, this,
+                [this, index]() { emit editRequested(slots_[index].id); });
         connect(slot.cancel, &QToolButton::clicked, this,
                 [this, index]() { emit cancelRequested(slots_[index].id); });
         slots_.push_back(slot);

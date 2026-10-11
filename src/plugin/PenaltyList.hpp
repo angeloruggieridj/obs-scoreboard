@@ -22,11 +22,13 @@ public:
 
 signals:
     void cancelRequested(unsigned id);
+    void editRequested(unsigned id);
 
 private:
     struct Slot {
         QWidget* box = nullptr;
         QLabel* label = nullptr;
+        QToolButton* edit = nullptr;
         QToolButton* cancel = nullptr;
         unsigned id = 0; // the penalty this slot shows right now
     };
