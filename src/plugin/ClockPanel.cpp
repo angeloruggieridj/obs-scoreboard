@@ -16,20 +16,32 @@
 
 namespace {
 
-constexpr int kArrowColumn = 44;
+// Wide enough for a "+1:00" label at the theme's button font; also used to size the clock.
+constexpr int kArrowColumn = 52;
 
 QString text(const char* key) {
     return QString::fromUtf8(obs_module_text(key));
 }
 
+// A lone "-" or "+" in a narrow button is elided by the OBS theme's button padding: drop the
+// padding and fix a width just wide enough for the glyph. The rest of the theme look is kept.
+QPushButton* makeStepButton(const QString& label, QWidget* parent) {
+    auto* button = new QPushButton(label, parent);
+    button->setStyleSheet(QStringLiteral("QPushButton{padding:0px;}"));
+    button->setFixedWidth(26);
+    return button;
+}
+
 } // namespace
 
-QPushButton* ClockPanel::makeArrow(const QString& glyph, qint64 deltaTenths) {
-    auto* button = new QPushButton(glyph, this);
-    button->setFixedWidth(kArrowColumn - 4);
+QPushButton* ClockPanel::makeArrow(const QString& label, const QString& tooltip,
+                                   qint64 deltaTenths) {
+    auto* button = new QPushButton(label, this);
+    button->setMinimumWidth(kArrowColumn);
     button->setAutoRepeat(true); // held down: repeats (CLAUDE.md §4.3)
     button->setAutoRepeatDelay(400);
     button->setAutoRepeatInterval(100);
+    button->setToolTip(tooltip);
     connect(button, &QPushButton::clicked, this,
             [this, deltaTenths]() { emit arrowRequested(deltaTenths); });
     return button;
@@ -40,31 +52,31 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     outer->setContentsMargins(2, 2, 2, 2);
     outer->setSpacing(4);
 
-    const QString up = QStringLiteral("▲");
-    const QString down = QStringLiteral("▼");
-    auto* top = new QHBoxLayout();
     auto* minutesColumn = new QVBoxLayout();
-    minutesColumn->addWidget(makeArrow(up, sb::minutes(1)));
-    minutesColumn->addWidget(new QLabel(text("Panel.MinutesShort"), this), 0, Qt::AlignCenter);
-    minutesColumn->addWidget(makeArrow(down, -sb::minutes(1)));
+    minutesColumn->setSpacing(2);
+    minutesColumn->addWidget(
+        makeArrow(QStringLiteral("+1:00"), text("Hotkey.clock_min_up"), sb::minutes(1)));
+    minutesColumn->addWidget(
+        makeArrow(QStringLiteral("-1:00"), text("Hotkey.clock_min_down"), -sb::minutes(1)));
     auto* secondsColumn = new QVBoxLayout();
-    secondsColumn->addWidget(makeArrow(up, sb::seconds(1)));
-    secondsColumn->addWidget(new QLabel(text("Panel.SecondsShort"), this), 0, Qt::AlignCenter);
-    secondsColumn->addWidget(makeArrow(down, -sb::seconds(1)));
+    secondsColumn->setSpacing(2);
+    secondsColumn->addWidget(
+        makeArrow(QStringLiteral("+0:01"), text("Hotkey.clock_sec_up"), sb::seconds(1)));
+    secondsColumn->addWidget(
+        makeArrow(QStringLiteral("-0:01"), text("Hotkey.clock_sec_down"), -sb::seconds(1)));
 
     clock_ = new QLabel(this);
     clock_->setAlignment(Qt::AlignCenter);
     clock_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    auto* top = new QHBoxLayout();
     top->addLayout(minutesColumn);
     top->addWidget(clock_, 1);
     top->addLayout(secondsColumn);
     outer->addLayout(top);
 
     auto* periodRow = new QHBoxLayout();
-    auto* prev = new QPushButton(QStringLiteral("−"), this);
-    auto* next = new QPushButton(QStringLiteral("+"), this);
-    prev->setFixedWidth(28);
-    next->setFixedWidth(28);
+    auto* prev = makeStepButton(QStringLiteral("−"), this);
+    auto* next = makeStepButton(QStringLiteral("+"), this);
     connect(prev, &QPushButton::clicked, this, [this]() { emit periodStepRequested(-1); });
     connect(next, &QPushButton::clicked, this, [this]() { emit periodStepRequested(1); });
     period_ = new QLabel(this);
@@ -82,10 +94,8 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     stoppageBox_ = new QWidget(this);
     auto* stoppageRow = new QHBoxLayout(stoppageBox_);
     stoppageRow->setContentsMargins(0, 0, 0, 0);
-    auto* stoppageMinus = new QPushButton(QStringLiteral("−"), stoppageBox_);
-    auto* stoppagePlus = new QPushButton(QStringLiteral("+"), stoppageBox_);
-    stoppageMinus->setFixedWidth(28);
-    stoppagePlus->setFixedWidth(28);
+    auto* stoppageMinus = makeStepButton(QStringLiteral("−"), stoppageBox_);
+    auto* stoppagePlus = makeStepButton(QStringLiteral("+"), stoppageBox_);
     connect(stoppageMinus, &QPushButton::clicked, this,
             [this]() { emit stoppageStepRequested(-1); });
     connect(stoppagePlus, &QPushButton::clicked, this, [this]() { emit stoppageStepRequested(1); });
@@ -104,9 +114,8 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     startStop_ = new QPushButton(this);
     startStop_->setMinimumHeight(36);
     connect(startStop_, &QPushButton::clicked, this, [this]() { emit toggleRequested(); });
-    reset_ = new QPushButton(QStringLiteral("↺"), this);
+    reset_ = new QPushButton(text("Dock.Reset"), this);
     reset_->setToolTip(text("Dock.Reset"));
-    reset_->setFixedWidth(36);
     connect(reset_, &QPushButton::clicked, this, [this]() { emit resetRequested(); });
     controls->addWidget(startStop_, 1);
     controls->addWidget(reset_);

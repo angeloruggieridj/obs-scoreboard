@@ -38,7 +38,7 @@ void PenaltyList::ensureSlots(std::size_t count) {
         row->setContentsMargins(0, 0, 0, 0);
         slot.label = new QLabel(slot.box);
         slot.cancel = new QToolButton(slot.box);
-        slot.cancel->setText(QStringLiteral("✕"));
+        slot.cancel->setText(QStringLiteral("X"));
         slot.cancel->setAutoRaise(true);
         slot.cancel->setToolTip(QString::fromUtf8(obs_module_text("Panel.PenaltyCancel")));
         row->addWidget(slot.label, 1);

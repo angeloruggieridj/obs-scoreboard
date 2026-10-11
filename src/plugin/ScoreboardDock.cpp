@@ -76,8 +76,9 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     link_->setFlat(true);
     connect(link_, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
     menu_ = new QToolButton(content);
-    menu_->setText(QStringLiteral("⋮"));
+    menu_->setText(QStringLiteral("..."));
     menu_->setPopupMode(QToolButton::InstantPopup);
+    menu_->setStyleSheet(QStringLiteral("QToolButton::menu-indicator{image:none;}"));
     auto* menu = new QMenu(menu_);
     connect(menu->addAction(text("Menu.Settings")), &QAction::triggered, this,
             &ScoreboardDock::openSettings);

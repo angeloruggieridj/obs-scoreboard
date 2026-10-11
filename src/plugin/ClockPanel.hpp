@@ -31,7 +31,7 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 
 private:
-    QPushButton* makeArrow(const QString& glyph, qint64 deltaTenths);
+    QPushButton* makeArrow(const QString& label, const QString& tooltip, qint64 deltaTenths);
     void updateClockFont();
 
     QLabel* clock_ = nullptr;
