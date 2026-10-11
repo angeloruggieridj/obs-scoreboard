@@ -101,6 +101,8 @@ target_sources(
     src/plugin/MatchSettingsDialog.hpp
     src/plugin/MatchStateSaver.cpp
     src/plugin/MatchStateSaver.hpp
+    src/plugin/PenaltyDialog.cpp
+    src/plugin/PenaltyDialog.hpp
     src/plugin/PenaltyList.cpp
     src/plugin/PenaltyList.hpp
     src/plugin/plugin-main.cpp
