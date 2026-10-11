@@ -100,11 +100,12 @@ bool TextSink::refresh() {
 void TextSink::sourceGone(const std::string& uuid) {
     if (!bound_ || uuid != binding_.uuid) return;
     // The remove/destroy signal is queued: by the time it runs, a scene-collection switch may
-    // have rebound this field. Unbind only if this sink's source is really gone: its weak
-    // reference no longer resolves (the caller has already checked that no live source reuses
-    // the uuid).
+    // have rebound this field. Unbind only if this sink's source is gone or removed: its weak
+    // reference no longer resolves, or it resolves to a source the user removed but that some
+    // other reference is still keeping alive (the caller has already checked that no live
+    // source reuses the uuid).
     OBSSourceAutoRelease source = obs_weak_source_get_source(weak_);
-    if (source) return;
+    if (source && !obs_source_removed(source)) return;
     unbind(Problem::Removed);
 }
 

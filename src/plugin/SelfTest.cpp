@@ -111,16 +111,11 @@ std::string uuidByName(const std::string& name) {
 }
 
 bool writeJsonAtomic(const std::string& out, const nlohmann::json& report) {
-    const std::string tmp = out + ".tmp";
-    {
-        std::ofstream file(std::filesystem::u8path(tmp), std::ios::binary | std::ios::trunc);
-        file << report.dump(2);
-    }
-    std::error_code ec;
-    std::filesystem::rename(std::filesystem::u8path(tmp), std::filesystem::u8path(out), ec);
-    if (ec)
-        obs_log(LOG_ERROR, "selftest could not write %s: %s", out.c_str(), ec.message().c_str());
-    return !ec;
+    std::string error;
+    const bool ok = writeFileAtomic(
+        out, report.dump(2, ' ', false, nlohmann::json::error_handler_t::replace), &error);
+    if (!ok) obs_log(LOG_ERROR, "selftest could not write %s: %s", out.c_str(), error.c_str());
+    return ok;
 }
 
 std::string readTextFile(const std::string& path) {
