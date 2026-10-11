@@ -81,8 +81,10 @@ void FieldSinks::unbind(sb::FieldId field) {
 
 void FieldSinks::unbindAll() {
     for (std::size_t i = 0; i < sinks_.size(); ++i) {
-        if (!sinks_[i].bound()) continue;
-        sinks_[i].unbind();
+        // A sink that lost its source still carries a problem: clear that too, or the link
+        // indicator would stay yellow in the next collection.
+        if (!sinks_[i].bound() && sinks_[i].problem() == TextSink::Problem::None) continue;
+        sinks_[i].unbind(); // Problem::None
         emit bindingChanged(static_cast<int>(i));
     }
 }

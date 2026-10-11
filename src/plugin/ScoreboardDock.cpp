@@ -3,11 +3,15 @@
 
 #include <obs-module.h>
 
+#include <QAction>
+#include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -23,7 +27,9 @@
 #include "MatchJson.hpp"
 #include "MatchStateSaver.hpp"
 #include "PanelModel.hpp"
+#include "SettingsChange.hpp"
 #include "TeamPanel.hpp"
+#include "plugin-support.h"
 
 namespace {
 
@@ -60,6 +66,34 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     auto* layout = new QVBoxLayout(content);
     layout->setContentsMargins(4, 4, 4, 4);
 
+    auto* header = new QHBoxLayout();
+    title_ = new QLabel(text("Dock.Title"), content);
+    QFont titleFont = title_->font();
+    titleFont.setBold(true);
+    title_->setFont(titleFont);
+    link_ = new QPushButton(content);
+    link_->setFlat(true);
+    connect(link_, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
+    menu_ = new QToolButton(content);
+    menu_->setText(QStringLiteral("⋮"));
+    menu_->setPopupMode(QToolButton::InstantPopup);
+    auto* menu = new QMenu(menu_);
+    connect(menu->addAction(text("Dock.Bindings")), &QAction::triggered, this,
+            &ScoreboardDock::openBindings);
+    connect(menu->addAction(text("Menu.NewMatch")), &QAction::triggered, this,
+            &ScoreboardDock::newMatch);
+    connect(menu->addAction(text("Dock.Resume")), &QAction::triggered, this,
+            &ScoreboardDock::resumePrevious);
+    connect(menu->addAction(text("Menu.EndMatch")), &QAction::triggered, this,
+            &ScoreboardDock::endMatch);
+    menu->addSeparator();
+    connect(menu->addAction(text("Menu.About")), &QAction::triggered, this, &ScoreboardDock::about);
+    menu_->setMenu(menu);
+    header->addWidget(title_, 1);
+    header->addWidget(link_);
+    header->addWidget(menu_);
+    layout->addLayout(header);
+
     clock_ = new ClockPanel(content);
     layout->addWidget(clock_);
 
@@ -79,16 +113,37 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     strength_->hide();
     layout->addWidget(strength_);
 
+    countdown_ = new QCheckBox(text("Panel.Countdown"), content);
+    connect(countdown_, &QCheckBox::clicked, this, [this](bool checked) {
+        if (!driver_) return;
+        sb::MatchSettings next = driver_->engine().settings();
+        next.sport.direction = checked ? sb::Direction::Down : sb::Direction::Up;
+        const std::string problem = sb::settingsProblem(next); // e.g. "needsDuration"
+        if (!problem.empty()) {
+            const std::string key = "Settings.Problem." + problem;
+            showMessage(text(key.c_str()));
+        } else {
+            applySettings(next);
+        }
+        refresh(); // puts the box back in the real state if nothing changed
+    });
+    layout->addWidget(countdown_);
+
+    runPast_ = new QCheckBox(text("Panel.RunPast"), content);
+    runPast_->hide();
+    connect(runPast_, &QCheckBox::clicked, this, [this](bool checked) {
+        if (!driver_) return;
+        sb::MatchSettings next = driver_->engine().settings();
+        next.stoppage = sb::stoppageForToggle(next.sport, checked);
+        applySettings(next);
+        refresh();
+    });
+    layout->addWidget(runPast_);
+
     status_ = new QLabel(content);
     status_->setWordWrap(true);
     layout->addWidget(status_);
 
-    auto* resume = new QPushButton(text("Dock.Resume"), content);
-    connect(resume, &QPushButton::clicked, this, &ScoreboardDock::resumePrevious);
-    layout->addWidget(resume);
-    auto* bindings = new QPushButton(text("Dock.Bindings"), content);
-    connect(bindings, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
-    layout->addWidget(bindings);
     layout->addStretch(1);
     scroll->setWidget(content);
 
@@ -116,6 +171,8 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     connectTeam(sb::Team::Home);
     connectTeam(sb::Team::Away);
 
+    if (sinks_) connect(sinks_, &FieldSinks::bindingChanged, this, &ScoreboardDock::showLinkState);
+
     if (driver_) {
         connect(driver_, &ClockDriver::fieldsChanged, this,
                 [this](const sb::FieldValues&) { refresh(); });
@@ -132,6 +189,7 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
         applyColors();
         refresh();
     }
+    showLinkState();
 }
 
 TeamPanel* ScoreboardDock::panel(sb::Team team) const {
@@ -211,6 +269,30 @@ void ScoreboardDock::applyColors() {
     away_->setColors(score, foul);
 }
 
+void ScoreboardDock::showLinkState() {
+    if (!sinks_) return;
+    int bound = 0;
+    bool broken = false;
+    for (std::size_t i = 0; i < sb::kFieldCount; ++i) {
+        const TextSink& sink = sinks_->sink(static_cast<sb::FieldId>(i));
+        if (sink.bound())
+            ++bound;
+        else if (sink.problem() != TextSink::Problem::None)
+            broken = true;
+    }
+    const bool clockBound = sinks_->sink(sb::FieldId::Clock).bound();
+    const int state = broken ? 1 : (clockBound ? 0 : 2); // 0 green, 1 yellow, 2 gray
+    const QString label = QStringLiteral("● %1/%2").arg(bound).arg(sb::kFieldCount);
+    if (link_->text() != label) link_->setText(label);
+    if (state == shownLinkState_) return;
+    shownLinkState_ = state;
+    static const char* colors[] = {"#27AE60", "#F2C94C", "#888888"};
+    static const char* tips[] = {"Panel.Link.Ok", "Panel.Link.Broken", "Panel.Link.None"};
+    link_->setStyleSheet(QStringLiteral("QPushButton{color:%1;font-weight:bold;}")
+                             .arg(QLatin1String(colors[state])));
+    link_->setToolTip(text(tips[state]));
+}
+
 void ScoreboardDock::refresh() {
     if (!driver_) return;
     const sb::MatchEngine& engine = driver_->engine();
@@ -231,6 +313,54 @@ void ScoreboardDock::refresh() {
     }
     const QString strength = field(values, sb::FieldId::Strength);
     if (strength_->text() != strength) strength_->setText(strength);
+
+    const bool started = sb::matchStarted(engine);
+    const bool down = engine.settings().sport.direction == sb::Direction::Down;
+    if (countdown_->isChecked() != down) countdown_->setChecked(down);
+    if (countdown_->isEnabled() == started) countdown_->setEnabled(!started);
+    const QString lockedTip = started ? text("Panel.DirectionLocked") : QString();
+    if (countdown_->toolTip() != lockedTip) countdown_->setToolTip(lockedTip);
+
+    const bool wantRunPast = layout_ && layout_->stoppage;
+    if (runPastShown_ != wantRunPast) {
+        runPastShown_ = wantRunPast;
+        runPast_->setVisible(wantRunPast);
+    }
+    const bool runPast = engine.settings().stoppage == sb::StoppageMode::RunPastDuration;
+    if (runPast_->isChecked() != runPast) runPast_->setChecked(runPast);
+}
+
+bool ScoreboardDock::applySettings(const sb::MatchSettings& next) {
+    if (!driver_) return true;
+    const sb::MatchSettings current = driver_->engine().settings();
+    switch (sb::classifySettingsChange(current, next, sb::matchStarted(driver_->engine()))) {
+    case sb::SettingsChange::None:
+        return true;
+    case sb::SettingsChange::Live: {
+        // Rebuilding from a snapshot leaves the clock stopped: stop it exactly now (this also
+        // advances penalties), rebuild, and restart it if it was running.
+        const bool wasRunning = driver_->engine().clock().running();
+        if (wasRunning) driver_->apply(sb::cmd::ClockStop{});
+        driver_->replaceMatch(sb::withSettings(driver_->engine().snapshot(), next));
+        if (wasRunning) driver_->apply(sb::cmd::ClockStart{});
+        break;
+    }
+    case sb::SettingsChange::ReplaceNow:
+        driver_->replaceMatch(sb::MatchEngine(next));
+        break;
+    case sb::SettingsChange::NeedsNewMatch: {
+        const auto answer = QMessageBox::question(
+            this, text("Panel.ConfirmTitle"), text("Settings.NewMatchQuestion"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes) return false;
+        if (!driver_) return true; // OBS closed while the question was open
+        driver_->replaceMatch(sb::MatchEngine(next));
+        break;
+    }
+    }
+    if (saver_) saver_->arm();
+    if (settings_) settings_->rememberSettings(next);
+    return true;
 }
 
 void ScoreboardDock::openBindings() {
@@ -267,4 +397,31 @@ void ScoreboardDock::resumePrevious() {
     if (saver_) saver_->arm();
     if (settings_) settings_->setLastSport(snapshot->settings.sport.id);
     showMessage(text("Resume.Done"));
+}
+
+void ScoreboardDock::newMatch() {
+    if (!driver_) return;
+    if (sb::matchStarted(driver_->engine())) {
+        const auto answer =
+            QMessageBox::question(this, text("Panel.ConfirmTitle"), text("Menu.NewMatchQuestion"),
+                                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes || !driver_) return; // the question ran a nested loop
+    }
+    // Same settings and team names, everything else back to the start.
+    driver_->replaceMatch(sb::MatchEngine(driver_->engine().settings()));
+    if (saver_) saver_->arm();
+}
+
+void ScoreboardDock::endMatch() {
+    if (!driver_) return;
+    const auto answer =
+        QMessageBox::question(this, text("Panel.ConfirmTitle"), text("Menu.EndMatchQuestion"),
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) return;
+    dispatch(sb::cmd::EndMatch{}); // dispatch() rechecks driver_ and reports a rejection
+}
+
+void ScoreboardDock::about() {
+    QMessageBox::about(this, text("Menu.About"),
+                       text("About.Text").arg(QString::fromUtf8(PLUGIN_VERSION)));
 }

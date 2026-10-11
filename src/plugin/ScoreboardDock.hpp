@@ -17,7 +17,10 @@ class ClockPanel;
 class FieldSinks;
 class GlobalSettings;
 class MatchStateSaver;
+class QCheckBox;
 class QLabel;
+class QPushButton;
+class QToolButton;
 class TeamPanel;
 
 // The dock: composes the clock block and the two team columns and is the single entry point of
@@ -44,17 +47,32 @@ private:
     void resumePrevious();
     void openBindings();
 
+    // Applies `next` to the running match, classifying the change (5.3). False only when the user
+    // answered NO to the "new match?" question.
+    bool applySettings(const sb::MatchSettings& next);
+    void showLinkState();
+    void newMatch();
+    void endMatch();
+    void about();
+
     QPointer<ClockDriver> driver_;
     QPointer<FieldSinks> sinks_;
     GlobalSettings* settings_ = nullptr; // lives for the whole module
     QPointer<MatchStateSaver> saver_;    // deleted in tearDown() while the dock still exists
     QPointer<BindingsDialog> bindings_;
+    QLabel* title_ = nullptr;
+    QPushButton* link_ = nullptr;
+    QToolButton* menu_ = nullptr;
     ClockPanel* clock_ = nullptr;
     TeamPanel* home_ = nullptr;
     TeamPanel* away_ = nullptr;
     QLabel* strength_ = nullptr;
+    QCheckBox* countdown_ = nullptr;
+    QCheckBox* runPast_ = nullptr;
     QLabel* status_ = nullptr;
     QTimer messageTimer_;
     std::optional<sb::PanelLayout> layout_;
     bool strengthShown_ = false;
+    bool runPastShown_ = false;
+    int shownLinkState_ = -1;
 };
