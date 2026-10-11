@@ -92,8 +92,8 @@ TEST_CASE("counters, penalties and stoppage need the sport to use them") {
 
 TEST_CASE("stoppage hotkeys add to the announced minutes, never below zero") {
     MatchEngine e(MatchSettings::forSport(*findSport("soccer")));
-    const HotkeySpec& plus = find("obs_scoreboard.stoppage_plus1");
-    const HotkeySpec& minus = find("obs_scoreboard.stoppage_minus1");
+    const HotkeySpec plus = find("obs_scoreboard.stoppage_plus1");
+    const HotkeySpec minus = find("obs_scoreboard.stoppage_minus1");
     CHECK(std::get<cmd::StoppageSet>(resolveHotkey(plus, e)).minutes == 1);
     CHECK(std::get<cmd::StoppageSet>(resolveHotkey(minus, e)).minutes == 0);
     e.apply(cmd::StoppageSet{2}, 0);
