@@ -53,7 +53,7 @@ void tearDown() {
     selftest::stop();      // the video callback must go before the driver and sinks
     delete g_saver.data(); // before the driver it listens to
     if (g_driver) g_driver->shutdown();
-    g_bindings.reset(); // unregisters its save callback before the sinks go
+    g_bindings.reset(); // unregisters its save callback before the hotkeys and sinks go
     delete g_hotkeys.data();
     delete g_sinks.data();
     delete g_driver.data();
@@ -126,7 +126,7 @@ bool obs_module_load(void) {
     g_hotkeys = new Hotkeys(g_driver, [](const sb::Command& command) {
         if (g_dock) g_dock->dispatch(command); // the dock may not exist yet, or any more
     });
-    g_bindings = std::make_unique<BindingStore>(g_sinks);
+    g_bindings = std::make_unique<BindingStore>(g_sinks, g_hotkeys);
     QObject::connect(g_driver, &ClockDriver::fieldsChanged, g_sinks, &FieldSinks::publish);
     g_sinks->publish(g_driver->fields());
 

@@ -23,6 +23,7 @@ namespace {
 constexpr std::size_t kNone = static_cast<std::size_t>(-1);
 constexpr int kRepeatDelayMs = 400;
 constexpr int kRepeatIntervalMs = 100;
+constexpr const char* kHotkeysKey = "obs-scoreboard-hotkeys";
 
 QString text(const std::string& key) {
     return QString::fromUtf8(obs_module_text(key.c_str()));
@@ -77,6 +78,32 @@ obs_hotkey_id Hotkeys::idOf(std::string_view name) const {
     for (std::size_t i = 0; i < catalog.size(); ++i)
         if (catalog[i].name == name) return ids_[i];
     return OBS_INVALID_HOTKEY_ID;
+}
+
+void Hotkeys::save(obs_data_t* data) const {
+    OBSDataAutoRelease object = obs_data_create();
+    const auto& catalog = sb::hotkeyCatalog();
+    for (std::size_t i = 0; i < catalog.size(); ++i) {
+        if (ids_[i] == OBS_INVALID_HOTKEY_ID) continue;
+        OBSDataArrayAutoRelease array = obs_hotkey_save(ids_[i]); // owned by the caller
+        obs_data_set_array(object, catalog[i].name.c_str(), array);
+    }
+    obs_data_set_obj(data, kHotkeysKey, object);
+}
+
+void Hotkeys::load(obs_data_t* data) {
+    stopRepeat(); // a key held across a collection switch must not keep repeating
+    OBSDataAutoRelease object = obs_data_get_obj(data, kHotkeysKey);
+    const auto& catalog = sb::hotkeyCatalog();
+    for (std::size_t i = 0; i < catalog.size(); ++i) {
+        if (ids_[i] == OBS_INVALID_HOTKEY_ID) continue;
+        OBSDataArrayAutoRelease array =
+            object ? obs_data_get_array(object, catalog[i].name.c_str()) : nullptr;
+        if (array)
+            obs_hotkey_load(ids_[i], array);
+        else
+            obs_hotkey_load_bindings(ids_[i], nullptr, 0); // not in this collection: unassigned
+    }
 }
 
 void Hotkeys::onHotkey(void* data, obs_hotkey_id, obs_hotkey_t*, bool pressed) {

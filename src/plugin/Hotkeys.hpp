@@ -6,6 +6,7 @@
 #include <QTimer>
 
 #include <obs.h> // obs-hotkey.h alone is not self-contained
+#include <obs.hpp>
 
 #include <cstddef>
 #include <functional>
@@ -28,6 +29,11 @@ public:
     ~Hotkeys() override;
 
     obs_hotkey_id idOf(std::string_view name) const;
+
+    // Bindings are stored per scene collection, under "obs-scoreboard-hotkeys". Loading a
+    // collection without an entry for a hotkey leaves that hotkey unassigned.
+    void save(obs_data_t* data) const;
+    void load(obs_data_t* data);
 
 private:
     struct Entry;

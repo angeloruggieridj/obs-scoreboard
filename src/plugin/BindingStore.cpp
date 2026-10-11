@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "FieldSinks.hpp"
+#include "Hotkeys.hpp"
 #include "PluginState.hpp"
 #include "plugin-support.h"
 
@@ -16,7 +17,7 @@ namespace {
 constexpr const char* kKey = "obs-scoreboard";
 }
 
-BindingStore::BindingStore(FieldSinks* sinks) : sinks_(sinks) {
+BindingStore::BindingStore(FieldSinks* sinks, Hotkeys* hotkeys) : sinks_(sinks), hotkeys_(hotkeys) {
     obs_frontend_add_save_callback(&BindingStore::onSave, this);
 }
 
@@ -33,6 +34,7 @@ void BindingStore::onSave(obs_data_t* data, bool saving, void* param) {
 }
 
 void BindingStore::save(obs_data_t* data) const {
+    if (hotkeys_) hotkeys_->save(data);
     if (!sinks_) return;
     sinks_->refreshAll(); // uuids change when a collection is duplicated
     std::vector<sb::FieldBinding> bindings;
@@ -47,6 +49,7 @@ void BindingStore::save(obs_data_t* data) const {
 }
 
 void BindingStore::load(obs_data_t* data) {
+    if (hotkeys_) hotkeys_->load(data); // first: the early returns below must not skip it
     if (!sinks_) return;
     sinks_->unbindAll();
     OBSDataAutoRelease obj = obs_data_get_obj(data, kKey);
