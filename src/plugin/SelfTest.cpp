@@ -9,10 +9,17 @@
 #include <graphics/vec2.h>
 #include <util/platform.h>
 
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QDialog>
+#include <QLabel>
+#include <QLineEdit>
 #include <QObject>
 #include <QPointer>
+#include <QSpinBox>
 #include <QStringList>
 #include <QTimer>
+#include <QToolButton>
 
 #include <nlohmann/json.hpp>
 
@@ -37,6 +44,7 @@
 #include "MatchJson.hpp"
 #include "PanelLayout.hpp"
 #include "PanelModel.hpp"
+#include "PenaltyDialog.hpp"
 #include "PluginState.hpp"
 #include "ScoreboardDock.hpp"
 #include "SelfTestVerdict.hpp"
@@ -170,6 +178,7 @@ private:
     void startPersist();
     void checkPersist();
     void checkSportsAndDock();
+    void checkFoulsAndPenalties();
     void finish();
     std::string clockText() const {
         return driver_->fields()[static_cast<std::size_t>(sb::FieldId::Clock)];
@@ -191,6 +200,7 @@ private:
     bool rename_ = false, fileMode_ = false, delete_ = false, wrongType_ = false;
     bool multiField_ = false, collection_ = false, duplicate_ = false, persistSaved_ = false;
     bool dock14_ = false, sportSwitch_ = false, penaltyRefresh_ = false, hotkeySaved_ = false;
+    bool futsalFouls_ = false, basketFouls_ = false, penaltyControls_ = false;
     // Only uuid and name of the sources made by the later checks (see textByUuid).
     std::string homeUuid_, collUuid_, collName_, persistName_, collectionName_;
     bool leftCollection_ = false;
@@ -257,6 +267,7 @@ void Run::begin() {
     obs_sceneitem_set_pos(item, &pos);
 
     checkSportsAndDock(); // before the clock starts and any save is armed: nothing is written
+    checkFoulsAndPenalties();
     driver_->apply(sb::cmd::ClockStop{});
     driver_->apply(sb::cmd::ClockSet{sb::seconds(secs_ + kLeadSeconds)});
     sinks_->setPushObserver([this](sb::FieldId field, const std::string& text, std::uint64_t ns) {
@@ -319,6 +330,249 @@ void Run::checkSportsAndDock() {
                       probe.penaltyRowCount(sb::Team::Home) == expectedRows;
     if (!penaltyRefresh_)
         fail("penaltyRefresh: the dock rows differ from the engine after a cancel");
+    driver_->replaceMatch(sb::MatchEngine(original));
+}
+
+// Futsal and basketball fouls per period (and the restore when going back or resuming), and the
+// penalty add/edit/cancel path through the real dock. Runs before the clock starts, so nothing
+// is written; the settings are restored at the end, like checkSportsAndDock().
+void Run::checkFoulsAndPenalties() {
+    const auto field = [this](sb::FieldId id) -> std::string {
+        return driver_->fields()[static_cast<std::size_t>(id)];
+    };
+    const sb::MatchSettings original = driver_->engine().settings();
+    GlobalSettings scratch; // defaults only: never loaded from or saved to disk
+    ScoreboardDock probe(driver_, sinks_, &scratch, nullptr);
+
+    // Futsal: fouls restart each half; coming back restores the 1st half; a snapshot keeps both.
+    futsalFouls_ = true;
+    driver_->replaceMatch(sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("futsal"))));
+    if (probe.penaltyAddShown(sb::Team::Home)) {
+        futsalFouls_ = false;
+        fail("futsalFouls: the add button is shown without timed penalties");
+    }
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Fouls, 3});
+    if (field(sb::FieldId::HomeFouls) != "3") {
+        futsalFouls_ = false;
+        fail("futsalFouls: the 1st half fouls are wrong");
+    }
+    driver_->apply(sb::cmd::PeriodNext{});
+    if (field(sb::FieldId::HomeFouls) != "0") {
+        futsalFouls_ = false;
+        fail("futsalFouls: the 2nd half should restart the fouls");
+    }
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Fouls, 2});
+    driver_->apply(sb::cmd::PeriodPrev{});
+    if (field(sb::FieldId::HomeFouls) != "3") {
+        futsalFouls_ = false;
+        fail("futsalFouls: going back must restore the 1st half");
+    }
+    {
+        sb::MatchEngine back = sb::MatchEngine::fromSnapshot(driver_->engine().snapshot());
+        if (back.fields()[static_cast<std::size_t>(sb::FieldId::HomeFouls)] != "3") {
+            futsalFouls_ = false;
+            fail("futsalFouls: the snapshot did not keep the 1st half fouls");
+        }
+        back.apply(sb::cmd::PeriodNext{}, 0); // the snapshot must keep the 2nd half bucket too
+        if (back.fields()[static_cast<std::size_t>(sb::FieldId::HomeFouls)] != "2") {
+            futsalFouls_ = false;
+            fail("futsalFouls: the snapshot did not keep the 2nd half fouls");
+        }
+    }
+
+    // Basketball: fouls per quarter; overtime continues the 4th.
+    basketFouls_ = true;
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("basketball"))));
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Fouls, 2}); // Q1
+    driver_->apply(sb::cmd::PeriodNext{});                                // Q2
+    driver_->apply(sb::cmd::PeriodNext{});                                // Q3
+    driver_->apply(sb::cmd::PeriodNext{});                                // Q4
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Fouls, 4});
+    driver_->apply(sb::cmd::PeriodNext{}); // overtime
+    if (field(sb::FieldId::HomeFouls) != "4") {
+        basketFouls_ = false;
+        fail("basketFouls: overtime must continue the 4th quarter");
+    }
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Fouls, 1});
+    driver_->apply(sb::cmd::PeriodPrev{}); // back to Q4
+    if (field(sb::FieldId::HomeFouls) != "5") {
+        basketFouls_ = false;
+        fail("basketFouls: going back to the 4th quarter");
+    }
+    driver_->apply(sb::cmd::PeriodPrev{}); // Q3
+    driver_->apply(sb::cmd::PeriodPrev{}); // Q2
+    driver_->apply(sb::cmd::PeriodPrev{}); // Q1
+    if (field(sb::FieldId::HomeFouls) != "2") {
+        basketFouls_ = false;
+        fail("basketFouls: going back to the 1st quarter");
+    }
+
+    // Penalties: the real dock adds, edits and cancels by id; the strength text follows.
+    penaltyControls_ = true;
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    if (!probe.penaltyAddShown(sb::Team::Home)) {
+        penaltyControls_ = false;
+        fail("penaltyControls: the add button is hidden with timed penalties");
+    }
+    const int widthBefore = probe.minimumSizeHint().width();
+    probe.dispatch(sb::cmd::PenaltyAdd{sb::Team::Home, "24", {{sb::minutes(2), true}}});
+    if (probe.penaltyRowCount(sb::Team::Home) != 1 ||
+        field(sb::FieldId::HomePenalty1Player) != "24" || field(sb::FieldId::Strength) != "4-5") {
+        penaltyControls_ = false;
+        fail("penaltyControls: adding a penalty through the dock");
+    }
+    // The second is compound (2+2): its dock row carries the phase-2 time "+2:00".
+    probe.dispatch(sb::cmd::PenaltyAdd{
+        sb::Team::Home, "11", {{sb::minutes(2), true}, {sb::minutes(2), true}}});
+    if (field(sb::FieldId::Strength) != "3-5" ||
+        field(sb::FieldId::HomePenalty2Label) != "11 2:00") {
+        penaltyControls_ = false;
+        fail("penaltyControls: the strength text after a second penalty");
+    }
+    const sb::PenaltyId first = driver_->engine().penalties(sb::Team::Home).all().front().id;
+    probe.dispatch(sb::cmd::PenaltyEdit{first, sb::minutes(1)});
+    if (field(sb::FieldId::HomePenalty1Time) != "1:00") {
+        penaltyControls_ = false;
+        fail("penaltyControls: editing the remaining time by id");
+    }
+    probe.dispatch(sb::cmd::PenaltyAdd{sb::Team::Home, "7", {{sb::minutes(2), true}}}); // queued
+    if (field(sb::FieldId::Strength) != "3-5") {
+        penaltyControls_ = false;
+        fail("penaltyControls: a queued penalty must not change the strength");
+    }
+    // Three rows, one of them compound: the dock must not have grown wider (Task 6.2 rule).
+    if (probe.penaltyRowCount(sb::Team::Home) != 3 ||
+        probe.minimumSizeHint().width() > widthBefore) {
+        penaltyControls_ = false;
+        fail("penaltyControls: the penalty rows widened the dock");
+    }
+    const std::size_t withQueued = probe.penaltyRowCount(sb::Team::Home);
+    const sb::PenaltyId queued = driver_->engine().penalties(sb::Team::Home).all().back().id;
+    probe.dispatch(sb::cmd::PenaltyCancel{queued});
+    if (withQueued != 3 || probe.penaltyRowCount(sb::Team::Home) != 2) {
+        penaltyControls_ = false;
+        fail("penaltyControls: cancelling a queued penalty through the dock");
+    }
+    // A penalty that is gone is reported in the status line, never a crash (Review Focus 1).
+    probe.dispatch(sb::cmd::PenaltyEdit{queued, sb::minutes(1)});
+    {
+        const QLabel* status = probe.findChild<QLabel*>(QStringLiteral("dockStatus"));
+        const QString notFound = QString::fromUtf8(obs_module_text("Reason.penalty.notFound"));
+        if (!status || status->text() != notFound) {
+            penaltyControls_ = false;
+            fail("penaltyControls: a gone penalty is not reported in the status line");
+        }
+    }
+
+    // The real add window: pick the compound option, type a player, accept.
+    {
+        const sb::SportPreset& hockey = *sb::findSport("ice_hockey");
+        auto* add = new PenaltyDialog(hockey.penaltyOptions, "{player} {time} {phase2}", &probe);
+        auto* combo = add->findChild<QComboBox*>(QStringLiteral("penaltyOption"));
+        auto* player = add->findChild<QLineEdit*>(QStringLiteral("penaltyPlayer"));
+        if (!combo || !player) {
+            penaltyControls_ = false;
+            fail("penaltyControls: the add window widgets are missing");
+        } else {
+            if (add->validPlayer()) { // an empty player must be invalid (no QMessageBox opened)
+                penaltyControls_ = false;
+                fail("penaltyControls: the add window accepted an empty player");
+            }
+            int compound = -1;
+            for (int i = 0; i < static_cast<int>(hockey.penaltyOptions.size()); ++i)
+                if (hockey.penaltyOptions[static_cast<std::size_t>(i)].phases.size() > 1) {
+                    compound = i;
+                    break;
+                }
+            combo->setCurrentIndex(compound);
+            player->setText(QStringLiteral("24"));
+            int seenIndex = -1;
+            QString seenPlayer;
+            connect(add, &PenaltyDialog::addRequested, &probe,
+                    [&seenIndex, &seenPlayer](int index, const QString& p) {
+                        seenIndex = index;
+                        seenPlayer = p;
+                    });
+            const bool valid = add->validPlayer();
+            add->accept();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            if (!valid || seenIndex != compound || seenPlayer != QStringLiteral("24")) {
+                penaltyControls_ = false;
+                fail("penaltyControls: the add window did not emit the option and player");
+            }
+        }
+    }
+
+    // The real edit window: the preview, then a real change and the no-op accept.
+    {
+        auto* edit = new PenaltyDialog(7, QStringLiteral("24"), sb::minutes(1) + sb::seconds(32),
+                                       sb::minutes(2), "{player} {time} {phase2}", &probe);
+        auto* preview = edit->findChild<QLabel*>(QStringLiteral("penaltyPreview"));
+        auto* minutes = edit->findChild<QSpinBox*>(QStringLiteral("penaltyMinutes"));
+        auto* seconds = edit->findChild<QSpinBox*>(QStringLiteral("penaltySeconds"));
+        if (!preview || !minutes || !seconds ||
+            preview->text() != QStringLiteral("24 1:32 +2:00") || minutes->value() != 1 ||
+            seconds->value() != 32) {
+            penaltyControls_ = false;
+            fail("penaltyControls: the edit window preview or initial time");
+        } else {
+            int seen = 0;
+            connect(edit, &PenaltyDialog::editRequested, &probe,
+                    [&seen](unsigned, qint64) { ++seen; });
+            edit->accept(); // no change: must not emit (the running clock has consumed time)
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            if (seen != 0) {
+                penaltyControls_ = false;
+                fail("penaltyControls: OK without changes re-sent the old time");
+            }
+        }
+    }
+    {
+        auto* edit = new PenaltyDialog(9, QStringLiteral("24"), sb::minutes(1) + sb::seconds(32),
+                                       sb::minutes(2), "{player} {time} {phase2}", &probe);
+        auto* minutes = edit->findChild<QSpinBox*>(QStringLiteral("penaltyMinutes"));
+        auto* seconds = edit->findChild<QSpinBox*>(QStringLiteral("penaltySeconds"));
+        minutes->setValue(0);
+        seconds->setValue(45);
+        unsigned seenId = 0;
+        qint64 seenTenths = 0;
+        connect(edit, &PenaltyDialog::editRequested, &probe,
+                [&seenId, &seenTenths](unsigned id, qint64 tenths) {
+                    seenId = id;
+                    seenTenths = tenths;
+                });
+        edit->accept();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        if (seenId != 9 || seenTenths != sb::seconds(45)) {
+            penaltyControls_ = false;
+            fail("penaltyControls: the edit window did not emit the new time");
+        }
+    }
+
+    // The dock opens the add window; replacing the match closes it (Review Focus 2).
+    {
+        auto* plus = probe.findChild<QToolButton*>(QStringLiteral("penaltyAdd"));
+        if (!plus) {
+            penaltyControls_ = false;
+            fail("penaltyControls: the add button is not found");
+        } else {
+            plus->click();
+            if (probe.findChildren<QDialog*>().isEmpty()) {
+                penaltyControls_ = false;
+                fail("penaltyControls: the dock did not open the add window");
+            }
+            driver_->replaceMatch(
+                sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            if (!probe.findChildren<QDialog*>().isEmpty()) {
+                penaltyControls_ = false;
+                fail("penaltyControls: a replaced match left the penalty window open");
+            }
+        }
+    }
+
     driver_->replaceMatch(sb::MatchEngine(original));
 }
 
@@ -648,8 +902,8 @@ void Run::finish() {
     const bool fpsOk = requestedFps_ <= 0 || std::abs(actualFps_ - requestedFps_) <= 0.01;
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
                       multiField_ && collection_ && duplicate_ && persistSaved_ && dock14_ &&
-                      sportSwitch_ && penaltyRefresh_ && hotkeySaved_ && bad == 0 && fpsOk &&
-                      problems_.empty();
+                      sportSwitch_ && penaltyRefresh_ && hotkeySaved_ && futsalFouls_ &&
+                      basketFouls_ && penaltyControls_ && bad == 0 && fpsOk && problems_.empty();
 
     nlohmann::json changes = nlohmann::json::array();
     for (const sbtest::ChangeResult& c : verdict_.changes) {
@@ -694,7 +948,10 @@ void Run::finish() {
                                      {"dock14", dock14_},
                                      {"sportSwitch", sportSwitch_},
                                      {"penaltyRefresh", penaltyRefresh_},
-                                     {"hotkeySaved", hotkeySaved_}}},
+                                     {"hotkeySaved", hotkeySaved_},
+                                     {"futsalFouls", futsalFouls_},
+                                     {"basketFouls", basketFouls_},
+                                     {"penaltyControls", penaltyControls_}}},
                                    {"problems", problems}};
 
     writeJsonAtomic(out_, report);

@@ -68,6 +68,7 @@ TeamPanel::TeamPanel(QWidget* parent) : QWidget(parent) {
     penaltiesAdd_ = new QToolButton(this);
     penaltiesAdd_->setText(QStringLiteral("+"));
     penaltiesAdd_->setAutoRaise(true);
+    penaltiesAdd_->setObjectName(QStringLiteral("penaltyAdd"));
     penaltiesAdd_->setToolTip(QString::fromUtf8(obs_module_text("Panel.PenaltyAdd")));
     connect(penaltiesAdd_, &QToolButton::clicked, this, &TeamPanel::penaltyAddRequested);
     penaltiesRow->addWidget(penaltiesCaption_, 1);
