@@ -7,16 +7,23 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QVBoxLayout>
+
+#include <algorithm>
+#include <string>
+#include <variant>
 
 #include "AtomicFile.hpp"
 #include "BindingsDialog.hpp"
 #include "ClockDriver.hpp"
+#include "ClockPanel.hpp"
 #include "FieldSinks.hpp"
 #include "GlobalSettings.hpp"
 #include "MatchJson.hpp"
 #include "MatchStateSaver.hpp"
-#include "SourcePicker.hpp"
+#include "PanelModel.hpp"
+#include "TeamPanel.hpp"
 
 namespace {
 
@@ -24,138 +31,206 @@ QString text(const char* key) {
     return QString::fromUtf8(obs_module_text(key));
 }
 
-struct Arrow {
-    const char* label;
-    sb::Tenths delta;
-};
+QString reasonText(const std::string& reason) {
+    const std::string key = "Reason." + reason;
+    return QString::fromUtf8(obs_module_text(key.c_str()));
+}
+
+QString field(const sb::FieldValues& values, sb::FieldId id) {
+    return QString::fromStdString(values[static_cast<std::size_t>(id)]);
+}
+
+constexpr int kMessageMs = 4000;
 
 } // namespace
 
 ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSettings* settings,
                                MatchStateSaver* saver, QWidget* parent)
     : QWidget(parent), driver_(driver), sinks_(sinks), settings_(settings), saver_(saver) {
-    auto* layout = new QVBoxLayout(this);
+    setMinimumWidth(280);
+    auto* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 0);
+    auto* scroll = new QScrollArea(this);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    outer->addWidget(scroll);
 
-    clock_ = new QLabel(this);
-    clock_->setAlignment(Qt::AlignCenter);
-    QFont big = clock_->font();
-    big.setPointSizeF(big.pointSizeF() * 3.0);
-    big.setBold(true);
-    clock_->setFont(big);
+    auto* content = new QWidget(scroll);
+    auto* layout = new QVBoxLayout(content);
+    layout->setContentsMargins(4, 4, 4, 4);
+
+    clock_ = new ClockPanel(content);
     layout->addWidget(clock_);
 
-    auto* arrows = new QHBoxLayout();
-    const Arrow steps[] = {{"-1:00", -sb::minutes(1)},
-                           {"-0:01", -sb::seconds(1)},
-                           {"+0:01", sb::seconds(1)},
-                           {"+1:00", sb::minutes(1)}};
-    for (const Arrow& step : steps) {
-        auto* button = new QPushButton(QString::fromUtf8(step.label), this);
-        button->setAutoRepeat(true); // held down: repeats (CLAUDE.md §4.3)
-        button->setAutoRepeatDelay(400);
-        button->setAutoRepeatInterval(100);
-        const sb::Tenths delta = step.delta;
-        connect(button, &QPushButton::clicked, this, [this, delta]() {
-            if (driver_) driver_->apply(sb::cmd::ClockAdjust{delta});
-        });
-        arrows->addWidget(button);
-    }
-    layout->addLayout(arrows);
+    auto* teams = new QHBoxLayout();
+    home_ = new TeamPanel(content);
+    away_ = new TeamPanel(content);
+    teams->addWidget(home_, 1);
+    teams->addWidget(away_, 1);
+    layout->addLayout(teams);
 
-    auto* controls = new QHBoxLayout();
-    startStop_ = new QPushButton(this);
-    connect(startStop_, &QPushButton::clicked, this, [this]() {
-        if (driver_) driver_->apply(sb::cmd::ClockToggle{});
-    });
-    auto* reset = new QPushButton(text("Dock.Reset"), this);
-    connect(reset, &QPushButton::clicked, this, [this]() {
-        if (driver_) driver_->apply(sb::cmd::ClockReset{});
-    });
-    controls->addWidget(startStop_, 2);
-    controls->addWidget(reset, 1);
-    layout->addLayout(controls);
+    strength_ = new QLabel(content);
+    strength_->setAlignment(Qt::AlignCenter);
+    QFont big = strength_->font();
+    big.setBold(true);
+    big.setPointSizeF(big.pointSizeF() * 1.4);
+    strength_->setFont(big);
+    strength_->hide();
+    layout->addWidget(strength_);
 
-    auto* resume = new QPushButton(text("Dock.Resume"), this);
-    connect(resume, &QPushButton::clicked, this, &ScoreboardDock::resumePrevious);
-    layout->addWidget(resume);
-
-    auto* sourceRow = new QHBoxLayout();
-    sourceRow->addWidget(new QLabel(text("Dock.ClockSource"), this));
-    source_ = new SourcePicker(this);
-    connect(source_, &QComboBox::activated, this, [this](int) { chooseSource(); });
-    sourceRow->addWidget(source_, 1);
-    layout->addLayout(sourceRow);
-
-    auto* bindings = new QPushButton(text("Dock.Bindings"), this);
-    connect(bindings, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
-    layout->addWidget(bindings);
-
-    status_ = new QLabel(this);
+    status_ = new QLabel(content);
     status_->setWordWrap(true);
     layout->addWidget(status_);
+
+    auto* resume = new QPushButton(text("Dock.Resume"), content);
+    connect(resume, &QPushButton::clicked, this, &ScoreboardDock::resumePrevious);
+    layout->addWidget(resume);
+    auto* bindings = new QPushButton(text("Dock.Bindings"), content);
+    connect(bindings, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
+    layout->addWidget(bindings);
     layout->addStretch(1);
+    scroll->setWidget(content);
+
+    messageTimer_.setSingleShot(true);
+    messageTimer_.setInterval(kMessageMs);
+    connect(&messageTimer_, &QTimer::timeout, this, &ScoreboardDock::clearMessage);
+
+    connect(clock_, &ClockPanel::arrowRequested, this, [this](qint64 delta) {
+        dispatch(sb::cmd::ClockAdjust{static_cast<sb::Tenths>(delta)});
+    });
+    connect(clock_, &ClockPanel::toggleRequested, this,
+            [this]() { dispatch(sb::cmd::ClockToggle{}); });
+    connect(clock_, &ClockPanel::resetRequested, this,
+            [this]() { dispatch(sb::cmd::ClockReset{}); });
+    connect(clock_, &ClockPanel::periodStepRequested, this, [this](int direction) {
+        if (direction > 0)
+            dispatch(sb::cmd::PeriodNext{});
+        else
+            dispatch(sb::cmd::PeriodPrev{});
+    });
+    connect(clock_, &ClockPanel::stoppageStepRequested, this, [this](int delta) {
+        if (driver_)
+            dispatch(sb::stoppageStep(driver_->engine(), delta)); // the rule is in the core
+    });
+    connectTeam(sb::Team::Home);
+    connectTeam(sb::Team::Away);
 
     if (driver_) {
-        connect(driver_, &ClockDriver::fieldsChanged, this, &ScoreboardDock::showFields);
-        connect(driver_, &ClockDriver::runningChanged, this, &ScoreboardDock::showRunning);
-        showFields(driver_->fields());
-        showRunning(driver_->engine().clock().running());
-    }
-    if (sinks_) {
-        connect(sinks_, &FieldSinks::bindingChanged, this, [this](int field) {
-            if (field == static_cast<int>(sb::FieldId::Clock)) showStatus();
+        connect(driver_, &ClockDriver::fieldsChanged, this,
+                [this](const sb::FieldValues&) { refresh(); });
+        connect(driver_, &ClockDriver::runningChanged, this, [this](bool) { refresh(); });
+        // Some accepted commands change no text field (cancelling a queued penalty, a score
+        // button the sport does not show): fieldsChanged would not fire and a stale row could
+        // be clicked again (penalty.notFound). Refresh after every accepted command too.
+        connect(driver_, &ClockDriver::commandApplied, this, [this]() { refresh(); });
+        connect(driver_, &ClockDriver::matchReplaced, this, [this]() {
+            applyLayout();
+            refresh();
         });
+        applyLayout();
+        applyColors();
+        refresh();
     }
-    showStatus();
 }
 
-void ScoreboardDock::showFields(const sb::FieldValues& fields) {
-    const QString clock =
-        QString::fromStdString(fields[static_cast<std::size_t>(sb::FieldId::Clock)]);
-    if (clock == shownClock_) return;
-    shownClock_ = clock;
-    clock_->setText(clock);
+TeamPanel* ScoreboardDock::panel(sb::Team team) const {
+    return team == sb::Team::Home ? home_ : away_;
 }
 
-void ScoreboardDock::showRunning(bool running) {
-    const QString label = text(running ? "Dock.Stop" : "Dock.Start");
-    if (startStop_->text() != label) startStop_->setText(label);
+void ScoreboardDock::connectTeam(sb::Team team) {
+    TeamPanel* p = panel(team);
+    connect(p, &TeamPanel::statDelta, this, [this, team](int stat, int delta) {
+        dispatch(sb::cmd::AddStat{team, static_cast<sb::Stat>(stat), delta});
+    });
+    connect(p, &TeamPanel::nameEdited, this, [this, team](const QString& name) {
+        if (!driver_) return;
+        const sb::MatchSettings& s = driver_->engine().settings();
+        const std::string& current = team == sb::Team::Home ? s.homeName : s.awayName;
+        if (name.toStdString() == current) return; // focus loss without an edit: no command
+        dispatch(sb::cmd::SetTeamName{team, name.toStdString()});
+    });
+    connect(p, &TeamPanel::penaltyCancelRequested, this, [this](unsigned id) {
+        dispatch(sb::cmd::PenaltyCancel{static_cast<sb::PenaltyId>(id)});
+    });
 }
 
-void ScoreboardDock::showStatus() {
-    if (!sinks_) return;
-    const TextSink& sink = sinks_->sink(sb::FieldId::Clock);
-    source_->showBinding(sink);
-    const QString name = QString::fromStdString(sink.binding().name);
-    QString message;
-    if (sink.bound()) {
-        message = text("Dock.Status.Linked").arg(name);
-    } else {
-        switch (sink.problem()) {
-        case TextSink::Problem::Removed:
-            message = text("Dock.Status.Removed").arg(name);
-            break;
-        case TextSink::Problem::WrongType:
-            message = text("Dock.Status.WrongType").arg(name);
-            break;
-        case TextSink::Problem::NotFound:
-            message = text("Dock.Status.NotFound").arg(name);
-            break;
-        case TextSink::Problem::None:
-            message = text("Dock.Status.Unlinked");
-            break;
-        }
+void ScoreboardDock::dispatch(const sb::Command& command) {
+    if (!driver_) return;
+    sb::CommandResult result = driver_->apply(command);
+    if (result.status == sb::CommandResult::Status::NeedsConfirmation) {
+        // The question runs a nested event loop: the clock keeps going and the driver may have
+        // been shut down meanwhile.
+        const auto answer =
+            QMessageBox::question(this, text("Panel.ConfirmTitle"), reasonText(result.reason),
+                                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes || !driver_) return;
+        sb::Command confirmed = command;
+        if (auto* next = std::get_if<sb::cmd::PeriodNext>(&confirmed))
+            next->confirmed = true;
+        else if (auto* prev = std::get_if<sb::cmd::PeriodPrev>(&confirmed))
+            prev->confirmed = true;
+        result = driver_->apply(confirmed);
     }
-    if (status_->text() != message) status_->setText(message);
-}
-
-void ScoreboardDock::chooseSource() {
-    if (!sinks_) return;
-    const auto binding = source_->selected();
-    if (binding)
-        sinks_->bindTo(sb::FieldId::Clock, *binding);
+    if (result.isOk())
+        clearMessage();
     else
-        sinks_->unbind(sb::FieldId::Clock);
+        showMessage(reasonText(result.reason));
+}
+
+void ScoreboardDock::showMessage(const QString& message) {
+    if (status_->text() != message) status_->setText(message);
+    messageTimer_.start();
+}
+
+void ScoreboardDock::clearMessage() {
+    if (!status_->text().isEmpty()) status_->setText(QString());
+}
+
+void ScoreboardDock::applyLayout() {
+    if (!driver_) return;
+    const sb::PanelLayout layout = sb::panelLayout(driver_->engine().settings());
+    if (layout_ && *layout_ == layout) return;
+    layout_ = layout;
+    home_->applyLayout(layout);
+    away_->applyLayout(layout);
+    if (strengthShown_ != layout.strength) {
+        strengthShown_ = layout.strength;
+        strength_->setVisible(strengthShown_);
+    }
+}
+
+void ScoreboardDock::applyColors() {
+    const sb::GlobalPrefs empty;
+    const sb::GlobalPrefs& prefs = settings_ ? settings_->prefs() : empty;
+    const QString score = QString::fromStdString(
+        prefs.scoreColor.empty() ? std::string(sb::kDefaultScoreColor) : prefs.scoreColor);
+    const QString foul = QString::fromStdString(
+        prefs.foulColor.empty() ? std::string(sb::kDefaultFoulColor) : prefs.foulColor);
+    home_->setColors(score, foul);
+    away_->setColors(score, foul);
+}
+
+void ScoreboardDock::refresh() {
+    if (!driver_) return;
+    const sb::MatchEngine& engine = driver_->engine();
+    const sb::FieldValues& values = driver_->fields();
+    clock_->setClock(field(values, sb::FieldId::Clock));
+    clock_->setPeriod(field(values, sb::FieldId::Period), engine.settings().sport.periods);
+    clock_->setStoppage(layout_ && layout_->stoppage, engine.stoppageAnnounced());
+    clock_->setRunning(engine.clock().running());
+    clock_->setResetEnabled(!engine.clock().running());
+    for (sb::Team team : {sb::Team::Home, sb::Team::Away}) {
+        TeamPanel* p = panel(team);
+        const sb::Counters& c = engine.counters();
+        p->setName(QString::fromStdString(team == sb::Team::Home ? engine.settings().homeName
+                                                                 : engine.settings().awayName));
+        p->setCounts(c.get(team, sb::Stat::Score), c.get(team, sb::Stat::Shots),
+                     c.get(team, sb::Stat::Fouls), c.get(team, sb::Stat::Fouls2));
+        p->setPenalties(sb::penaltyRows(engine.penalties(team)));
+    }
+    const QString strength = field(values, sb::FieldId::Strength);
+    if (strength_->text() != strength) strength_->setText(strength);
 }
 
 void ScoreboardDock::openBindings() {
@@ -191,5 +266,5 @@ void ScoreboardDock::resumePrevious() {
     driver_->replaceMatch(sb::MatchEngine::fromSnapshot(*snapshot));
     if (saver_) saver_->arm();
     if (settings_) settings_->setLastSport(snapshot->settings.sport.id);
-    if (status_->text() != text("Resume.Done")) status_->setText(text("Resume.Done"));
+    showMessage(text("Resume.Done"));
 }
