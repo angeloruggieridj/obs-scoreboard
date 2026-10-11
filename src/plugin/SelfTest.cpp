@@ -3,6 +3,7 @@
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
+#include <obs.h>
 #include <obs.hpp>
 #include <graphics/matrix4.h>
 #include <graphics/vec2.h>
@@ -10,6 +11,7 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QStringList>
 #include <QTimer>
 
 #include <nlohmann/json.hpp>
@@ -30,9 +32,15 @@
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
 #include "Format.hpp"
+#include "GlobalSettings.hpp"
+#include "Hotkeys.hpp"
 #include "MatchJson.hpp"
+#include "PanelLayout.hpp"
+#include "PanelModel.hpp"
 #include "PluginState.hpp"
+#include "ScoreboardDock.hpp"
 #include "SelfTestVerdict.hpp"
+#include "SportCatalog.hpp"
 #include "TextSourceFactory.hpp"
 #include "plugin-support.h"
 
@@ -132,7 +140,8 @@ std::string outPath() {
 
 class Run : public QObject {
 public:
-    Run(ClockDriver* driver, FieldSinks* sinks) : driver_(driver), sinks_(sinks) {}
+    Run(ClockDriver* driver, FieldSinks* sinks, Hotkeys* hotkeys)
+        : driver_(driver), sinks_(sinks), hotkeys_(hotkeys) {}
     ~Run() override {
         if (sinks_) sinks_->setPushObserver({}); // the observer captures `this`
         stopCapture();
@@ -165,6 +174,7 @@ private:
     void checkDuplicateRename();
     void startPersist();
     void checkPersist();
+    void checkSportsAndDock();
     void finish();
     std::string clockText() const {
         return driver_->fields()[static_cast<std::size_t>(sb::FieldId::Clock)];
@@ -173,6 +183,7 @@ private:
 
     QPointer<ClockDriver> driver_;
     QPointer<FieldSinks> sinks_;
+    QPointer<Hotkeys> hotkeys_;
     int secs_ = 20;
     int requestedFps_ = 0;
     double actualFps_ = 0.0;
@@ -184,6 +195,7 @@ private:
     sbtest::Verdict verdict_;
     bool rename_ = false, fileMode_ = false, delete_ = false, wrongType_ = false;
     bool multiField_ = false, collection_ = false, duplicate_ = false, persistSaved_ = false;
+    bool dock14_ = false, sportSwitch_ = false, penaltyRefresh_ = false, hotkeySaved_ = false;
     // Only uuid and name of the sources made by the later checks (see textByUuid).
     std::string homeUuid_, collUuid_, collName_, persistName_, collectionName_;
     bool leftCollection_ = false;
@@ -249,6 +261,7 @@ void Run::begin() {
     const vec2 pos{{{40.0f, 40.0f}}};
     obs_sceneitem_set_pos(item, &pos);
 
+    checkSportsAndDock(); // before the clock starts and any save is armed: nothing is written
     driver_->apply(sb::cmd::ClockStop{});
     driver_->apply(sb::cmd::ClockSet{sb::seconds(secs_ + kLeadSeconds)});
     sinks_->setPushObserver([this](sb::FieldId field, const std::string& text, std::uint64_t ns) {
@@ -260,6 +273,58 @@ void Run::begin() {
         return;
     }
     after(1500, &Run::startCapture);
+}
+
+// The dock must follow every one of the 14 presets, and a queued penalty cancelled must drop its
+// row even though no text field changed. Runs before the clock starts, so nothing is written.
+void Run::checkSportsAndDock() {
+    const sb::MatchSettings original = driver_->engine().settings();
+    GlobalSettings scratch; // defaults only: never loaded from or saved to disk
+    ScoreboardDock probe(driver_, sinks_, &scratch, nullptr);
+    dock14_ = true;
+    sportSwitch_ = true;
+    for (const sb::SportPreset& sport : sb::builtInSports()) {
+        driver_->replaceMatch(sb::MatchEngine(sb::MatchSettings::forSport(sport)));
+        const sb::PanelLayout layout = sb::panelLayout(driver_->engine().settings());
+        QStringList expected;
+        if (layout.shots) expected << "shots";
+        if (layout.fouls) expected << "fouls";
+        if (layout.fouls2) expected << "fouls2";
+        if (layout.penalties) expected << "penalties";
+        if (layout.strength) expected << "strength";
+        if (layout.stoppage) expected << "stoppage";
+        if (probe.shownRows() != expected) {
+            dock14_ = false;
+            fail("dock14: the dock rows for " + sport.id + " differ from the layout");
+        }
+        const sb::FieldValues& f = driver_->fields();
+        const auto at = [&f](sb::FieldId id) -> const std::string& {
+            return f[static_cast<std::size_t>(id)];
+        };
+        const bool coherent = at(sb::FieldId::Period) == "1" && !at(sb::FieldId::Clock).empty() &&
+                              at(sb::FieldId::HomeShots).empty() != sport.shots &&
+                              at(sb::FieldId::HomeFouls).empty() != sport.fouls &&
+                              at(sb::FieldId::HomeFouls2).empty() != sport.fouls2;
+        if (!coherent) {
+            sportSwitch_ = false;
+            fail("sportSwitch: the fields for " + sport.id + " are not coherent");
+        }
+    }
+    // A queued penalty cancelled: no text field changes, the rows must still follow.
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    for (const char* player : {"1", "2", "3"})
+        driver_->apply(sb::cmd::PenaltyAdd{sb::Team::Home, player, {{sb::minutes(2), true}}});
+    penaltyRefresh_ = probe.penaltyRowCount(sb::Team::Home) == 3;
+    for (const sb::PenaltyRow& row : sb::penaltyRows(driver_->engine().penalties(sb::Team::Home)))
+        if (row.queued) driver_->apply(sb::cmd::PenaltyCancel{row.id});
+    const std::size_t expectedRows =
+        sb::penaltyRows(driver_->engine().penalties(sb::Team::Home)).size();
+    penaltyRefresh_ = penaltyRefresh_ && expectedRows == 2 &&
+                      probe.penaltyRowCount(sb::Team::Home) == expectedRows;
+    if (!penaltyRefresh_)
+        fail("penaltyRefresh: the dock rows differ from the engine after a cancel");
+    driver_->replaceMatch(sb::MatchEngine(original));
 }
 
 void Run::startCapture() {
@@ -533,6 +598,20 @@ void Run::startPersist() {
         if (!sinks_->bind(sb::FieldId::Clock, source))
             fail("persistSaved: the clock was not bound to the persisted source");
     }
+    // Give one hotkey a binding OBS can save, on a key no keyboard has (F13), then save the
+    // collection: checkPersist() proves the binding went in, the reopen pass that it came back.
+    if (hotkeys_) {
+        const obs_hotkey_id id = hotkeys_->idOf("obs_scoreboard.clock_toggle");
+        if (id != OBS_INVALID_HOTKEY_ID) {
+            obs_key_combination_t combo{};
+            combo.key = OBS_KEY_F13;
+            obs_hotkey_load_bindings(id, &combo, 1);
+        } else {
+            fail("hotkeySaved: the clock_toggle hotkey was not registered");
+        }
+    } else {
+        fail("hotkeySaved: the hotkeys are not initialised");
+    }
     obs_frontend_save(); // queued by OBS (SaveProjectDeferred): the wait lets it run
     after(1200, &Run::checkPersist);
 }
@@ -545,6 +624,12 @@ void Run::checkPersist() {
                     std::filesystem::exists(std::filesystem::u8path(settings), ec) &&
                     sink.bound() && sink.binding().name == persistName_;
     if (!persistSaved_) fail("persistSaved: settings.json is missing or the clock lost its source");
+    if (hotkeys_) {
+        const obs_hotkey_id id = hotkeys_->idOf("obs_scoreboard.clock_toggle");
+        OBSDataArrayAutoRelease array = id != OBS_INVALID_HOTKEY_ID ? obs_hotkey_save(id) : nullptr;
+        hotkeySaved_ = array && obs_data_array_count(array) >= 1;
+    }
+    if (!hotkeySaved_) fail("hotkeySaved: the clock_toggle binding is not in the saved hotkeys");
     finish();
 }
 
@@ -567,8 +652,9 @@ void Run::finish() {
     if (bad > 0) fail("frame timestamps are not on the os_gettime_ns base");
     const bool fpsOk = requestedFps_ <= 0 || std::abs(actualFps_ - requestedFps_) <= 0.01;
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
-                      multiField_ && collection_ && duplicate_ && persistSaved_ && bad == 0 &&
-                      fpsOk && problems_.empty();
+                      multiField_ && collection_ && duplicate_ && persistSaved_ && dock14_ &&
+                      sportSwitch_ && penaltyRefresh_ && hotkeySaved_ && bad == 0 && fpsOk &&
+                      problems_.empty();
 
     nlohmann::json changes = nlohmann::json::array();
     for (const sbtest::ChangeResult& c : verdict_.changes) {
@@ -609,7 +695,11 @@ void Run::finish() {
                                      {"multiField", multiField_},
                                      {"collection", collection_},
                                      {"duplicate", duplicate_},
-                                     {"persistSaved", persistSaved_}}},
+                                     {"persistSaved", persistSaved_},
+                                     {"dock14", dock14_},
+                                     {"sportSwitch", sportSwitch_},
+                                     {"penaltyRefresh", penaltyRefresh_},
+                                     {"hotkeySaved", hotkeySaved_}}},
                                    {"problems", problems}};
 
     writeJsonAtomic(out_, report);
@@ -639,12 +729,14 @@ void Run::finish() {
 // first launch left behind.
 class Reopen : public QObject {
 public:
-    Reopen(ClockDriver* driver, FieldSinks* sinks) : driver_(driver), sinks_(sinks) {}
+    Reopen(ClockDriver* driver, FieldSinks* sinks, Hotkeys* hotkeys)
+        : driver_(driver), sinks_(sinks), hotkeys_(hotkeys) {}
     void check();
 
 private:
     QPointer<ClockDriver> driver_;
     QPointer<FieldSinks> sinks_;
+    QPointer<Hotkeys> hotkeys_;
 };
 
 QPointer<Reopen> g_reopen;
@@ -652,6 +744,7 @@ QPointer<Reopen> g_reopen;
 void Reopen::check() {
     std::vector<std::string> problems;
     bool restored = false, receiving = false, settingsFile = false, previousMatch = false;
+    bool hotkeyPersisted = false;
     if (!driver_ || !sinks_) {
         problems.push_back("plugin not initialised");
     } else {
@@ -672,8 +765,18 @@ void Reopen::check() {
         const std::string previous = moduleConfigPath("previous-match.json");
         previousMatch = !previous.empty() && sb::snapshotFromJson(readTextFile(previous), &error);
         if (!previousMatch) problems.push_back("previousMatch: " + error);
+
+        // The binding the first pass put on the clock_toggle hotkey must be back: Hotkeys::load
+        // restored it from the scene collection on start.
+        const obs_hotkey_id id =
+            hotkeys_ ? hotkeys_->idOf("obs_scoreboard.clock_toggle") : OBS_INVALID_HOTKEY_ID;
+        OBSDataArrayAutoRelease array = id != OBS_INVALID_HOTKEY_ID ? obs_hotkey_save(id) : nullptr;
+        hotkeyPersisted = array && obs_data_array_count(array) >= 1;
+        if (!hotkeyPersisted)
+            problems.push_back("hotkeyPersisted: the clock_toggle binding did not come back");
     }
-    const bool pass = restored && receiving && settingsFile && previousMatch && problems.empty();
+    const bool pass = restored && receiving && settingsFile && previousMatch && hotkeyPersisted &&
+                      problems.empty();
     const nlohmann::json report = {{"version", 1},
                                    {"pass", pass},
                                    {"reopen",
@@ -681,6 +784,7 @@ void Reopen::check() {
                                      {"receiving", receiving},
                                      {"settingsFile", settingsFile},
                                      {"previousMatch", previousMatch},
+                                     {"hotkeyPersisted", hotkeyPersisted},
                                      {"problems", problems}}}};
     const std::string out = outPath();
     writeJsonAtomic(out, report);
@@ -691,17 +795,17 @@ void Reopen::check() {
 
 namespace selftest {
 
-void maybeStart(ClockDriver* driver, FieldSinks* sinks) {
+void maybeStart(ClockDriver* driver, FieldSinks* sinks, Hotkeys* hotkeys) {
     if (env("OBS_SCOREBOARD_SELFTEST") != "1") return;
     if (g_started.exchange(true)) return;
     if (env("OBS_SCOREBOARD_SELFTEST_PASS") == "reopen") {
-        g_reopen = new Reopen(driver, sinks);
+        g_reopen = new Reopen(driver, sinks, hotkeys);
         QTimer::singleShot(2000, g_reopen, []() {
             if (g_reopen) g_reopen->check();
         });
         return;
     }
-    g_run = new Run(driver, sinks);
+    g_run = new Run(driver, sinks, hotkeys);
     // FINISHED_LOADING fires while OBSBasic is still building docks (a lesson from
     // obs-multireplay): wait on a timer, never by sleeping on the UI thread.
     QTimer::singleShot(2000, g_run, []() {

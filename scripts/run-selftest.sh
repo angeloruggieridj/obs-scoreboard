@@ -259,7 +259,7 @@ import json, sys
 r = json.load(open(sys.argv[1]))
 print("selftest reopen: report %s" % sys.argv[1], file=sys.stderr)
 ro = r.get("reopen", {})
-for k in ("bindingRestored", "receiving", "settingsFile", "previousMatch"):
+for k in ("bindingRestored", "receiving", "settingsFile", "previousMatch", "hotkeyPersisted"):
     print("  reopen    %-15s %s" % (k, ro.get(k)), file=sys.stderr)
 for p in ro.get("problems", []):
     print("  problem: %s" % p, file=sys.stderr)

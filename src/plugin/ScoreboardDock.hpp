@@ -3,9 +3,11 @@
 
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <QWidget>
 
+#include <cstddef>
 #include <optional>
 
 #include "MatchEngine.hpp"
@@ -41,6 +43,12 @@ public:
     // Offers the first-launch sport choice once, unless the sport was already chosen or a picker
     // is already open. Called on OBS_FRONTEND_EVENT_FINISHED_LOADING.
     void offerSportChoice();
+
+    // The rows the home column currently shows, in order: "shots", "fouls", "fouls2",
+    // "penalties", then "strength" and "stoppage" when they are visible. Read by the selftest.
+    QStringList shownRows() const;
+    // How many penalty rows the given team column shows. Read by the selftest.
+    std::size_t penaltyRowCount(sb::Team team) const;
 
 private:
     TeamPanel* panel(sb::Team team) const;

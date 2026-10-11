@@ -438,6 +438,19 @@ void ScoreboardDock::offerSportChoice() {
     dialog->open();
 }
 
+QStringList ScoreboardDock::shownRows() const {
+    QStringList rows;
+    for (const char* id : {"shots", "fouls", "fouls2", "penalties"})
+        if (home_->rowShown(id)) rows << QString::fromLatin1(id);
+    if (strengthShown_) rows << QStringLiteral("strength");
+    if (layout_ && layout_->stoppage) rows << QStringLiteral("stoppage");
+    return rows;
+}
+
+std::size_t ScoreboardDock::penaltyRowCount(sb::Team team) const {
+    return panel(team)->penaltyRowCount();
+}
+
 void ScoreboardDock::resumePrevious() {
     if (!driver_) return;
     const auto answer = QMessageBox::question(this, text("Resume.Title"), text("Resume.Question"),

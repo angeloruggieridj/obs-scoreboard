@@ -71,7 +71,7 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
         if (g_sinks) g_sinks->refreshAll();
         break;
     case OBS_FRONTEND_EVENT_FINISHED_LOADING:
-        selftest::maybeStart(g_driver, g_sinks);
+        selftest::maybeStart(g_driver, g_sinks, g_hotkeys);
         if (g_dock && !pickerSuppressed()) g_dock->offerSportChoice();
         break;
     case OBS_FRONTEND_EVENT_EXIT:
