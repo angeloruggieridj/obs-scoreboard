@@ -27,6 +27,7 @@
 #include "MatchJson.hpp"
 #include "MatchStateSaver.hpp"
 #include "PanelModel.hpp"
+#include "PenaltyDialog.hpp"
 #include "SettingsChange.hpp"
 #include "TeamPanel.hpp"
 #include "plugin-support.h"
@@ -145,6 +146,7 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
 
     // Always present, so a message appearing or clearing never moves the layout above it.
     status_ = new QLabel(this);
+    status_->setObjectName(QStringLiteral("dockStatus"));
     status_->setWordWrap(true);
     layout->addWidget(status_);
 
@@ -185,6 +187,7 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
         // be clicked again (penalty.notFound). Refresh after every accepted command too.
         connect(driver_, &ClockDriver::commandApplied, this, [this]() { refresh(); });
         connect(driver_, &ClockDriver::matchReplaced, this, [this]() {
+            if (penaltyDialog_) penaltyDialog_->close(); // a new match invalidates its id/options
             applyLayout();
             refresh();
         });
@@ -214,6 +217,9 @@ void ScoreboardDock::connectTeam(sb::Team team) {
     connect(p, &TeamPanel::penaltyCancelRequested, this, [this](unsigned id) {
         dispatch(sb::cmd::PenaltyCancel{static_cast<sb::PenaltyId>(id)});
     });
+    connect(p, &TeamPanel::penaltyAddRequested, this, [this, team]() { addPenalty(team); });
+    connect(p, &TeamPanel::penaltyEditRequested, this,
+            [this, team](unsigned id) { editPenalty(team, id); });
 }
 
 void ScoreboardDock::dispatch(const sb::Command& command) {
@@ -377,6 +383,65 @@ void ScoreboardDock::openBindings() {
     bindings_->show();
 }
 
+void ScoreboardDock::addPenalty(sb::Team team) {
+    if (!driver_) return;
+    if (penaltyDialog_) {
+        penaltyDialog_->raise();
+        penaltyDialog_->activateWindow();
+        return;
+    }
+    const sb::MatchSettings& settings = driver_->engine().settings();
+    auto* dialog =
+        new PenaltyDialog(settings.sport.penaltyOptions, settings.penaltyLabelFormat, this);
+    connect(dialog, &PenaltyDialog::addRequested, this,
+            [this, team](int index, const QString& player) {
+                if (!driver_) return;
+                // Re-read now: while the window was open the clock kept running and the sport
+                // could have been replaced from the match settings dialog.
+                const std::vector<sb::PenaltyOption>& options =
+                    driver_->engine().settings().sport.penaltyOptions;
+                if (index < 0 || static_cast<std::size_t>(index) >= options.size()) return;
+                dispatch(sb::cmd::PenaltyAdd{team, player.toStdString(),
+                                             options[static_cast<std::size_t>(index)].phases});
+            });
+    penaltyDialog_ = dialog;
+    dialog->setModal(false);
+    dialog->show();
+    dialog->raise();
+    dialog->activateWindow();
+}
+
+void ScoreboardDock::editPenalty(sb::Team team, unsigned id) {
+    if (!driver_) return;
+    if (penaltyDialog_) {
+        penaltyDialog_->raise();
+        penaltyDialog_->activateWindow();
+        return;
+    }
+    const sb::Penalty* penalty =
+        driver_->engine().penalties(team).find(static_cast<sb::PenaltyId>(id));
+    if (!penalty) {
+        showMessage(reasonText("penalty.notFound"));
+        return;
+    }
+    const sb::Tenths next =
+        penalty->hasNextPhase() ? penalty->phases[penalty->phase + 1].duration : 0;
+    auto* dialog =
+        new PenaltyDialog(id, QString::fromStdString(penalty->player), penalty->remaining, next,
+                          driver_->engine().settings().penaltyLabelFormat, this);
+    connect(dialog, &PenaltyDialog::editRequested, this, [this](unsigned penaltyId, qint64 tenths) {
+        if (!driver_) return;
+        // By id at the moment of the click: the penalty may have expired or been promoted.
+        dispatch(sb::cmd::PenaltyEdit{static_cast<sb::PenaltyId>(penaltyId),
+                                      static_cast<sb::Tenths>(tenths)});
+    });
+    penaltyDialog_ = dialog;
+    dialog->setModal(false);
+    dialog->show();
+    dialog->raise();
+    dialog->activateWindow();
+}
+
 void ScoreboardDock::openSettings() {
     if (!driver_) return;
     if (settingsDialog_) {
@@ -449,6 +514,10 @@ QStringList ScoreboardDock::shownRows() const {
 
 std::size_t ScoreboardDock::penaltyRowCount(sb::Team team) const {
     return panel(team)->penaltyRowCount();
+}
+
+bool ScoreboardDock::penaltyAddShown(sb::Team team) const {
+    return panel(team)->penaltyAddShown();
 }
 
 void ScoreboardDock::resumePrevious() {

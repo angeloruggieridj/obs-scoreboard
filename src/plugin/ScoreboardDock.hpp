@@ -20,6 +20,7 @@ class ClockPanel;
 class FieldSinks;
 class GlobalSettings;
 class MatchStateSaver;
+class PenaltyDialog;
 class QCheckBox;
 class QInputDialog;
 class QLabel;
@@ -49,6 +50,9 @@ public:
     QStringList shownRows() const;
     // How many penalty rows the given team column shows. Read by the selftest.
     std::size_t penaltyRowCount(sb::Team team) const;
+    // Whether the home/away column currently shows the "+" add-penalty button. Read by the
+    // selftest.
+    bool penaltyAddShown(sb::Team team) const;
 
 private:
     TeamPanel* panel(sb::Team team) const;
@@ -61,6 +65,8 @@ private:
     void resumePrevious();
     void openBindings();
     void openSettings();
+    void addPenalty(sb::Team team);
+    void editPenalty(sb::Team team, unsigned id);
     bool applyDialogResult(const MatchSettingsDialog::Result& result);
 
     // Applies `next` to the running match, classifying the change (5.3). False only when the user
@@ -78,6 +84,7 @@ private:
     QPointer<BindingsDialog> bindings_;
     QPointer<MatchSettingsDialog> settingsDialog_;
     QPointer<QInputDialog> sportPicker_;
+    QPointer<PenaltyDialog> penaltyDialog_;
     QPushButton* link_ = nullptr;
     QToolButton* menu_ = nullptr;
     ClockPanel* clock_ = nullptr;
