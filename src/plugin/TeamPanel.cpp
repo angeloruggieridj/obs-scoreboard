@@ -29,7 +29,7 @@ QLabel* makeCaption(QWidget* parent) {
     label->setAlignment(Qt::AlignCenter);
     QFont font = label->font();
     font.setBold(true);
-    font.setPointSizeF(font.pointSizeF() * 0.85);
+    font.setPointSizeF(font.pointSizeF() * 0.8);
     label->setFont(font);
     return label;
 }
@@ -38,8 +38,8 @@ QLabel* makeCaption(QWidget* parent) {
 
 TeamPanel::TeamPanel(QWidget* parent) : QWidget(parent) {
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(2, 2, 2, 2);
-    layout->setSpacing(2);
+    layout->setContentsMargins(1, 1, 1, 1);
+    layout->setSpacing(1);
 
     name_ = new QLineEdit(this);
     name_->setAlignment(Qt::AlignCenter);

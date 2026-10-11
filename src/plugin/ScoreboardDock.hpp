@@ -78,7 +78,6 @@ private:
     QPointer<BindingsDialog> bindings_;
     QPointer<MatchSettingsDialog> settingsDialog_;
     QPointer<QInputDialog> sportPicker_;
-    QLabel* title_ = nullptr;
     QPushButton* link_ = nullptr;
     QToolButton* menu_ = nullptr;
     ClockPanel* clock_ = nullptr;

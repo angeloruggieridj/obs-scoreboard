@@ -4,6 +4,7 @@
 #include <obs-module.h>
 
 #include <QByteArray>
+#include <QEvent>
 #include <QFile>
 #include <QFontDatabase>
 #include <QFontMetrics>
@@ -83,9 +84,11 @@ QPushButton* ClockPanel::makeArrow(const QString& label, const QString& tooltip,
 
 ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     auto* outer = new QVBoxLayout(this);
-    outer->setContentsMargins(2, 2, 2, 2);
-    outer->setSpacing(4);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->setSpacing(3);
 
+    top_ = new QHBoxLayout();
+    top_->setSpacing(2);
     auto* minutesColumn = new QVBoxLayout();
     minutesColumn->setSpacing(2);
     minutesColumn->addWidget(
@@ -102,13 +105,15 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     clock_ = new QLabel(this);
     clock_->setAlignment(Qt::AlignCenter);
     clock_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    auto* top = new QHBoxLayout();
-    top->addLayout(minutesColumn);
-    top->addWidget(clock_, 1);
-    top->addLayout(secondsColumn);
-    outer->addLayout(top);
+    clock_->installEventFilter(this);
+    top_->addLayout(minutesColumn);
+    top_->addWidget(clock_, 1);
+    top_->addLayout(secondsColumn);
+    outer->addLayout(top_);
 
-    auto* periodRow = new QHBoxLayout();
+    // Period stepper, stoppage counter, start/pause and reset share one row (design B+).
+    auto* controls = new QHBoxLayout();
+    controls->setSpacing(3);
     auto* prev = makeStepButton(QStringLiteral("−"), this);
     auto* next = makeStepButton(QStringLiteral("+"), this);
     connect(prev, &QPushButton::clicked, this, [this]() { emit periodStepRequested(-1); });
@@ -118,16 +123,17 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     QFont bold = period_->font();
     bold.setBold(true);
     period_->setFont(bold);
+    period_->setMinimumWidth(24);
     of_ = new QLabel(this);
-    periodRow->addStretch(1);
-    periodRow->addWidget(prev);
-    periodRow->addWidget(period_);
-    periodRow->addWidget(next);
-    periodRow->addWidget(of_);
+    controls->addWidget(prev);
+    controls->addWidget(period_);
+    controls->addWidget(next);
+    controls->addWidget(of_);
 
     stoppageBox_ = new QWidget(this);
     auto* stoppageRow = new QHBoxLayout(stoppageBox_);
     stoppageRow->setContentsMargins(0, 0, 0, 0);
+    stoppageRow->setSpacing(2);
     auto* stoppageMinus = makeStepButton(QStringLiteral("−"), stoppageBox_);
     auto* stoppagePlus = makeStepButton(QStringLiteral("+"), stoppageBox_);
     connect(stoppageMinus, &QPushButton::clicked, this,
@@ -140,13 +146,11 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     stoppageRow->addWidget(stoppagePlus);
     stoppageBox_->setToolTip(text("Panel.Stoppage"));
     stoppageBox_->hide();
-    periodRow->addWidget(stoppageBox_);
-    periodRow->addStretch(1);
-    outer->addLayout(periodRow);
+    controls->addWidget(stoppageBox_);
 
-    auto* controls = new QHBoxLayout();
     startStop_ = new QPushButton(this);
-    startStop_->setMinimumHeight(36);
+    startStop_->setMinimumHeight(30);
+    startStop_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     connect(startStop_, &QPushButton::clicked, this, [this]() { emit toggleRequested(); });
     reset_ = new QPushButton(text("Dock.Reset"), this);
     reset_->setToolTip(text("Dock.Reset"));
@@ -156,6 +160,12 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     outer->addLayout(controls);
 
     setRunning(false);
+}
+
+void ClockPanel::addTopRightWidget(QWidget* widget) {
+    top_->addWidget(widget, 0, Qt::AlignTop);
+    cornerWidth_ = std::max(cornerWidth_, widget->sizeHint().width());
+    updateClockFont();
 }
 
 void ClockPanel::setClock(const QString& value) {
@@ -198,9 +208,19 @@ void ClockPanel::resizeEvent(QResizeEvent* event) {
     updateClockFont();
 }
 
+bool ClockPanel::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == clock_ && event->type() == QEvent::Resize) updateClockFont();
+    return QWidget::eventFilter(watched, event);
+}
+
 void ClockPanel::updateClockFont() {
     const QString family = digitalFontFamily();
-    const double available = std::max(40.0, width() - 2.0 * kArrowColumn - 16.0);
+    // The label is the stretchy column of the row: once it has been laid out its width is the
+    // exact space the digits may use. Before that, fall back to an estimate from this widget.
+    const int labelWidth = clock_->width();
+    const double available =
+        std::max(40.0, labelWidth > 0 ? labelWidth - 4.0
+                                      : width() - 2.0 * kArrowColumn - cornerWidth_ - 12.0);
     // DSEG7's digit advances differ from the fixed font's, so measure instead of guessing a ratio:
     // size the text at a reference pixel size and scale it to the width the clock has.
     QFont font =

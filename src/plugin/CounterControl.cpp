@@ -11,24 +11,24 @@
 CounterControl::CounterControl(QWidget* parent) : QWidget(parent) {
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
-    outer->setSpacing(2);
+    outer->setSpacing(1);
 
     top_ = new QHBoxLayout();
-    top_->setSpacing(2);
+    top_->setSpacing(1);
     top_->addWidget(makeButton(QStringLiteral("−1"), -1));
     value_ = new QLabel(this);
     value_->setAlignment(Qt::AlignCenter);
-    value_->setMinimumWidth(40);
+    value_->setMinimumWidth(32);
     value_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     QFont font = value_->font();
     font.setBold(true);
-    font.setPointSizeF(font.pointSizeF() * 1.3);
+    font.setPointSizeF(font.pointSizeF() * 1.2);
     value_->setFont(font);
     top_->addWidget(value_, 1);
     outer->addLayout(top_);
 
     extra_ = new QHBoxLayout();
-    extra_->setSpacing(2);
+    extra_->setSpacing(1);
     outer->addLayout(extra_);
 }
 

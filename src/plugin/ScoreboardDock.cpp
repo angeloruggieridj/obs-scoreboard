@@ -11,7 +11,6 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -55,29 +54,18 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
                                MatchStateSaver* saver, QWidget* parent)
     : QWidget(parent), driver_(driver), sinks_(sinks), settings_(settings), saver_(saver) {
     setMinimumWidth(280);
-    auto* outer = new QVBoxLayout(this);
-    outer->setContentsMargins(0, 0, 0, 0);
-    auto* scroll = new QScrollArea(this);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    outer->addWidget(scroll);
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(3, 3, 3, 3);
+    layout->setSpacing(3);
 
-    auto* content = new QWidget(scroll);
-    auto* layout = new QVBoxLayout(content);
-    layout->setContentsMargins(4, 4, 4, 4);
-
-    auto* header = new QHBoxLayout();
-    title_ = new QLabel(text("Dock.Title"), content);
-    QFont titleFont = title_->font();
-    titleFont.setBold(true);
-    title_->setFont(titleFont);
-    link_ = new QPushButton(content);
+    link_ = new QPushButton(this);
     link_->setFlat(true);
     connect(link_, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
-    menu_ = new QToolButton(content);
+
+    menu_ = new QToolButton(this);
     menu_->setText(QStringLiteral("..."));
     menu_->setPopupMode(QToolButton::InstantPopup);
+    menu_->setAutoRaise(true);
     menu_->setStyleSheet(QStringLiteral("QToolButton::menu-indicator{image:none;}"));
     auto* menu = new QMenu(menu_);
     connect(menu->addAction(text("Menu.Settings")), &QAction::triggered, this,
@@ -93,31 +81,40 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     menu->addSeparator();
     connect(menu->addAction(text("Menu.About")), &QAction::triggered, this, &ScoreboardDock::about);
     menu_->setMenu(menu);
-    header->addWidget(title_, 1);
-    header->addWidget(link_);
-    header->addWidget(menu_);
-    layout->addLayout(header);
 
-    clock_ = new ClockPanel(content);
+    // OBS shows the dock title itself, so there is no header row: the link indicator and the menu
+    // sit at the top-right of the clock row.
+    auto* corner = new QWidget(this);
+    auto* cornerColumn = new QVBoxLayout(corner);
+    cornerColumn->setContentsMargins(0, 0, 0, 0);
+    cornerColumn->setSpacing(0);
+    cornerColumn->addWidget(link_, 0, Qt::AlignCenter);
+    cornerColumn->addWidget(menu_, 0, Qt::AlignCenter);
+
+    clock_ = new ClockPanel(this);
+    clock_->addTopRightWidget(corner);
     layout->addWidget(clock_);
 
     auto* teams = new QHBoxLayout();
-    home_ = new TeamPanel(content);
-    away_ = new TeamPanel(content);
+    teams->setSpacing(3);
+    home_ = new TeamPanel(this);
+    away_ = new TeamPanel(this);
     teams->addWidget(home_, 1);
     teams->addWidget(away_, 1);
     layout->addLayout(teams);
 
-    strength_ = new QLabel(content);
+    strength_ = new QLabel(this);
     strength_->setAlignment(Qt::AlignCenter);
     QFont big = strength_->font();
     big.setBold(true);
-    big.setPointSizeF(big.pointSizeF() * 1.4);
+    big.setPointSizeF(big.pointSizeF() * 1.2);
     strength_->setFont(big);
     strength_->hide();
     layout->addWidget(strength_);
 
-    countdown_ = new QCheckBox(text("Panel.Countdown"), content);
+    auto* toggles = new QHBoxLayout();
+    toggles->setSpacing(8);
+    countdown_ = new QCheckBox(text("Panel.Countdown"), this);
     connect(countdown_, &QCheckBox::clicked, this, [this](bool checked) {
         if (!driver_) return;
         sb::MatchSettings next = driver_->engine().settings();
@@ -131,9 +128,9 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
         }
         refresh(); // puts the box back in the real state if nothing changed
     });
-    layout->addWidget(countdown_);
+    toggles->addWidget(countdown_);
 
-    runPast_ = new QCheckBox(text("Panel.RunPast"), content);
+    runPast_ = new QCheckBox(text("Panel.RunPast"), this);
     runPast_->hide();
     connect(runPast_, &QCheckBox::clicked, this, [this](bool checked) {
         if (!driver_) return;
@@ -142,14 +139,16 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
         applySettings(next);
         refresh();
     });
-    layout->addWidget(runPast_);
+    toggles->addWidget(runPast_);
+    toggles->addStretch(1);
+    layout->addLayout(toggles);
 
-    status_ = new QLabel(content);
+    // Always present, so a message appearing or clearing never moves the layout above it.
+    status_ = new QLabel(this);
     status_->setWordWrap(true);
     layout->addWidget(status_);
 
     layout->addStretch(1);
-    scroll->setWidget(content);
 
     messageTimer_.setSingleShot(true);
     messageTimer_.setInterval(kMessageMs);
