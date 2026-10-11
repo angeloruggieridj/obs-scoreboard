@@ -22,6 +22,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Score and foul colors with a "Default" button; the dock link indicator (● 14/28) and a menu with Match settings, Source links, New match, Resume previous match, End match and About.
 - 40 OBS hotkeys (clock, ±1 minute/second with auto-repeat, periods, score +1/+2/+3/+5/+6/−1, shots, fouls, second fouls, cancel penalty 1/2, stoppage ±1 minute), saved in the scene collection. Hotkeys for a button the current sport does not have are ignored.
 - On the first launch a small window asks which sport you score; the choice (and the last settings of each sport) is remembered across restarts and can be changed in Match settings.
+- Add a timed penalty from the dock: a "+" button on each team (only for the sports that have timed penalties) opens a small window with the sport's penalty options (including the compound ones, e.g. 2+2) and the player number. Each penalty row also has an "edit" action that changes its remaining time by penalty id; a penalty that expires while the window is open is answered with a clear "that penalty no longer exists" message instead of an error. The window is not modal (the dock and the clock keep responding) and a new match, a resume or a sport change closes it. The clock keeps running throughout.
+- The penalty fields (player, time, combined label) and the strength text are linkable to Text sources; the combined label uses the {player} {time} {phase2} placeholders and the penalty windows show a live preview of it.
+- The in-OBS selftest now proves the Futsal fouls per half (with the restore when going back and after a resume) and the basketball fouls per quarter (overtime continues the 4th), and adds, edits and cancels a penalty through the real dock, checking the strength text.
 
 ### Changed
 
