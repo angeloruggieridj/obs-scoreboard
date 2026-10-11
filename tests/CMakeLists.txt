@@ -32,6 +32,7 @@ add_executable(
   test_panelmodel.cpp
   test_settingschange.cpp
   test_hotkeycatalog.cpp
+  test_penaltyfields.cpp
   test_selftest_verdict.cpp
   test_locale_fields.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/plugin/SelfTestVerdict.cpp
