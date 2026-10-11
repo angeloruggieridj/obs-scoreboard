@@ -14,6 +14,7 @@
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
 #include "GlobalSettings.hpp"
+#include "Hotkeys.hpp"
 #include "MatchStateSaver.hpp"
 #include "ScoreboardDock.hpp"
 #include "SelfTest.hpp"
@@ -36,6 +37,7 @@ QPointer<ClockDriver> g_driver;
 QPointer<FieldSinks> g_sinks;
 QPointer<MatchStateSaver> g_saver;
 QPointer<ScoreboardDock> g_dock;
+QPointer<Hotkeys> g_hotkeys;
 GlobalSettings g_settings;
 std::unique_ptr<BindingStore> g_bindings;
 // After EXIT OBS has already cleared the frontend callbacks; removing ours would log an error.
@@ -52,6 +54,7 @@ void tearDown() {
     delete g_saver.data(); // before the driver it listens to
     if (g_driver) g_driver->shutdown();
     g_bindings.reset(); // unregisters its save callback before the sinks go
+    delete g_hotkeys.data();
     delete g_sinks.data();
     delete g_driver.data();
 }
@@ -120,6 +123,9 @@ bool obs_module_load(void) {
     g_driver = new ClockDriver(sb::settingsForSport(g_settings.prefs(), *sport));
     g_sinks = new FieldSinks();
     g_saver = new MatchStateSaver(g_driver, moduleConfigPath("last-match.json"));
+    g_hotkeys = new Hotkeys(g_driver, [](const sb::Command& command) {
+        if (g_dock) g_dock->dispatch(command); // the dock may not exist yet, or any more
+    });
     g_bindings = std::make_unique<BindingStore>(g_sinks);
     QObject::connect(g_driver, &ClockDriver::fieldsChanged, g_sinks, &FieldSinks::publish);
     g_sinks->publish(g_driver->fields());
