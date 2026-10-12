@@ -1,0 +1,12 @@
+{
+  "extends": "@companion-module/tools/tsconfig/node22/recommended.json",
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules/**", "src/**/*.test.ts"],
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true
+  }
+}
