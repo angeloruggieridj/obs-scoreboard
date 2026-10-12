@@ -2,7 +2,274 @@
   "Name": "ScoreBoard for OBS",
   "Version": "0.1.0.0",
   "Author": "Angelo Ruggieri",
-  "Actions": [],
+  "Actions": [
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.clock-toggle",
+      "Name": "Toggle Clock",
+      "Icon": "imgs/actions/clock-toggle/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/clock-toggle/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Start or stop the scoreboard clock"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.clock-start",
+      "Name": "Start Clock",
+      "Icon": "imgs/actions/clock-start/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/clock-start/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Start the scoreboard clock"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.clock-stop",
+      "Name": "Stop Clock",
+      "Icon": "imgs/actions/clock-stop/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/clock-stop/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Stop the scoreboard clock"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.clock-reset",
+      "Name": "Reset Clock",
+      "Icon": "imgs/actions/clock-reset/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/clock-reset/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Reset the clock to the period start"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.clock-adjust",
+      "Name": "Adjust Clock",
+      "Icon": "imgs/actions/clock-adjust/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/clock-adjust/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Add or remove the configured tenths"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.clock-set",
+      "Name": "Set Clock",
+      "Icon": "imgs/actions/clock-set/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/clock-set/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Set the clock to the configured tenths"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.period-next",
+      "Name": "Next Period",
+      "Icon": "imgs/actions/period-next/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/period-next/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Advance to the next period"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.period-prev",
+      "Name": "Previous Period",
+      "Icon": "imgs/actions/period-prev/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/period-prev/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Go back to the previous period"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.score",
+      "Name": "Score",
+      "Icon": "imgs/actions/score/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/score/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Change a team score by the configured delta"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.stat",
+      "Name": "Stat",
+      "Icon": "imgs/actions/stat/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/stat/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Change shots or fouls by the configured delta"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.set-team-name",
+      "Name": "Set Team Name",
+      "Icon": "imgs/actions/set-team-name/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/set-team-name/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Set the home or away team name"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.penalty-add",
+      "Name": "Add Penalty",
+      "Icon": "imgs/actions/penalty-add/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/penalty-add/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Add a penalty to the home or away team"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.penalty-edit",
+      "Name": "Edit Penalty",
+      "Icon": "imgs/actions/penalty-edit/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/penalty-edit/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Change the remaining time of a penalty"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.penalty-cancel",
+      "Name": "Cancel Penalty",
+      "Icon": "imgs/actions/penalty-cancel/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/penalty-cancel/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Cancel a penalty by id"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.penalty-cancel-active",
+      "Name": "Cancel Running Penalty",
+      "Icon": "imgs/actions/penalty-cancel-active/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/penalty-cancel-active/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Cancel a running penalty for a team"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.stoppage-set",
+      "Name": "Set Stoppage",
+      "Icon": "imgs/actions/stoppage-set/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/stoppage-set/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Set the announced stoppage time"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.stoppage-add",
+      "Name": "Adjust Stoppage",
+      "Icon": "imgs/actions/stoppage-add/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/stoppage-add/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Add or remove announced stoppage minutes"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.end-match",
+      "Name": "End Match",
+      "Icon": "imgs/actions/end-match/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/end-match/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "End the current match"
+    },
+    {
+      "UUID": "com.angeloruggieri.obs-scoreboard.new-match",
+      "Name": "New Match",
+      "Icon": "imgs/actions/new-match/icon",
+      "States": [
+        {
+          "Image": "imgs/actions/new-match/key"
+        }
+      ],
+      "Controllers": [
+        "Keypad"
+      ],
+      "Tooltip": "Start a new match for a sport"
+    }
+  ],
   "Category": "ScoreBoard for OBS",
   "CategoryIcon": "imgs/plugin/category-icon",
   "CodePath": "bin/plugin.js",
