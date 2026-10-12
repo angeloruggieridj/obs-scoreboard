@@ -12,12 +12,14 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
+#include <QEventLoop>
 #include <QLabel>
 #include <QLineEdit>
 #include <QObject>
 #include <QPointer>
 #include <QSpinBox>
 #include <QStringList>
+#include <QThread>
 #include <QTimer>
 #include <QToolButton>
 
@@ -25,14 +27,19 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include "AtomicFile.hpp"
@@ -50,6 +57,8 @@
 #include "SelfTestVerdict.hpp"
 #include "SportCatalog.hpp"
 #include "TextSourceFactory.hpp"
+#include "VendorApi.hpp"
+#include "VendorRegistry.hpp"
 #include "plugin-support.h"
 
 namespace {
@@ -141,6 +150,38 @@ std::string outPath() {
     return out;
 }
 
+// A vendor transport that never touches obs-websocket: it records the requests and the events so
+// the selftest can drive VendorApi (the real registry is Task 7.1.5, via call_request).
+class FakeRegistry : public VendorRegistry {
+public:
+    bool available = true;
+    bool registerVendor() override { return available; }
+    bool registerRequest(std::string_view type, Handler handler) override {
+        if (!available) return false;
+        if (!fallback_) fallback_ = handler;
+        handlers_[std::string(type)] = std::move(handler);
+        return true;
+    }
+    bool emitEvent(std::string_view type, std::string_view json) override {
+        events_.emplace_back(std::string(type), std::string(json));
+        return true;
+    }
+    void unregisterAll() override { handlers_.clear(); }
+    // The plugin registers exactly the 20 protocol names, so an unknown type has no handler; route
+    // it to a registered one anyway, so the request still reaches the parser and answers
+    // "unknownRequest" (as the real transport would only ever see registered types).
+    std::string request(const char* type, const char* json = "{}") {
+        const auto it = handlers_.find(type);
+        if (it != handlers_.end()) return it->second(type, json);
+        return fallback_ ? fallback_(type, json) : std::string{};
+    }
+    std::map<std::string, Handler> handlers_;
+    std::vector<std::pair<std::string, std::string>> events_;
+
+private:
+    Handler fallback_;
+};
+
 class Run : public QObject {
 public:
     Run(ClockDriver* driver, FieldSinks* sinks, Hotkeys* hotkeys)
@@ -179,6 +220,7 @@ private:
     void checkPersist();
     void checkSportsAndDock();
     void checkFoulsAndPenalties();
+    void checkVendorApi();
     void finish();
     std::string clockText() const {
         return driver_->fields()[static_cast<std::size_t>(sb::FieldId::Clock)];
@@ -201,6 +243,7 @@ private:
     bool multiField_ = false, collection_ = false, duplicate_ = false, persistSaved_ = false;
     bool dock14_ = false, sportSwitch_ = false, penaltyRefresh_ = false, hotkeySaved_ = false;
     bool futsalFouls_ = false, basketFouls_ = false, penaltyControls_ = false;
+    bool vendorApi_ = false;
     // Only uuid and name of the sources made by the later checks (see textByUuid).
     std::string homeUuid_, collUuid_, collName_, persistName_, collectionName_;
     bool leftCollection_ = false;
@@ -268,6 +311,7 @@ void Run::begin() {
 
     checkSportsAndDock(); // before the clock starts and any save is armed: nothing is written
     checkFoulsAndPenalties();
+    checkVendorApi();
     driver_->apply(sb::cmd::ClockStop{});
     driver_->apply(sb::cmd::ClockSet{sb::seconds(secs_ + kLeadSeconds)});
     sinks_->setPushObserver([this](sb::FieldId field, const std::string& text, std::uint64_t ns) {
@@ -579,6 +623,262 @@ void Run::checkFoulsAndPenalties() {
     }
 
     driver_->replaceMatch(sb::MatchEngine(original));
+}
+
+// The vendor API glue, driven by a fake registry: every request in the protocol, the envelopes,
+// the thread hop, the events and the shutdown path. No obs-websocket is touched. Split by theme.
+void Run::checkVendorApi() {
+    const sb::MatchSettings original = driver_->engine().settings();
+    // rememberSettings() writes through moduleConfigPath even on a scratch object: keep the bytes.
+    const std::string settingsPath = moduleConfigPath("settings.json");
+    const std::optional<std::string> settingsBytes = readFile(settingsPath);
+    GlobalSettings scratch;
+    ScoreboardDock probe(driver_, sinks_, &scratch, nullptr);
+    vendorApi_ = true;
+
+    const auto parse = [](const std::string& s) { return nlohmann::json::parse(s); };
+    const auto newMatch = [&probe](const std::string& sportId) {
+        return probe.newMatchForSport(sportId);
+    };
+    const auto isOk = [&parse](const std::string& s) {
+        return parse(s) == nlohmann::json{{"result", "ok"}};
+    };
+    const auto isError = [&parse](const std::string& s, const char* code) {
+        return parse(s) == nlohmann::json{{"result", "error"}, {"error", code}};
+    };
+
+    // --- obs-websocket absent: start() fails, nothing is registered, no crash. ---
+    {
+        FakeRegistry fake;
+        fake.available = false;
+        VendorApi api(driver_, newMatch, &fake, nullptr);
+        if (api.start() || !fake.handlers_.empty()) {
+            vendorApi_ = false;
+            fail("vendorApi: start() must fail and register nothing without obs-websocket");
+        }
+    }
+
+    FakeRegistry fake;
+    VendorApi api(driver_, newMatch, &fake, nullptr);
+    if (!api.start()) {
+        vendorApi_ = false;
+        fail("vendorApi: start() failed with a working registry");
+    }
+
+    // Declared after `fake`, the map `hasEvent` reads (the capture must see a live variable).
+    const auto hasEvent = [&fake, &parse](const char* type, const auto& predicate) {
+        for (const auto& e : fake.events_) {
+            if (e.first != type) continue;
+            if (predicate(parse(e.second))) return true;
+        }
+        return false;
+    };
+
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    driver_->apply(sb::cmd::ClockStop{});
+
+    // --- Commands, envelopes and ScoreChanged. ---
+    if (!isOk(fake.request("ClockStart")) || !driver_->engine().clock().running()) {
+        vendorApi_ = false;
+        fail("vendorApi: ClockStart");
+    }
+    if (!isOk(fake.request("ClockStop"))) {
+        vendorApi_ = false;
+        fail("vendorApi: ClockStop");
+    }
+    if (!isOk(fake.request("AddStat", R"({"team":"home","stat":"score","delta":2})"))) {
+        vendorApi_ = false;
+        fail("vendorApi: AddStat");
+    }
+    if (!hasEvent("ScoreChanged",
+                  [](const nlohmann::json& j) { return j["team"] == "home" && j["score"] == 2; })) {
+        vendorApi_ = false;
+        fail("vendorApi: no ScoreChanged after AddStat");
+    }
+
+    // --- GetFields exposes all 28 fields; GetState summarises the match. ---
+    const nlohmann::json fields = parse(fake.request("GetFields"));
+    if (fields["result"] != "ok" || fields["fields"].size() != sb::kFieldCount ||
+        fields["fields"]["home.score"] != "2") {
+        vendorApi_ = false;
+        fail("vendorApi: GetFields");
+    }
+    const nlohmann::json state = parse(fake.request("GetState"));
+    if (state["state"]["sport"] != "ice_hockey" || state["state"]["period"] != 1 ||
+        state["state"]["clockRunning"] != false || state["state"]["protocol"] != 1) {
+        vendorApi_ = false;
+        fail("vendorApi: GetState");
+    }
+
+    // --- A rejection, a confirmation and the confirmed retry. ---
+    if (parse(fake.request("PenaltyCancel", R"({"id":999})")) !=
+        nlohmann::json{{"result", "rejected"}, {"reason", "penalty.notFound"}}) {
+        vendorApi_ = false;
+        fail("vendorApi: penalty.notFound");
+    }
+    driver_->apply(sb::cmd::ClockAdjust{-sb::minutes(1)}); // mid-period, not at a limit
+    if (parse(fake.request("PeriodNext")) !=
+        nlohmann::json{{"result", "confirmation"}, {"reason", "period.midPeriod"}}) {
+        vendorApi_ = false;
+        fail("vendorApi: PeriodNext confirmation");
+    }
+    if (!isOk(fake.request("PeriodNext", R"({"confirmed":true})")) ||
+        driver_->engine().periods().index() != 2) {
+        vendorApi_ = false;
+        fail("vendorApi: PeriodNext confirmed");
+    }
+
+    // --- Errors: unknown request, bad payload, unknown sport. ---
+    if (!isError(fake.request("Nope"), "unknownRequest") ||
+        !isError(fake.request("ClockStart", "[]"), "badRequest") ||
+        !isError(fake.request("NewMatch", R"({"sport":"quidditch"})"), "unknownSport")) {
+        vendorApi_ = false;
+        fail("vendorApi: error envelopes");
+    }
+
+    // --- NewMatch on a live match needs the confirmation; the confirmed call succeeds. ---
+    if (parse(fake.request("NewMatch", R"({"sport":"basketball"})")) !=
+        nlohmann::json{{"result", "confirmation"}, {"reason", "match.inProgress"}}) {
+        vendorApi_ = false;
+        fail("vendorApi: NewMatch must ask for confirmation on a live match");
+    }
+    if (!isOk(fake.request("NewMatch", R"({"sport":"basketball","confirmed":true})")) ||
+        driver_->engine().settings().sport.id != "basketball") {
+        vendorApi_ = false;
+        fail("vendorApi: NewMatch confirmed");
+    }
+
+    // --- Full StateChanged after NewMatch: hockey's "4-5" strength must be cleared to "". ---
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    driver_->apply(sb::cmd::PenaltyAdd{sb::Team::Home, "24", {{sb::minutes(2), true}}});
+    if (driver_->fields()[static_cast<std::size_t>(sb::FieldId::Strength)] != "4-5") {
+        vendorApi_ = false;
+        fail("vendorApi: the hockey strength setup is wrong");
+    }
+    fake.events_.clear();
+    fake.request("NewMatch", R"({"sport":"basketball","confirmed":true})");
+    if (!hasEvent("StateChanged", [](const nlohmann::json& j) {
+            return j["changed"].size() == sb::kFieldCount && j["changed"]["strength"] == "";
+        })) {
+        vendorApi_ = false;
+        fail("vendorApi: NewMatch did not publish a full StateChanged");
+    }
+
+    // --- NewMatch closes an open penalty window (the Fase 6 rule). ---
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Score, 1}); // make it a live match
+    {
+        auto* plus = probe.findChild<QToolButton*>(QStringLiteral("penaltyAdd"));
+        if (plus) plus->click();
+        if (probe.findChildren<QDialog*>().isEmpty()) {
+            vendorApi_ = false;
+            fail("vendorApi: the penalty window did not open");
+        }
+        fake.request("NewMatch", R"({"sport":"ice_hockey","confirmed":true})");
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        if (!probe.findChildren<QDialog*>().isEmpty()) {
+            vendorApi_ = false;
+            fail("vendorApi: NewMatch left the penalty window open");
+        }
+    }
+
+    // --- StateChanged carries only the fields that changed. ---
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    fake.events_.clear();
+    driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Score, 1});
+    if (!hasEvent("StateChanged", [](const nlohmann::json& j) {
+            return j["changed"].size() == 1 && j["changed"].contains("home.score");
+        })) {
+        vendorApi_ = false;
+        fail("vendorApi: StateChanged did not carry exactly the changed field");
+    }
+
+    // --- MatchEnded once; a new match does not re-announce the old events. ---
+    fake.events_.clear();
+    driver_->apply(sb::cmd::EndMatch{});
+    driver_->apply(sb::cmd::EndMatch{}); // rejected: no second event
+    {
+        int matchEnded = 0;
+        for (const auto& e : fake.events_)
+            if (e.first == "MatchEnded") ++matchEnded;
+        if (matchEnded != 1) {
+            vendorApi_ = false;
+            fail("vendorApi: MatchEnded was not emitted exactly once");
+        }
+    }
+    fake.events_.clear();
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    {
+        int reAnnounced = 0;
+        for (const auto& e : fake.events_)
+            if (e.first == "MatchEnded" || e.first == "PeriodEnded") ++reAnnounced;
+        if (reAnnounced != 0) {
+            vendorApi_ = false;
+            fail("vendorApi: a new match re-announced the previous events");
+        }
+    }
+
+    // --- Thread hop: a request from std::thread must reach the UI thread and come back. ---
+    {
+        std::atomic<bool> done{false};
+        std::string answer;
+        std::thread worker([&api, &answer, &done]() {
+            answer =
+                api.handleRequest(QStringLiteral("GetState"), QStringLiteral("{}")).toStdString();
+            done = true;
+        });
+        const std::uint64_t deadline = os_gettime_ns() + 5'000'000'000ULL;
+        while (!done && os_gettime_ns() < deadline)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        worker.join();
+        if (!done || answer.find("\"sport\"") == std::string::npos) {
+            vendorApi_ = false;
+            fail("vendorApi: a request from another thread failed");
+        }
+    }
+
+    // --- Thread timeout: with the UI not pumping events the request must answer notReady. ---
+    {
+        std::atomic<bool> done{false};
+        std::string answer;
+        std::thread worker([&api, &answer, &done]() {
+            answer =
+                api.handleRequest(QStringLiteral("GetState"), QStringLiteral("{}")).toStdString();
+            done = true;
+        });
+        // Deliberately no processEvents(): the queued call cannot run, so it must time out.
+        const std::uint64_t deadline = os_gettime_ns() + 4'000'000'000ULL;
+        while (!done && os_gettime_ns() < deadline)
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        worker.join();
+        if (!done || answer.find("\"notReady\"") == std::string::npos) {
+            vendorApi_ = false;
+            fail("vendorApi: a request with a stalled UI did not time out to notReady");
+        }
+    }
+
+    // --- Shutdown: a request answers "notReady", never a crash. A throwaway driver: the real one
+    // must stay alive for the rest of the selftest. ---
+    {
+        ClockDriver dying(driver_->engine().settings());
+        FakeRegistry lateFake;
+        VendorApi lateApi(&dying, newMatch, &lateFake, nullptr);
+        lateApi.start();
+        dying.shutdown();
+        if (!isError(lateFake.request("GetState"), "notReady")) {
+            vendorApi_ = false;
+            fail("vendorApi: a request after shutdown was not notReady");
+        }
+    }
+
+    driver_->replaceMatch(sb::MatchEngine(original));
+    // Restore settings.json: rememberSettings() wrote through moduleConfigPath (item 20).
+    if (settingsBytes) writeFileAtomic(settingsPath, *settingsBytes, nullptr);
 }
 
 void Run::startCapture() {
@@ -908,7 +1208,8 @@ void Run::finish() {
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
                       multiField_ && collection_ && duplicate_ && persistSaved_ && dock14_ &&
                       sportSwitch_ && penaltyRefresh_ && hotkeySaved_ && futsalFouls_ &&
-                      basketFouls_ && penaltyControls_ && bad == 0 && fpsOk && problems_.empty();
+                      basketFouls_ && penaltyControls_ && vendorApi_ && bad == 0 && fpsOk &&
+                      problems_.empty();
 
     nlohmann::json changes = nlohmann::json::array();
     for (const sbtest::ChangeResult& c : verdict_.changes) {
@@ -956,7 +1257,8 @@ void Run::finish() {
                                      {"hotkeySaved", hotkeySaved_},
                                      {"futsalFouls", futsalFouls_},
                                      {"basketFouls", basketFouls_},
-                                     {"penaltyControls", penaltyControls_}}},
+                                     {"penaltyControls", penaltyControls_},
+                                     {"vendorApi", vendorApi_}}},
                                    {"problems", problems}};
 
     writeJsonAtomic(out_, report);
