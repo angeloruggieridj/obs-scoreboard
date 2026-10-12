@@ -83,9 +83,11 @@ std::string prefsToJson(const GlobalPrefs& prefs) {
     json stored = json::object();
     for (const auto& entry : prefs.sportSettings)
         stored[entry.first] = json::parse(settingsToJson(entry.second));
-    return json{{"version", kPrefsJsonVersion},   {"lastSport", prefs.lastSport},
-                {"scoreColor", prefs.scoreColor}, {"sportChosen", prefs.sportChosen},
-                {"foulColor", prefs.foulColor},   {"sportSettings", stored}}
+    return json{
+        {"version", kPrefsJsonVersion},         {"lastSport", prefs.lastSport},
+        {"scoreColor", prefs.scoreColor},       {"sportChosen", prefs.sportChosen},
+        {"foulColor", prefs.foulColor},         {"fileOutputEnabled", prefs.fileOutputEnabled},
+        {"fileOutputDir", prefs.fileOutputDir}, {"sportSettings", stored}}
         .dump(2, ' ', false, json::error_handler_t::replace);
 }
 
@@ -105,6 +107,10 @@ std::optional<GlobalPrefs> prefsFromJson(std::string_view text, std::string* err
     prefs.foulColor = colorOf(*j, "foulColor");
     const auto chosen = j->find("sportChosen");
     prefs.sportChosen = chosen != j->end() && chosen->is_boolean() && chosen->get<bool>();
+    const auto enabled = j->find("fileOutputEnabled");
+    prefs.fileOutputEnabled = enabled != j->end() && enabled->is_boolean() && enabled->get<bool>();
+    const auto dir = j->find("fileOutputDir");
+    if (dir != j->end() && dir->is_string()) prefs.fileOutputDir = dir->get<std::string>();
     const auto stored = j->find("sportSettings");
     if (stored != j->end() && stored->is_object()) {
         for (auto it = stored->begin(); it != stored->end(); ++it) {

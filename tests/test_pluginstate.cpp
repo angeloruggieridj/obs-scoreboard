@@ -191,6 +191,44 @@ TEST_CASE("sportChosen is true only for a real boolean") {
     CHECK_FALSE(prefsFromJson("{\"version\": 2}")->sportChosen);
 }
 
+TEST_CASE("file output preferences default to off and round-trip") {
+    CHECK_FALSE(GlobalPrefs{}.fileOutputEnabled);
+    CHECK(GlobalPrefs{}.fileOutputDir.empty());
+
+    GlobalPrefs p;
+    p.fileOutputEnabled = true;
+    p.fileOutputDir = "C:/ScoreBoard output";
+    const auto out = prefsFromJson(prefsToJson(p));
+    REQUIRE(out.has_value());
+    CHECK(out->fileOutputEnabled);
+    CHECK(out->fileOutputDir == "C:/ScoreBoard output");
+}
+
+TEST_CASE("a version 2 settings file has no file output") {
+    const auto p = prefsFromJson("{\"version\": 2, \"lastSport\": \"soccer\"}");
+    REQUIRE(p.has_value());
+    CHECK_FALSE(p->fileOutputEnabled);
+    CHECK(p->fileOutputDir.empty());
+}
+
+TEST_CASE("a broken file output entry falls back without failing the file") {
+    const auto wrongEnabled = prefsFromJson("{\"version\": 3, \"fileOutputEnabled\": \"yes\"}");
+    REQUIRE(wrongEnabled.has_value());
+    CHECK_FALSE(wrongEnabled->fileOutputEnabled);
+
+    const auto wrongDir =
+        prefsFromJson("{\"version\": 3, \"fileOutputEnabled\": true, \"fileOutputDir\": 5}");
+    REQUIRE(wrongDir.has_value());
+    CHECK(wrongDir->fileOutputEnabled);
+    CHECK(wrongDir->fileOutputDir.empty());
+
+    const auto ok = prefsFromJson(
+        "{\"version\": 3, \"fileOutputEnabled\": true, \"fileOutputDir\": \"/tmp/x\"}");
+    REQUIRE(ok.has_value());
+    CHECK(ok->fileOutputEnabled);
+    CHECK(ok->fileOutputDir == "/tmp/x");
+}
+
 TEST_CASE("settingsForSport returns the remembered settings or the preset") {
     GlobalPrefs p;
     CHECK_FALSE(p.sportChosen);

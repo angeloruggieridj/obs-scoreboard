@@ -31,10 +31,14 @@ struct GlobalPrefs {
     // "#RRGGBB" or empty = the default color.
     std::string scoreColor;
     std::string foulColor;
+    // Optional .txt output (spec §6, CLAUDE.md §4.12): OFF by default, and empty until the user
+    // picks a folder. See FileOutput.
+    bool fileOutputEnabled = false;
+    std::string fileOutputDir;
 };
 
 constexpr int kBindingsJsonVersion = 1;
-constexpr int kPrefsJsonVersion = 2; // version 1 files are still read
+constexpr int kPrefsJsonVersion = 3; // version 1 and 2 files are still read
 
 std::string bindingsToJson(const std::vector<FieldBinding>& bindings);
 // nullopt (with *error) for a document that is not a supported bindings object; entries that are
