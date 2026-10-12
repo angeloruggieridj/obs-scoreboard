@@ -25,6 +25,7 @@ add_executable(
   test_sportcatalog.cpp
   test_fields.cpp
   test_eventlog.cpp
+  test_chaptersexport.cpp
   test_matchengine.cpp
   test_matchjson.cpp
   test_pluginstate.cpp

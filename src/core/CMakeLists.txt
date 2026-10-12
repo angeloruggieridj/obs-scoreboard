@@ -12,6 +12,7 @@ add_library(
   SportCatalog.cpp
   Fields.cpp
   EventLog.cpp
+  ChaptersExport.cpp
   MatchEngine.cpp
   MatchJson.cpp
   PluginState.cpp
