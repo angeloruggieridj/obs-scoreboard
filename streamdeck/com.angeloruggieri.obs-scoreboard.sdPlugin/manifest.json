@@ -1,0 +1,30 @@
+{
+  "Name": "ScoreBoard for OBS",
+  "Version": "0.1.0.0",
+  "Author": "Angelo Ruggieri",
+  "Actions": [],
+  "Category": "ScoreBoard for OBS",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "CodePath": "bin/plugin.js",
+  "Description": "Command and monitor the ScoreBoard for OBS scoreboard from your Stream Deck.",
+  "Icon": "imgs/plugin/marketplace",
+  "SDKVersion": 3,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "12"
+    },
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Nodejs": {
+    "Version": "24",
+    "Debug": "enabled"
+  },
+  "UUID": "com.angeloruggieri.obs-scoreboard"
+}
