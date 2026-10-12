@@ -47,6 +47,69 @@ skeleton (CMake, an OBS module that loads an empty dock, a core library and its
 unit tests, and CI on Windows, macOS and Linux) with no scoreboard behavior
 implemented yet. Track progress in [CHANGELOG.md](CHANGELOG.md).
 
+### Remote control
+
+The plugin exposes its scoreboard to
+[obs-websocket](https://github.com/obsproject/obs-websocket) as the `obs-scoreboard`
+**vendor** (resolved at run time), so external tools can drive it with `CallVendorRequest`
+and follow the live values through the vendor `VendorEvent`s. The **normative** wire protocol
+is in [docs/remote-control.md](docs/remote-control.md); the tables below are a summary.
+
+To turn it on in OBS: **Tools → WebSocket Server Settings → Enable WebSocket server**
+(default port `4455`; set a password if you enable authentication). The plugin still loads and
+works **without** obs-websocket — it simply registers no vendor and the dock keeps working.
+
+Every response is one JSON object whose `result` is `ok`, `rejected`, `confirmation` or `error`
+(stable error codes: `unknownRequest`, `badRequest`, `badField`, `unknownSport`, `notReady`).
+
+**Requests (20):**
+
+| `<Name>` | `requestData` | Response beyond `result` |
+|---|---|---|
+| `ClockToggle` | `{}` | — |
+| `ClockStart` | `{}` | — |
+| `ClockStop` | `{}` | — |
+| `ClockReset` | `{}` | — |
+| `ClockAdjust` | `{"deltaTenths": int}` | — |
+| `ClockSet` | `{"tenths": int}` | — |
+| `PeriodNext` | `{"confirmed"?: bool}` (default `false`) | — |
+| `PeriodPrev` | `{"confirmed"?: bool}` | — |
+| `AddStat` | `{"team":"home"\|"away","stat":"score"\|"shots"\|"fouls"\|"fouls2","delta": int}` | — |
+| `SetTeamName` | `{"team":"home"\|"away","name": string}` | — |
+| `PenaltyAdd` | `{"team":"home"\|"away","player": string,"phases":[...]}` | — |
+| `PenaltyEdit` | `{"id": int, "tenths": int}` | — |
+| `PenaltyCancel` | `{"id": int}` | — |
+| `PenaltyCancelActive` | `{"team":"home"\|"away","slot": int}` | — |
+| `StoppageSet` | `{"minutes": int}` (absolute, ≥ 0) | — |
+| `StoppageAdd` | `{"minutes": int}` (relative, signed) | — |
+| `EndMatch` | `{}` | — |
+| `NewMatch` | `{"sport": string, "confirmed"?: bool}` (id of one of the 14 presets) | — |
+| `GetState` | `{}` | `state` (object; includes `protocol` and `stoppageAnnouncedMinutes`) |
+| `GetFields` | `{}` | `fields` (all 28 `fieldKey` keys) |
+
+`StoppageAdd` is **relative** (`+/-` minutes) while `StoppageSet` sets the **absolute** announced
+value. **`ResumePrevious` is not exposed** remotely: resuming a previous match stays in the dock.
+`NewMatch` answers `confirmation`/`match.inProgress` while a match is in progress until it is
+resent with `confirmed:true`.
+
+**Events (4):** they arrive as `VendorEvent` and require the `Vendors` subscription (`1 << 9`).
+
+| `<EventName>` | `eventData` |
+|---|---|
+| `StateChanged` | `{"changed": {"<fieldKey>": "<value>", …}, "clockRunning": bool, "matchEnded": bool}` — only the fields whose text changed; after a new match, all 28 fields |
+| `PeriodEnded` | `{"period": int, "label": "<period label>"}` |
+| `MatchEnded` | `{"period": int, "label": "<period label>"}` |
+| `ScoreChanged` | `{"team":"home"\|"away", "score": int, "homeScore": int, "awayScore": int}` |
+
+Two native clients are built on this protocol:
+
+- [**Stream Deck plugin**](streamdeck) (`streamdeck/`): one action per command, live key feedback
+  for clock, score and period, reconnect and initial state.
+- [**Bitfocus Companion module**](companion) (`companion/`): actions, feedbacks and variables for
+  the clock, scores, period and penalties, with reconnect and initial state.
+
+Both talk to the plugin **only** through this vendor; no extra protocol is added to the plugin.
+
 ### Building from source
 
 Requires CMake, a C++17 compiler, Qt 6 and OBS Studio 30.0+ development files.
@@ -104,6 +167,72 @@ solo lo scheletro di compilazione (CMake, un modulo OBS che carica un pannello
 vuoto, una libreria core con i relativi test unitari, e la CI su Windows, macOS
 e Linux); nessuna funzionalità di tabellone è ancora implementata. Segui i
 progressi in [CHANGELOG.md](CHANGELOG.md).
+
+### Controllo remoto
+
+Il plugin espone il proprio tabellone a
+[obs-websocket](https://github.com/obsproject/obs-websocket) come **vendor**
+`obs-scoreboard` (risolto a runtime), così strumenti esterni possono comandarlo con
+`CallVendorRequest` e seguire i valori in diretta tramite i `VendorEvent` del vendor. Il
+protocollo wire **normativo** è in [docs/remote-control.md](docs/remote-control.md); le tabelle
+seguenti ne sono una sintesi.
+
+Per abilitarlo in OBS: **Strumenti → WebSocket Server Settings → Enable WebSocket server**
+(porta predefinita `4455`; imposta una password se attivi l'autenticazione). Il plugin si carica
+e funziona **anche senza** obs-websocket: in quel caso non registra alcun vendor e il pannello
+continua a funzionare.
+
+Ogni risposta è un oggetto JSON il cui `result` è `ok`, `rejected`, `confirmation` o `error`
+(codici d'errore stabili: `unknownRequest`, `badRequest`, `badField`, `unknownSport`, `notReady`).
+
+**Richieste (20):**
+
+| `<Name>` | `requestData` | Risposta oltre a `result` |
+|---|---|---|
+| `ClockToggle` | `{}` | — |
+| `ClockStart` | `{}` | — |
+| `ClockStop` | `{}` | — |
+| `ClockReset` | `{}` | — |
+| `ClockAdjust` | `{"deltaTenths": int}` | — |
+| `ClockSet` | `{"tenths": int}` | — |
+| `PeriodNext` | `{"confirmed"?: bool}` (default `false`) | — |
+| `PeriodPrev` | `{"confirmed"?: bool}` | — |
+| `AddStat` | `{"team":"home"\|"away","stat":"score"\|"shots"\|"fouls"\|"fouls2","delta": int}` | — |
+| `SetTeamName` | `{"team":"home"\|"away","name": string}` | — |
+| `PenaltyAdd` | `{"team":"home"\|"away","player": string,"phases":[...]}` | — |
+| `PenaltyEdit` | `{"id": int, "tenths": int}` | — |
+| `PenaltyCancel` | `{"id": int}` | — |
+| `PenaltyCancelActive` | `{"team":"home"\|"away","slot": int}` | — |
+| `StoppageSet` | `{"minutes": int}` (assoluto, ≥ 0) | — |
+| `StoppageAdd` | `{"minutes": int}` (relativo, con segno) | — |
+| `EndMatch` | `{}` | — |
+| `NewMatch` | `{"sport": string, "confirmed"?: bool}` (id di uno dei 14 preset) | — |
+| `GetState` | `{}` | `state` (oggetto; include `protocol` e `stoppageAnnouncedMinutes`) |
+| `GetFields` | `{}` | `fields` (tutte e 28 le chiavi `fieldKey`) |
+
+`StoppageAdd` è **relativo** (`+/-` minuti) mentre `StoppageSet` imposta il valore annunciato
+**assoluto**. **`ResumePrevious` non è esposto** da remoto: la ripresa della partita precedente
+resta nel pannello. `NewMatch` risponde `confirmation`/`match.inProgress` quando una partita è in
+corso, finché non viene rimandata con `confirmed:true`.
+
+**Eventi (4):** arrivano come `VendorEvent` e richiedono la sottoscrizione `Vendors` (`1 << 9`).
+
+| `<EventName>` | `eventData` |
+|---|---|
+| `StateChanged` | `{"changed": {"<fieldKey>": "<value>", …}, "clockRunning": bool, "matchEnded": bool}` — solo i campi il cui testo è cambiato; dopo una nuova partita, tutti e 28 i campi |
+| `PeriodEnded` | `{"period": int, "label": "<period label>"}` |
+| `MatchEnded` | `{"period": int, "label": "<period label>"}` |
+| `ScoreChanged` | `{"team":"home"\|"away", "score": int, "homeScore": int, "awayScore": int}` |
+
+Su questo protocollo sono basati due client nativi:
+
+- [**Plugin Stream Deck**](streamdeck) (`streamdeck/`): un'azione per comando, feedback dal vivo
+  sul tasto per cronometro, punteggio e periodo, riconnessione e stato iniziale.
+- [**Modulo Bitfocus Companion**](companion) (`companion/`): azioni, feedback e variabili per
+  cronometro, punteggi, periodo e penalità, con riconnessione e stato iniziale.
+
+Entrambi parlano al plugin **solo** tramite questo vendor; nessun protocollo aggiuntivo viene
+aggiunto al plugin.
 
 ### Compilare dai sorgenti
 
