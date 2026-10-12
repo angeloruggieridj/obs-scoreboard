@@ -78,7 +78,9 @@ PenaltyDialog::PenaltyDialog(unsigned id, const QString& player, sb::Tenths rema
     // the seconds start at 1; the X in the dock is what cancels a penalty.
     seconds_->setRange(initialMinutes == 0 ? 1 : 0, 59);
     seconds_->setValue(initialSeconds);
-    initialTenths_ = sb::minutes(initialMinutes) + sb::seconds(initialSeconds);
+    // The spins may have clamped the requested value (e.g. seconds raised to 1 with 0 minutes):
+    // compare the no-op guard against what the window actually shows, not the raw remaining time.
+    initialTenths_ = sb::minutes(minutes_->value()) + sb::seconds(seconds_->value());
     connect(minutes_, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value) {
         seconds_->setRange(value == 0 ? 1 : 0, 59);
         updatePreview();

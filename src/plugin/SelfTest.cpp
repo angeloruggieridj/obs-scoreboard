@@ -563,6 +563,11 @@ void Run::checkFoulsAndPenalties() {
                 penaltyControls_ = false;
                 fail("penaltyControls: the dock did not open the add window");
             }
+            const QList<PenaltyDialog*> opened = probe.findChildren<PenaltyDialog*>();
+            if (!opened.isEmpty() && opened.first()->isModal()) {
+                penaltyControls_ = false;
+                fail("penaltyControls: the penalty window must not be modal");
+            }
             driver_->replaceMatch(
                 sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
             QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
