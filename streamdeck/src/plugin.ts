@@ -64,6 +64,9 @@ const refreshTitles = (): void => {
 };
 vendor.on("StateChanged", refreshTitles);
 vendor.on("ScoreChanged", refreshTitles);
+// On connect/reconnect the client re-reads GetFields/GetState; repaint so a stopped clock (which
+// emits no StateChanged) still fills the keys (finding 3).
+vendor.onSynced(refreshTitles);
 
 // The property inspector writes host/port/password to the global settings (Task 7.2.6); reconnect
 // whenever they change, so the user does not have to restart Stream Deck.

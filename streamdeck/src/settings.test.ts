@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { command } from "./settings";
 
-// One test per action id: the pure action -> request mapping, no SDK involved.
+// One test per action id: the pure action -> request mapping, no SDK involved. The property
+// inspector stores every text field as a string, so the numeric ones are also exercised as strings.
 describe("command", () => {
   it("maps clock-toggle", () => {
     expect(command("clock-toggle", {})).toEqual({ type: "ClockToggle", data: {} });
@@ -16,33 +17,46 @@ describe("command", () => {
   it("maps clock-reset", () => {
     expect(command("clock-reset", {})).toEqual({ type: "ClockReset", data: {} });
   });
-  it("maps clock-adjust to ClockAdjust{tenths} and defaults the delta to 0", () => {
-    expect(command("clock-adjust", { delta: -600 })).toEqual({
+  it("maps clock-adjust from minutes/seconds (strings) to ClockAdjust tenths", () => {
+    expect(command("clock-adjust", { minutes: "1", seconds: "30" })).toEqual({
       type: "ClockAdjust",
-      data: { deltaTenths: -600 },
+      data: { deltaTenths: 900 },
+    });
+    expect(command("clock-adjust", { minutes: "-1", seconds: "-30" })).toEqual({
+      type: "ClockAdjust",
+      data: { deltaTenths: -900 },
+    });
+    expect(command("clock-adjust", { minutes: -2 })).toEqual({
+      type: "ClockAdjust",
+      data: { deltaTenths: -1200 },
     });
     expect(command("clock-adjust", {})).toEqual({ type: "ClockAdjust", data: { deltaTenths: 0 } });
   });
-  it("maps clock-set to ClockSet{tenths} and defaults to 0", () => {
-    expect(command("clock-set", { tenths: 600 })).toEqual({ type: "ClockSet", data: { tenths: 600 } });
+  it("maps clock-set from minutes/seconds (strings) to ClockSet tenths", () => {
+    expect(command("clock-set", { minutes: "10", seconds: "0" })).toEqual({
+      type: "ClockSet",
+      data: { tenths: 6000 },
+    });
     expect(command("clock-set", {})).toEqual({ type: "ClockSet", data: { tenths: 0 } });
   });
-  it("maps period-next and carries the confirmation flag", () => {
+  it("maps period-next and period-prev and coerces the confirmation flag", () => {
     expect(command("period-next", {})).toEqual({ type: "PeriodNext", data: { confirmed: false } });
     expect(command("period-next", { confirmed: true })).toEqual({
       type: "PeriodNext",
       data: { confirmed: true },
     });
-  });
-  it("maps period-prev and carries the confirmation flag", () => {
+    expect(command("period-next", { confirmed: "true" })).toEqual({
+      type: "PeriodNext",
+      data: { confirmed: true },
+    });
     expect(command("period-prev", {})).toEqual({ type: "PeriodPrev", data: { confirmed: false } });
-    expect(command("period-prev", { confirmed: true })).toEqual({
+    expect(command("period-prev", { confirmed: "true" })).toEqual({
       type: "PeriodPrev",
       data: { confirmed: true },
     });
   });
-  it("maps score to AddStat{score} with a +1 default and the home team default", () => {
-    expect(command("score", { team: "away", delta: 2 })).toEqual({
+  it("maps score to AddStat{score} with a +1 default and an away/string delta", () => {
+    expect(command("score", { team: "away", delta: "2" })).toEqual({
       type: "AddStat",
       data: { team: "away", stat: "score", delta: 2 },
     });
@@ -51,8 +65,8 @@ describe("command", () => {
       data: { team: "home", stat: "score", delta: 1 },
     });
   });
-  it("maps stat to AddStat{stat} with a shots/+1 default", () => {
-    expect(command("stat", { team: "away", stat: "fouls2", delta: -1 })).toEqual({
+  it("maps stat to AddStat{stat} with a shots/+1 default and a string delta", () => {
+    expect(command("stat", { team: "away", stat: "fouls2", delta: "-1" })).toEqual({
       type: "AddStat",
       data: { team: "away", stat: "fouls2", delta: -1 },
     });
@@ -61,50 +75,64 @@ describe("command", () => {
       data: { team: "home", stat: "shots", delta: 1 },
     });
   });
-  it("maps set-team-name to SetTeamName with an empty default name", () => {
-    expect(command("set-team-name", { team: "away", player: "Ospiti" })).toEqual({
+  it("maps set-team-name to SetTeamName with a dedicated name setting", () => {
+    expect(command("set-team-name", { team: "away", name: "Ospiti" })).toEqual({
       type: "SetTeamName",
       data: { team: "away", name: "Ospiti" },
+    });
+    expect(command("set-team-name", { name: "Casa" })).toEqual({
+      type: "SetTeamName",
+      data: { team: "home", name: "Casa" },
     });
     expect(command("set-team-name", {})).toEqual({
       type: "SetTeamName",
       data: { team: "home", name: "" },
     });
   });
-  it("maps stoppage-set to StoppageSet{minutes}", () => {
-    expect(command("stoppage-set", { delta: 3 })).toEqual({ type: "StoppageSet", data: { minutes: 3 } });
+  it("maps stoppage-set to StoppageSet{minutes} from a string", () => {
+    expect(command("stoppage-set", { minutes: "3" })).toEqual({ type: "StoppageSet", data: { minutes: 3 } });
     expect(command("stoppage-set", {})).toEqual({ type: "StoppageSet", data: { minutes: 0 } });
   });
-  it("maps stoppage-add to StoppageAdd{minutes} and keeps the sign", () => {
-    expect(command("stoppage-add", { delta: -2 })).toEqual({
+  it("maps stoppage-add to StoppageAdd{minutes} and keeps the sign from a string", () => {
+    expect(command("stoppage-add", { minutes: "-2" })).toEqual({
       type: "StoppageAdd",
       data: { minutes: -2 },
     });
     expect(command("stoppage-add", {})).toEqual({ type: "StoppageAdd", data: { minutes: 0 } });
   });
-  it("maps penalty-add to PenaltyAdd with one 2:00 phase by default", () => {
-    expect(command("penalty-add", { team: "away", player: "24", tenths: 1200 })).toEqual({
+  it("maps penalty-add from team, player and an option preset (single and composed)", () => {
+    expect(command("penalty-add", { team: "away", player: "24", option: "2" })).toEqual({
       type: "PenaltyAdd",
       data: { team: "away", player: "24", phases: [{ tenths: 1200 }] },
+    });
+    expect(command("penalty-add", { option: "2+5" })).toEqual({
+      type: "PenaltyAdd",
+      data: { team: "home", player: "", phases: [{ tenths: 1200 }, { tenths: 3000 }] },
     });
     expect(command("penalty-add", {})).toEqual({
       type: "PenaltyAdd",
       data: { team: "home", player: "", phases: [{ tenths: 1200 }] },
     });
   });
-  it("maps penalty-edit to PenaltyEdit{id,tenths}", () => {
-    expect(command("penalty-edit", { tenths: 7, delta: 600 })).toEqual({
+  it("maps penalty-add with a direct tenths override (string)", () => {
+    expect(command("penalty-add", { player: "7", tenths: "600" })).toEqual({
+      type: "PenaltyAdd",
+      data: { team: "home", player: "7", phases: [{ tenths: 600 }] },
+    });
+  });
+  it("maps penalty-edit to PenaltyEdit{id,tenths} from dedicated string settings", () => {
+    expect(command("penalty-edit", { id: "7", tenths: "600" })).toEqual({
       type: "PenaltyEdit",
       data: { id: 7, tenths: 600 },
     });
     expect(command("penalty-edit", {})).toEqual({ type: "PenaltyEdit", data: { id: 0, tenths: 0 } });
   });
-  it("maps penalty-cancel to PenaltyCancel{id}", () => {
-    expect(command("penalty-cancel", { tenths: 3 })).toEqual({ type: "PenaltyCancel", data: { id: 3 } });
+  it("maps penalty-cancel to PenaltyCancel{id} from a dedicated string setting", () => {
+    expect(command("penalty-cancel", { id: "3" })).toEqual({ type: "PenaltyCancel", data: { id: 3 } });
     expect(command("penalty-cancel", {})).toEqual({ type: "PenaltyCancel", data: { id: 0 } });
   });
-  it("maps penalty-cancel-active to PenaltyCancelActive{team,slot}", () => {
-    expect(command("penalty-cancel-active", { team: "away", delta: 1 })).toEqual({
+  it("maps penalty-cancel-active to PenaltyCancelActive{team,slot} from a dedicated slot setting", () => {
+    expect(command("penalty-cancel-active", { team: "away", slot: "1" })).toEqual({
       type: "PenaltyCancelActive",
       data: { team: "away", slot: 1 },
     });
@@ -117,7 +145,7 @@ describe("command", () => {
     expect(command("end-match", {})).toEqual({ type: "EndMatch", data: {} });
   });
   it("maps new-match to NewMatch{sport,confirmed} with the ice_hockey default", () => {
-    expect(command("new-match", { sport: "basketball", confirmed: true })).toEqual({
+    expect(command("new-match", { sport: "basketball", confirmed: "true" })).toEqual({
       type: "NewMatch",
       data: { sport: "basketball", confirmed: true },
     });
@@ -125,6 +153,18 @@ describe("command", () => {
       type: "NewMatch",
       data: { sport: "ice_hockey", confirmed: false },
     });
+  });
+  it("rejects a non-numeric value instead of sending it to the codec", () => {
+    expect(command("clock-adjust", { minutes: "abc" })).toBeUndefined();
+    expect(command("clock-set", { seconds: "x" })).toBeUndefined();
+    expect(command("score", { delta: "n/a" })).toBeUndefined();
+    expect(command("stat", { delta: "sì" })).toBeUndefined();
+    expect(command("stoppage-set", { minutes: "x" })).toBeUndefined();
+    expect(command("penalty-edit", { id: "x" })).toBeUndefined();
+    expect(command("penalty-edit", { tenths: "x" })).toBeUndefined();
+    expect(command("penalty-cancel", { id: "x" })).toBeUndefined();
+    expect(command("penalty-cancel-active", { slot: "x" })).toBeUndefined();
+    expect(command("penalty-add", { option: "nope" })).toBeUndefined();
   });
   it("returns undefined for an unknown action id", () => {
     expect(command("does-not-exist", {})).toBeUndefined();

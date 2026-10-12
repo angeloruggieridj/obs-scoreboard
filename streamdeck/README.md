@@ -60,9 +60,12 @@ Changing a field reconnects the plugin immediately; no Stream Deck restart is ne
 
 ## Actions
 
-One action per protocol command. The empty-body commands need no configuration; the parameterized ones
-(**Score**, **Stat**, **Set Stoppage**, **Adjust Stoppage**, **New Match**) have a Property Inspector
-where you set team, stat, delta, player, tenths, sport and confirmation.
+One action per protocol command. The empty-body commands (toggle/start/stop/reset clock, end match)
+need no configuration. Every parameterised action has its own Property Inspector with just the fields
+it uses: clock-adjust/clock-set take minutes and seconds, score/stat take team/stat/delta,
+set-team-name takes team and name, penalty-add takes team, player and a penalty option,
+penalty-edit/penalty-cancel take a penalty id (from the panel's rows), penalty-cancel-active takes
+team and slot, stoppage takes minutes, and new-match takes a sport and the Confirmed flag.
 
 | Action | UUID suffix | Request |
 |---|---|---|
@@ -86,15 +89,17 @@ where you set team, stat, delta, player, tenths, sport and confirmation.
 | End Match | `end-match` | `EndMatch` |
 | New Match | `new-match` | `NewMatch` (`sport`, `confirmed`) |
 
-`NewMatch` and `PeriodNext`/`PeriodPrev` may answer `confirmation` (for example while a match is live);
-send the same request again with **Confirmed** on to apply it.
+`NewMatch` and `PeriodNext`/`PeriodPrev` may answer `confirmation` (for example while a match is live):
+the key shows an alert, and you must turn **Confirmed** on in that key's settings and press again.
+The tooltip on those keys says so too.
 
 ## Key feedback
 
 The clock, score and period keys follow the four vendor events (`StateChanged`, `PeriodEnded`,
-`MatchEnded`, `ScoreChanged`) and repaint their title on every change. The current period comes from
-`StateChanged["period"]` (the `PeriodEnded` label is the period that just ended). A stateful key is
-blank until the first event arrives.
+`MatchEnded`, `ScoreChanged`) and repaint their title on every change. On every connect **and**
+reconnect the plugin also reads `GetFields`/`GetState` once and seeds the keys from it, so a stopped
+clock (which emits no `StateChanged`) still shows its value instead of staying blank. The current
+period comes from `StateChanged["period"]` (the `PeriodEnded` label is the period that just ended).
 
 ## Development
 

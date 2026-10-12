@@ -18,6 +18,10 @@ export class FeedbackHub {
   start(): void {
     this.vendor.on("StateChanged", (data) => this.applyStateChanged(data as StateChangedEvent));
     this.vendor.on("ScoreChanged", (data) => this.applyScoreChanged(data as ScoreChangedEvent));
+    // A stopped clock emits no StateChanged, so without this the keys would stay blank or stale
+    // until the first change (finding 3). On every connect/reconnect the client fetches the state
+    // and tells us to seed from it.
+    this.vendor.onSynced(() => this.sync());
     // No PeriodEnded handler: its label is the period that just ended. The current period comes
     // from StateChanged["period"] (item 10).
   }
@@ -33,6 +37,23 @@ export class FeedbackHub {
   }
 
   clockRunning(): boolean { return this.running; }
+
+  // Seeds every key from the initial GetFields/GetState the client fetched on connect. A field the
+  // vendor did not return keeps its current value; the clock-running flag comes from GetState.
+  sync(): void {
+    const clock = this.vendor.getField("clock");
+    const homeScore = this.vendor.getField("home.score");
+    const awayScore = this.vendor.getField("away.score");
+    const period = this.vendor.getField("period");
+    const strength = this.vendor.getField("strength");
+    if (clock !== undefined) this.clock = clock;
+    if (homeScore !== undefined) this.homeScore = homeScore;
+    if (awayScore !== undefined) this.awayScore = awayScore;
+    if (period !== undefined) this.period = period;
+    if (strength !== undefined) this.strength = strength;
+    const state = this.vendor.getState();
+    if (state) this.running = state.clockRunning;
+  }
 
   private applyStateChanged(event: StateChangedEvent): void {
     const changed = event.changed ?? {};

@@ -71,7 +71,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Add or remove the configured tenths"
+      "Tooltip": "Adjust the clock by the configured minutes and seconds",
+      "PropertyInspectorPath": "ui/clock-adjust.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.clock-set",
@@ -85,7 +86,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Set the clock to the configured tenths"
+      "Tooltip": "Set the clock to the configured minutes and seconds",
+      "PropertyInspectorPath": "ui/clock-set.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.period-next",
@@ -99,7 +101,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Advance to the next period"
+      "Tooltip": "Advance to the next period. If the key alerts, tick Confirmed in its settings and press again",
+      "PropertyInspectorPath": "ui/period.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.period-prev",
@@ -113,7 +116,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Go back to the previous period"
+      "Tooltip": "Go back to the previous period. If the key alerts, tick Confirmed in its settings and press again",
+      "PropertyInspectorPath": "ui/period.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.score",
@@ -128,7 +132,7 @@
         "Keypad"
       ],
       "Tooltip": "Change a team score by the configured delta",
-      "PropertyInspectorPath": "ui/action.html"
+      "PropertyInspectorPath": "ui/score.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.stat",
@@ -143,7 +147,7 @@
         "Keypad"
       ],
       "Tooltip": "Change shots or fouls by the configured delta",
-      "PropertyInspectorPath": "ui/action.html"
+      "PropertyInspectorPath": "ui/stat.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.set-team-name",
@@ -157,7 +161,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Set the home or away team name"
+      "Tooltip": "Set the home or away team name",
+      "PropertyInspectorPath": "ui/set-team-name.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.penalty-add",
@@ -171,7 +176,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Add a penalty to the home or away team"
+      "Tooltip": "Add a penalty to the home or away team",
+      "PropertyInspectorPath": "ui/penalty-add.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.penalty-edit",
@@ -185,7 +191,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Change the remaining time of a penalty"
+      "Tooltip": "Change the remaining time of a penalty",
+      "PropertyInspectorPath": "ui/penalty-edit.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.penalty-cancel",
@@ -199,7 +206,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Cancel a penalty by id"
+      "Tooltip": "Cancel a penalty by id",
+      "PropertyInspectorPath": "ui/penalty-cancel.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.penalty-cancel-active",
@@ -213,7 +221,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Cancel a running penalty for a team"
+      "Tooltip": "Cancel a running penalty for a team",
+      "PropertyInspectorPath": "ui/penalty-cancel-active.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.stoppage-set",
@@ -228,7 +237,7 @@
         "Keypad"
       ],
       "Tooltip": "Set the announced stoppage time",
-      "PropertyInspectorPath": "ui/action.html"
+      "PropertyInspectorPath": "ui/stoppage.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.stoppage-add",
@@ -243,7 +252,7 @@
         "Keypad"
       ],
       "Tooltip": "Add or remove announced stoppage minutes",
-      "PropertyInspectorPath": "ui/action.html"
+      "PropertyInspectorPath": "ui/stoppage.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.end-match",
@@ -271,8 +280,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Start a new match for a sport",
-      "PropertyInspectorPath": "ui/action.html"
+      "Tooltip": "Start a new match for a sport. If the key alerts, tick Confirmed in its settings and press again",
+      "PropertyInspectorPath": "ui/new-match.html"
     }
   ],
   "Category": "ScoreBoard for OBS",

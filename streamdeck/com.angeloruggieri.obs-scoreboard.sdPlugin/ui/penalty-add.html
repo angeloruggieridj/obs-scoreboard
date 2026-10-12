@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head lang="en">
+    <title>obs-scoreboard — Add Penalty</title>
+    <meta charset="utf-8" />
+    <script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+  </head>
+  <body>
+    <sdpi-item label="Team">
+      <sdpi-select setting="team" default="home">
+        <option value="home">Home</option>
+        <option value="away">Away</option>
+      </sdpi-select>
+    </sdpi-item>
+    <sdpi-item label="Player">
+      <sdpi-textfield setting="player" default=""></sdpi-textfield>
+    </sdpi-item>
+    <!-- Composed penalties (2+2, 2+5, 2+10) become two protocol phases. -->
+    <sdpi-item label="Option">
+      <sdpi-select setting="option" default="2">
+        <option value="2">2:00</option>
+        <option value="5">5:00</option>
+        <option value="10">10:00</option>
+        <option value="2+2">2:00 + 2:00</option>
+        <option value="2+5">2:00 + 5:00</option>
+        <option value="2+10">2:00 + 10:00</option>
+      </sdpi-select>
+    </sdpi-item>
+  </body>
+</html>
