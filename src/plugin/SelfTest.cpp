@@ -221,6 +221,7 @@ private:
     void checkSportsAndDock();
     void checkFoulsAndPenalties();
     void checkVendorApi();
+    void checkVendorLive();
     void finish();
     std::string clockText() const {
         return driver_->fields()[static_cast<std::size_t>(sb::FieldId::Clock)];
@@ -244,6 +245,7 @@ private:
     bool dock14_ = false, sportSwitch_ = false, penaltyRefresh_ = false, hotkeySaved_ = false;
     bool futsalFouls_ = false, basketFouls_ = false, penaltyControls_ = false;
     bool vendorApi_ = false;
+    bool vendorLive_ = false;
     // Only uuid and name of the sources made by the later checks (see textByUuid).
     std::string homeUuid_, collUuid_, collName_, persistName_, collectionName_;
     bool leftCollection_ = false;
@@ -312,6 +314,7 @@ void Run::begin() {
     checkSportsAndDock(); // before the clock starts and any save is armed: nothing is written
     checkFoulsAndPenalties();
     checkVendorApi();
+    checkVendorLive(); // real obs-websocket in the portable profile; no-op when it is absent
     driver_->apply(sb::cmd::ClockStop{});
     driver_->apply(sb::cmd::ClockSet{sb::seconds(secs_ + kLeadSeconds)});
     sinks_->setPushObserver([this](sb::FieldId field, const std::string& text, std::uint64_t ns) {
@@ -881,6 +884,100 @@ void Run::checkVendorApi() {
     if (settingsBytes) writeFileAtomic(settingsPath, *settingsBytes, nullptr);
 }
 
+// The live vendor path, in-process: obs-websocket is bundled in the portable profile, so
+// call_request reaches our registered callback without a websocket server. Vendor events are not
+// observable here (they go to the server): the fake registry covers them.
+void Run::checkVendorLive() {
+    vendorLive_ = true;
+    proc_handler_t* global = obs_get_proc_handler();
+    if (!global) {
+        vendorLive_ = false;
+        fail("vendorLive: no global proc handler");
+        return;
+    }
+    calldata_t phprobe = {};
+    const bool havePh = proc_handler_call(global, "obs_websocket_api_get_ph", &phprobe);
+    // call_request lives on obs-websocket's own proc handler, returned by obs_websocket_api_get_ph
+    // (the global handler only carries the getter): the "same ph" note in the plan's pre-task
+    // check.
+    proc_handler_t* apiPh =
+        havePh ? static_cast<proc_handler_t*>(calldata_ptr(&phprobe, "ph")) : nullptr;
+    calldata_free(&phprobe);
+    if (!apiPh) return; // obs-websocket absent from the profile: nothing to test
+
+    // Same layout as obs_websocket_request_response (obs-websocket-api.h), replicated to avoid the
+    // include; WebSocketApi heap-allocates it and we free it with bfree like the official helper.
+    struct RequestResponse {
+        unsigned int status_code;
+        char* comment;
+        char* response_data;
+    };
+    const auto call = [apiPh](const char* requestType, const char* requestData) {
+        std::string responseData;
+        unsigned int status = 0;
+        const std::uint64_t deadline = os_gettime_ns() + 5'000'000'000ULL;
+        for (;;) {
+            calldata_t cd = {};
+            std::string body =
+                std::string("{\"vendorName\":\"obs-scoreboard\",\"requestType\":\"") + requestType +
+                "\",\"requestData\":" + requestData + "}";
+            calldata_set_string(&cd, "request_type", "CallVendorRequest");
+            calldata_set_string(&cd, "request_data", body.c_str());
+            const bool ok = proc_handler_call(apiPh, "call_request", &cd);
+            auto* resp =
+                ok ? static_cast<RequestResponse*>(calldata_ptr(&cd, "response")) : nullptr;
+            if (resp) {
+                status = resp->status_code;
+                if (resp->response_data) responseData = resp->response_data;
+                if (resp->comment) bfree(resp->comment);
+                if (resp->response_data) bfree(resp->response_data);
+                bfree(resp);
+            }
+            calldata_free(&cd);
+            if (resp) break;
+            if (os_gettime_ns() >= deadline) break; // obs-websocket not ready: leave status 0
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        return std::make_pair(status, responseData);
+    };
+    const auto parse = [](const std::string& s) { return nlohmann::json::parse(s); };
+
+    // Response_data is the CallVendorRequest response: {vendorName, requestType, responseData}.
+    // The plugin's envelope (result/state/fields/…) lives inside "responseData".
+    const auto state = call("GetState", "{}");
+    if (state.first != 100 || parse(state.second)["responseData"]["result"] != "ok" ||
+        parse(state.second)["responseData"]["state"]["sport"].get<std::string>().empty()) {
+        vendorLive_ = false;
+        fail("vendorLive: GetState through call_request failed");
+    }
+    const auto toggle = call("ClockToggle", "{}");
+    if (toggle.first != 100 || parse(toggle.second)["responseData"]["result"] != "ok") {
+        vendorLive_ = false;
+        fail("vendorLive: ClockToggle through call_request failed");
+    }
+    const auto bad = call("ClockAdjust", R"({"deltaTenths":"soon"})");
+    if (bad.first != 100 || parse(bad.second)["responseData"]["error"] != "badField") {
+        vendorLive_ = false;
+        fail("vendorLive: a malformed request did not answer badField");
+    }
+    {
+        std::atomic<bool> done{false};
+        std::string answer;
+        std::thread worker([&]() {
+            answer = call("GetState", "{}").second;
+            done = true;
+        });
+        const std::uint64_t deadline = os_gettime_ns() + 5'000'000'000ULL;
+        while (!done && os_gettime_ns() < deadline)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        worker.join();
+        if (!done || answer.find("\"sport\"") == std::string::npos) {
+            vendorLive_ = false;
+            fail("vendorLive: a call_request from another thread failed");
+        }
+    }
+}
+
 void Run::startCapture() {
     OBSSourceAutoRelease sceneSource = obs_frontend_get_current_scene();
     obs_scene_t* scene = obs_scene_from_source(sceneSource);
@@ -1208,8 +1305,8 @@ void Run::finish() {
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
                       multiField_ && collection_ && duplicate_ && persistSaved_ && dock14_ &&
                       sportSwitch_ && penaltyRefresh_ && hotkeySaved_ && futsalFouls_ &&
-                      basketFouls_ && penaltyControls_ && vendorApi_ && bad == 0 && fpsOk &&
-                      problems_.empty();
+                      basketFouls_ && penaltyControls_ && vendorApi_ && vendorLive_ && bad == 0 &&
+                      fpsOk && problems_.empty();
 
     nlohmann::json changes = nlohmann::json::array();
     for (const sbtest::ChangeResult& c : verdict_.changes) {
@@ -1258,7 +1355,8 @@ void Run::finish() {
                                      {"futsalFouls", futsalFouls_},
                                      {"basketFouls", basketFouls_},
                                      {"penaltyControls", penaltyControls_},
-                                     {"vendorApi", vendorApi_}}},
+                                     {"vendorApi", vendorApi_},
+                                     {"vendorLive", vendorLive_}}},
                                    {"problems", problems}};
 
     writeJsonAtomic(out_, report);
