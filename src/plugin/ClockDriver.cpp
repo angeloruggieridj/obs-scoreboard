@@ -45,10 +45,12 @@ void ClockDriver::replaceMatch(sb::MatchEngine engine) {
     aligned_.stop();
     engine_ = std::move(engine);
     published_ = engine_.fields();
+    replacingMatch_ = true;         // fieldsChanged fires before matchReplaced
     emit fieldsChanged(published_); // always: every consumer must see the resumed match
     syncTimer();
     armAligned();
     emit matchReplaced();
+    replacingMatch_ = false;
 }
 
 void ClockDriver::shutdown() {

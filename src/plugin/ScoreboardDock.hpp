@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <string>
 
 #include "MatchEngine.hpp"
 #include "MatchSettingsDialog.hpp"
@@ -53,6 +54,9 @@ public:
     // Whether the home/away column currently shows the "+" add-penalty button. Read by the
     // selftest.
     bool penaltyAddShown(sb::Team team) const;
+
+    // Starts a fresh match for `sportId` with its remembered settings (the vendor NewMatch).
+    bool newMatchForSport(const std::string& sportId);
 
 private:
     TeamPanel* panel(sb::Team team) const;

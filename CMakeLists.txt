@@ -120,6 +120,9 @@ target_sources(
     src/plugin/TextSink.hpp
     src/plugin/TextSourceFactory.cpp
     src/plugin/TextSourceFactory.hpp
+    src/plugin/VendorApi.cpp
+    src/plugin/VendorApi.hpp
+    src/plugin/VendorRegistry.hpp
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

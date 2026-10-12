@@ -558,6 +558,21 @@ void ScoreboardDock::newMatch() {
     if (saver_) saver_->arm();
 }
 
+bool ScoreboardDock::newMatchForSport(const std::string& sportId) {
+    if (!driver_) return false;
+    const sb::SportPreset* preset = sb::findSport(sportId);
+    if (!preset) return false;
+    const sb::GlobalPrefs none;
+    sb::MatchSettings next = sb::settingsForSport(settings_ ? settings_->prefs() : none, *preset);
+    const sb::MatchSettings& current = driver_->engine().settings();
+    next.homeName = current.homeName; // names typed by the user survive, like the sport picker
+    next.awayName = current.awayName;
+    driver_->replaceMatch(sb::MatchEngine(next)); // matchReplaced closes an open penalty window
+    if (saver_) saver_->arm();
+    if (settings_) settings_->rememberSettings(next);
+    return true;
+}
+
 void ScoreboardDock::endMatch() {
     if (!driver_) return;
     const auto answer =

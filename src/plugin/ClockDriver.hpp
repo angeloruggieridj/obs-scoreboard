@@ -31,6 +31,10 @@ public:
 
     // OBS is exiting: stop the timer for good and reject later commands.
     void shutdown();
+    // OBS is exiting: the engine must not be touched any more (the vendor answers "notReady").
+    bool isShutDown() const { return shutDown_; }
+    // True while replaceMatch() is emitting, so listeners can tell a resumed match from a tick.
+    bool isReplacingMatch() const { return replacingMatch_; }
 
 signals:
     void fieldsChanged(const sb::FieldValues& fields);
@@ -53,4 +57,5 @@ private:
     sb::FieldValues published_;
     bool running_ = false;
     bool shutDown_ = false;
+    bool replacingMatch_ = false;
 };
