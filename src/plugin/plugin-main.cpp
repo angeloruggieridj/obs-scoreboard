@@ -16,9 +16,11 @@
 #include "GlobalSettings.hpp"
 #include "Hotkeys.hpp"
 #include "MatchStateSaver.hpp"
+#include "ObsWebSocketRegistry.hpp"
 #include "ScoreboardDock.hpp"
 #include "SelfTest.hpp"
 #include "SportCatalog.hpp"
+#include "VendorApi.hpp"
 #include "plugin-support.h"
 
 OBS_DECLARE_MODULE()
@@ -38,6 +40,8 @@ QPointer<FieldSinks> g_sinks;
 QPointer<MatchStateSaver> g_saver;
 QPointer<ScoreboardDock> g_dock;
 QPointer<Hotkeys> g_hotkeys;
+QPointer<VendorApi> g_vendorApi;
+std::unique_ptr<ObsWebSocketRegistry> g_vendorRegistry;
 GlobalSettings g_settings;
 std::unique_ptr<BindingStore> g_bindings;
 // After EXIT OBS has already cleared the frontend callbacks; removing ours would log an error.
@@ -50,8 +54,10 @@ bool pickerSuppressed() {
 }
 
 void tearDown() {
-    selftest::stop();      // the video callback must go before the driver and sinks
-    delete g_saver.data(); // before the driver it listens to
+    selftest::stop();          // the video callback must go before the driver and sinks
+    delete g_saver.data();     // before the driver it listens to
+    delete g_vendorApi.data(); // calls VendorRegistry::unregisterAll()
+    g_vendorRegistry.reset();
     if (g_driver) g_driver->shutdown();
     g_bindings.reset(); // unregisters its save callback before the hotkeys and sinks go
     delete g_hotkeys.data();
@@ -142,6 +148,25 @@ bool obs_module_load(void) {
     obs_frontend_add_event_callback(onFrontendEvent, nullptr);
     obs_log(LOG_INFO, "loaded (version %s)", PLUGIN_VERSION);
     return true;
+}
+
+// obs-websocket must be loaded before a vendor can register: obs_module_post_load runs after every
+// module's load, and the plugin still works when obs-websocket is absent.
+MODULE_EXPORT void obs_module_post_load(void) {
+    if (!g_driver || !g_dock) return;
+    g_vendorRegistry = std::make_unique<ObsWebSocketRegistry>();
+    auto* api = new VendorApi(
+        g_driver,
+        [](const std::string& sportId) { return g_dock && g_dock->newMatchForSport(sportId); },
+        g_vendorRegistry.get(), nullptr);
+    if (!api->start()) {
+        obs_log(LOG_INFO, "obs-websocket vendor unavailable (the plugin still works)");
+        delete api;
+        g_vendorRegistry.reset();
+        return;
+    }
+    obs_log(LOG_INFO, "obs-websocket vendor obs-scoreboard registered");
+    g_vendorApi = api;
 }
 
 void obs_module_unload(void) {

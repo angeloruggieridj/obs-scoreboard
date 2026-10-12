@@ -101,6 +101,8 @@ target_sources(
     src/plugin/MatchSettingsDialog.hpp
     src/plugin/MatchStateSaver.cpp
     src/plugin/MatchStateSaver.hpp
+    src/plugin/ObsWebSocketRegistry.cpp
+    src/plugin/ObsWebSocketRegistry.hpp
     src/plugin/PenaltyDialog.cpp
     src/plugin/PenaltyDialog.hpp
     src/plugin/PenaltyList.cpp
