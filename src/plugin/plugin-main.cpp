@@ -13,6 +13,7 @@
 #include "BindingStore.hpp"
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
+#include "FileOutput.hpp"
 #include "GlobalSettings.hpp"
 #include "Hotkeys.hpp"
 #include "MatchStateSaver.hpp"
@@ -37,6 +38,7 @@ constexpr const char* kFallbackSport = "futsal";
 // QPointer, so a late access finds null instead of freed memory.
 QPointer<ClockDriver> g_driver;
 QPointer<FieldSinks> g_sinks;
+QPointer<FileOutput> g_fileOutput;
 QPointer<MatchStateSaver> g_saver;
 QPointer<ScoreboardDock> g_dock;
 QPointer<Hotkeys> g_hotkeys;
@@ -54,9 +56,10 @@ bool pickerSuppressed() {
 }
 
 void tearDown() {
-    selftest::stop();          // the video callback must go before the driver and sinks
-    delete g_saver.data();     // before the driver it listens to
-    delete g_vendorApi.data(); // calls VendorRegistry::unregisterAll()
+    selftest::stop();           // the video callback must go before the driver and sinks
+    delete g_saver.data();      // before the driver it listens to
+    delete g_fileOutput.data(); // before the driver it listens to
+    delete g_vendorApi.data();  // calls VendorRegistry::unregisterAll()
     g_vendorRegistry.reset();
     if (g_driver) g_driver->shutdown();
     g_bindings.reset(); // unregisters its save callback before the hotkeys and sinks go
@@ -128,13 +131,17 @@ bool obs_module_load(void) {
     }
     g_driver = new ClockDriver(sb::settingsForSport(g_settings.prefs(), *sport));
     g_sinks = new FieldSinks();
+    g_fileOutput = new FileOutput();
     g_saver = new MatchStateSaver(g_driver, moduleConfigPath("last-match.json"));
     g_hotkeys = new Hotkeys(g_driver, [](const sb::Command& command) {
         if (g_dock) g_dock->dispatch(command); // the dock may not exist yet, or any more
     });
     g_bindings = std::make_unique<BindingStore>(g_sinks, g_hotkeys);
     QObject::connect(g_driver, &ClockDriver::fieldsChanged, g_sinks, &FieldSinks::publish);
+    QObject::connect(g_driver, &ClockDriver::fieldsChanged, g_fileOutput, &FileOutput::publish);
     g_sinks->publish(g_driver->fields());
+    g_fileOutput->apply(g_settings.prefs());
+    g_fileOutput->publish(g_driver->fields()); // an idle match emits no fieldsChanged
 
     auto* mainWindow = static_cast<QMainWindow*>(obs_frontend_get_main_window());
     auto* dock = new ScoreboardDock(g_driver, g_sinks, &g_settings, g_saver, mainWindow);

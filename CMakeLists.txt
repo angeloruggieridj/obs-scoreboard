@@ -93,6 +93,8 @@ target_sources(
     src/plugin/CounterControl.hpp
     src/plugin/FieldSinks.cpp
     src/plugin/FieldSinks.hpp
+    src/plugin/FileOutput.cpp
+    src/plugin/FileOutput.hpp
     src/plugin/GlobalSettings.cpp
     src/plugin/GlobalSettings.hpp
     src/plugin/Hotkeys.cpp
