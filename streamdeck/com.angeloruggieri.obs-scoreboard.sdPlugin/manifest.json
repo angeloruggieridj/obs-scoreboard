@@ -127,7 +127,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Change a team score by the configured delta"
+      "Tooltip": "Change a team score by the configured delta",
+      "PropertyInspectorPath": "ui/action.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.stat",
@@ -141,7 +142,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Change shots or fouls by the configured delta"
+      "Tooltip": "Change shots or fouls by the configured delta",
+      "PropertyInspectorPath": "ui/action.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.set-team-name",
@@ -225,7 +227,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Set the announced stoppage time"
+      "Tooltip": "Set the announced stoppage time",
+      "PropertyInspectorPath": "ui/action.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.stoppage-add",
@@ -239,7 +242,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Add or remove announced stoppage minutes"
+      "Tooltip": "Add or remove announced stoppage minutes",
+      "PropertyInspectorPath": "ui/action.html"
     },
     {
       "UUID": "com.angeloruggieri.obs-scoreboard.end-match",
@@ -267,7 +271,8 @@
       "Controllers": [
         "Keypad"
       ],
-      "Tooltip": "Start a new match for a sport"
+      "Tooltip": "Start a new match for a sport",
+      "PropertyInspectorPath": "ui/action.html"
     }
   ],
   "Category": "ScoreBoard for OBS",
@@ -275,6 +280,7 @@
   "CodePath": "bin/plugin.js",
   "Description": "Command and monitor the ScoreBoard for OBS scoreboard from your Stream Deck.",
   "Icon": "imgs/plugin/marketplace",
+  "PropertyInspectorPath": "ui/connection.html",
   "SDKVersion": 3,
   "Software": {
     "MinimumVersion": "7.1"

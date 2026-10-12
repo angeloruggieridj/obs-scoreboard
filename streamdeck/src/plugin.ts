@@ -65,12 +65,33 @@ const refreshTitles = (): void => {
 vendor.on("StateChanged", refreshTitles);
 vendor.on("ScoreChanged", refreshTitles);
 
+// The property inspector writes host/port/password to the global settings (Task 7.2.6); reconnect
+// whenever they change, so the user does not have to restart Stream Deck.
+streamDeck.settings.onDidReceiveGlobalSettings<ConnectionSettings>((ev) => {
+	void reconnect(ev.settings);
+});
+
 void start();
 
 async function start(): Promise<void> {
 	try {
 		await streamDeck.connect();
-		const settings = await streamDeck.settings.getGlobalSettings<ConnectionSettings>();
+	} catch (err) {
+		streamDeck.logger.error(`obs-scoreboard: Stream Deck connection failed: ${String(err)}`);
+		return;
+	}
+	await reconnect(await streamDeck.settings.getGlobalSettings<ConnectionSettings>());
+}
+
+// Close any previous socket, then connect with the new settings. A failure is logged and swallowed:
+// a missing or misconfigured obs-websocket must never crash the plugin.
+async function reconnect(settings: ConnectionSettings): Promise<void> {
+	try {
+		await vendor.disconnect();
+	} catch {
+		// Nothing to close before the first connection.
+	}
+	try {
 		await vendor.connect(toConfig(settings));
 	} catch (err) {
 		streamDeck.logger.error(`obs-scoreboard: obs-websocket connection failed: ${String(err)}`);

@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head lang="en">
+    <title>obs-scoreboard action</title>
+    <meta charset="utf-8" />
+    <script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+  </head>
+  <body>
+    <!--
+      Per-action settings for the actions that take parameters (score, stat, stoppage, new match).
+      sdpi-components binds every `setting` to the action settings, which src/settings.ts maps to
+      the request payload; a field that does not apply to the action is simply ignored.
+    -->
+    <sdpi-item label="Team">
+      <sdpi-select setting="team" default="home">
+        <option value="home">Home</option>
+        <option value="away">Away</option>
+      </sdpi-select>
+    </sdpi-item>
+    <sdpi-item label="Stat">
+      <sdpi-select setting="stat" default="shots">
+        <option value="score">Score</option>
+        <option value="shots">Shots</option>
+        <option value="fouls">Fouls</option>
+        <option value="fouls2">Second fouls</option>
+      </sdpi-select>
+    </sdpi-item>
+    <sdpi-item label="Delta">
+      <sdpi-textfield setting="delta" type="number" default="1"></sdpi-textfield>
+    </sdpi-item>
+    <sdpi-item label="Player">
+      <sdpi-textfield setting="player" default=""></sdpi-textfield>
+    </sdpi-item>
+    <sdpi-item label="Tenths">
+      <sdpi-textfield setting="tenths" type="number" default="0"></sdpi-textfield>
+    </sdpi-item>
+    <sdpi-item label="Sport">
+      <sdpi-textfield setting="sport" default="ice_hockey"></sdpi-textfield>
+    </sdpi-item>
+    <sdpi-item label="Confirmed">
+      <sdpi-checkbox setting="confirmed" default="false"></sdpi-checkbox>
+    </sdpi-item>
+  </body>
+</html>
