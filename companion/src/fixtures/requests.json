@@ -1,8 +1,24 @@
 {
   "requestNames": [
-    "ClockToggle", "ClockStart", "ClockStop", "ClockReset", "ClockAdjust", "ClockSet",
-    "PeriodNext", "PeriodPrev", "AddStat", "SetTeamName", "PenaltyAdd", "PenaltyEdit",
-    "PenaltyCancel", "PenaltyCancelActive", "StoppageSet", "StoppageAdd", "EndMatch", "NewMatch",
-    "GetState", "GetFields"
+    "ClockToggle",
+    "ClockStart",
+    "ClockStop",
+    "ClockReset",
+    "ClockAdjust",
+    "ClockSet",
+    "PeriodNext",
+    "PeriodPrev",
+    "AddStat",
+    "SetTeamName",
+    "PenaltyAdd",
+    "PenaltyEdit",
+    "PenaltyCancel",
+    "PenaltyCancelActive",
+    "StoppageSet",
+    "StoppageAdd",
+    "EndMatch",
+    "NewMatch",
+    "GetState",
+    "GetFields"
   ]
 }

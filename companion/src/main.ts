@@ -82,6 +82,10 @@ export default class ScoreboardInstance extends InstanceBase<ModuleSchema> {
     vendor.onStatus((connected) =>
       this.updateStatus(connected ? InstanceStatus.Ok : InstanceStatus.ConnectionFailure),
     );
+    // Seed on every syncState (initial connect and each reconnect): obs-websocket-js does not
+    // reconnect by itself, so the second sync after a reconnect must refresh the variables too
+    // (finding 4). onStatus(true) fires before syncState() completes, so seeding cannot wait on it.
+    vendor.onSynced(() => this.seed(vendor));
 
     this.updateActions();
     this.updateFeedbacks();
@@ -96,15 +100,11 @@ export default class ScoreboardInstance extends InstanceBase<ModuleSchema> {
     } catch (err) {
       this.log("error", `obs-websocket connection failed: ${String(err)}`);
       this.updateStatus(InstanceStatus.ConnectionFailure);
-      return;
     }
-
-    // The vendor fetched GetFields/GetState on connect: seed the state so the variables are live
-    // before the first StateChanged event arrives.
-    this.seed(vendor);
   }
 
-  private createVendor(): VendorClient {
+  // Protected so the tests can inject a FakeVendor (the real one needs a live obs-websocket).
+  protected createVendor(): VendorClient {
     return new ObsVendorClient();
   }
 
