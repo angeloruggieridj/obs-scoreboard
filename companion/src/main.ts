@@ -10,14 +10,15 @@ import {
   type SomeCompanionConfigField,
 } from "@companion-module/base";
 import { buildActionDefinitions } from "./actions";
+import { getConfigFields, type ModuleConfig, type ModuleSecrets } from "./config";
 import { buildFeedbackDefinitions, feedbackIds } from "./feedbacks";
+import { buildPresets } from "./presets";
 import { buildVariableDefinitions, fieldKeys } from "./variables";
 import { ModuleState } from "./state";
 import { ObsVendorClient, type VendorClient } from "./vendor";
 import type { PeriodEndedEvent, ScoreChangedEvent, StateChangedEvent } from "./protocol";
 
-export type ModuleConfig = { host: string; port: number };
-export type ModuleSecrets = { password?: string };
+export type { ModuleConfig, ModuleSecrets } from "./config";
 
 // The action/feedback schemas the SDK resolves the definitions against. The record form keeps one
 // type for all 20 requests without duplicating the id list that `actions.ts`/`feedbacks.ts` own.
@@ -41,6 +42,7 @@ export default class ScoreboardInstance extends InstanceBase<ModuleSchema> {
     secrets: ModuleSecrets | undefined,
   ): Promise<void> {
     this.updateVariableDefinitions();
+    this.updatePresets();
     await this.connect(config, secrets);
   }
 
@@ -54,7 +56,7 @@ export default class ScoreboardInstance extends InstanceBase<ModuleSchema> {
   }
 
   getConfigFields(): SomeCompanionConfigField[] {
-    return [];
+    return getConfigFields();
   }
 
   // (Re)creates the vendor client, wires the events and connects. Called from init and configUpdated.
@@ -144,5 +146,10 @@ export default class ScoreboardInstance extends InstanceBase<ModuleSchema> {
 
   private updateVariableDefinitions(): void {
     this.setVariableDefinitions(buildVariableDefinitions());
+  }
+
+  private updatePresets(): void {
+    const { structure, presets } = buildPresets();
+    this.setPresetDefinitions(structure, presets);
   }
 }
