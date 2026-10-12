@@ -54,12 +54,19 @@ VendorApi::~VendorApi() {
 
 bool VendorApi::start() {
     if (!registry_ || !registry_->registerVendor()) return false;
-    for (const char* type : kRequests)
-        registry_->registerRequest(type, [this](std::string_view t, std::string_view json) {
-            return handleRequest(QString::fromUtf8(t.data(), static_cast<int>(t.size())),
-                                 QString::fromUtf8(json.data(), static_cast<int>(json.size())))
+    // The transport may run a handler from its own thread after tearDown() deleted this object (the
+    // real registry retires the callback while obs-websocket finishes with it): capture a QPointer,
+    // not a raw `this`, so a late call answers "notReady" instead of touching freed memory.
+    for (const char* type : kRequests) {
+        const QPointer<VendorApi> guard(this);
+        registry_->registerRequest(type, [guard](std::string_view t, std::string_view json) {
+            if (!guard) return sb::vendorErrorJson("notReady");
+            return guard
+                ->handleRequest(QString::fromUtf8(t.data(), static_cast<int>(t.size())),
+                                QString::fromUtf8(json.data(), static_cast<int>(json.size())))
                 .toStdString();
         });
+    }
     if (driver_) {
         previousFields_ = driver_->fields();
         publishedEvents_ = driver_->engine().events().events().size();

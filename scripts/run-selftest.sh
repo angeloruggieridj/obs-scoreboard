@@ -134,6 +134,10 @@ run_pass() {
     export OBS_SCOREBOARD_SELFTEST_FPS="$fps"
     export OBS_SCOREBOARD_SELFTEST_SECS="$seconds"
     export OBS_SCOREBOARD_SELFTEST_OUT="$report_file"
+    # The live vendor check runs through obs-websocket's call_request: require it, so an OBS built
+    # without the bundle fails the selftest instead of silently passing (finding 12). The system OBS
+    # layout is not ours to inspect, so the verdict (not a file probe) enforces its presence.
+    export OBS_SCOREBOARD_SELFTEST_REQUIRE_VENDOR=1
     if [ "$pass" = reopen ]; then
         export OBS_SCOREBOARD_SELFTEST_PASS=reopen
     else

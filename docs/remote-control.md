@@ -1,10 +1,9 @@
 # obs-scoreboard remote control (obs-websocket vendor)
 
 This document is the user copy of the **normative** `obs-scoreboard` wire protocol. It is kept
-identical to the protocol section of the Phase 7 plan (`docs/superpowers/plans/`) and to the tables
-in the README. The plugin exposes its scoreboard through [obs-websocket][obsws] as a **vendor**,
-resolved at runtime; the plugin still loads and works when obs-websocket is absent (no vendor is
-registered in that case).
+identical to the tables in the README. The plugin exposes its scoreboard through [obs-websocket][obsws]
+as a **vendor**, resolved at runtime; the plugin still loads and works when obs-websocket is absent
+(no vendor is registered in that case).
 
 [obsws]: https://github.com/obsproject/obs-websocket
 
@@ -130,6 +129,13 @@ engine's event log and are not repeated. A new match (`NewMatch`, resume, sport 
 (`sb::matchStarted(engine)`), `NewMatch` without `confirmed:true` answers
 `{"result":"confirmation","reason":"match.inProgress"}` (like the dock dialog); clients resend with
 `confirmed:true`.
+
+**`notReady` is "unknown", not "rejected".** Every request is marshalled to the plugin's UI thread and
+the waiting side gives up after a few seconds. If that thread does not answer in time (OBS is busy or
+shutting down), the response is `{"result":"error","error":"notReady"}` even though the request may
+still be **applied later** on the UI thread. A client must therefore not blindly retry a
+non-idempotent command after `notReady`: the first copy could already have taken effect, and a retry
+would apply it twice. (`GetState`/`GetFields` only read, so retrying those is harmless.)
 
 **`ResumePrevious` is not exposed remotely** (deliberate deviation: resuming stays in the dock).
 

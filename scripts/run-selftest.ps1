@@ -68,6 +68,9 @@ function Invoke-ObsRun {
     $env:OBS_SCOREBOARD_SELFTEST_FPS = "$Fps"
     $env:OBS_SCOREBOARD_SELFTEST_SECS = "$Seconds"
     $env:OBS_SCOREBOARD_SELFTEST_OUT = $Report
+    # The live vendor check runs through obs-websocket's call_request: require it, so a portable
+    # build that shipped without the bundle fails the selftest instead of silently passing (finding 12).
+    $env:OBS_SCOREBOARD_SELFTEST_REQUIRE_VENDOR = '1'
     if ($Pass) { $env:OBS_SCOREBOARD_SELFTEST_PASS = $Pass }
     else { Remove-Item Env:OBS_SCOREBOARD_SELFTEST_PASS -ErrorAction SilentlyContinue }
 
@@ -115,6 +118,12 @@ try {
     $base = Join-Path $env:TEMP 'obs-scoreboard-selftest'
     $zip = Get-ObsZip -Version $ObsVersion -CacheDir $base
     $root = Reset-Obs -Zip $zip -Work (Join-Path $base $ObsVersion)
+    # The selftest exercises the live vendor through obs-websocket's call_request; the bundle must be
+    # in this portable OBS, otherwise -REQUIRE_VENDOR would fail the run (finding 12). The install
+    # folder moved across OBS versions, so look for the library anywhere in the tree.
+    if (-not (Get-ChildItem -LiteralPath $root -Recurse -Filter 'obs-websocket.dll' -File -ErrorAction SilentlyContinue)) {
+        throw "obs-websocket.dll is missing from the portable OBS $ObsVersion (no live vendor to test)"
+    }
     Install-Plugin -Root $root -Layout legacy -Dll $Dll -LocaleDir $localeSrc -FontsDir $fontsSrc
 
     $cw, $ch = $Canvas -split 'x'

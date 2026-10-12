@@ -314,7 +314,7 @@ void Run::begin() {
     checkSportsAndDock(); // before the clock starts and any save is armed: nothing is written
     checkFoulsAndPenalties();
     checkVendorApi();
-    checkVendorLive(); // real obs-websocket in the portable profile; no-op when it is absent
+    checkVendorLive(); // real obs-websocket in the portable profile; fails if required and absent
     driver_->apply(sb::cmd::ClockStop{});
     driver_->apply(sb::cmd::ClockSet{sb::seconds(secs_ + kLeadSeconds)});
     sinks_->setPushObserver([this](sb::FieldId field, const std::string& text, std::uint64_t ns) {
@@ -667,6 +667,11 @@ void Run::checkVendorApi() {
         vendorApi_ = false;
         fail("vendorApi: start() failed with a working registry");
     }
+    // Drift guard: every one of the 20 protocol requests must reach the transport.
+    if (fake.handlers_.size() != 20) {
+        vendorApi_ = false;
+        fail("vendorApi: the registry did not receive exactly the 20 protocol requests");
+    }
 
     // Declared after `fake`, the map `hasEvent` reads (the capture must see a live variable).
     const auto hasEvent = [&fake, &parse](const char* type, const auto& predicate) {
@@ -879,6 +884,31 @@ void Run::checkVendorApi() {
         }
     }
 
+    // --- Teardown: ~VendorApi deregisters every type (the drift guard for the 20 requests) and a
+    // handler the transport kept past the destruction (the real registry retires the callback, it
+    // does not erase it) answers "notReady" instead of touching freed memory. ---
+    {
+        FakeRegistry teardownFake;
+        VendorRegistry::Handler keptHandler;
+        {
+            VendorApi doomed(driver_, newMatch, &teardownFake, nullptr);
+            doomed.start();
+            if (teardownFake.handlers_.size() != 20) {
+                vendorApi_ = false;
+                fail("vendorApi: the teardown registry did not receive the 20 requests");
+            }
+            keptHandler = teardownFake.handlers_.at("GetState");
+        }
+        if (!teardownFake.handlers_.empty()) {
+            vendorApi_ = false;
+            fail("vendorApi: ~VendorApi did not unregister every request");
+        }
+        if (!isError(keptHandler("GetState", "{}"), "notReady")) {
+            vendorApi_ = false;
+            fail("vendorApi: a handler kept past ~VendorApi did not answer notReady");
+        }
+    }
+
     driver_->replaceMatch(sb::MatchEngine(original));
     // Restore settings.json: rememberSettings() wrote through moduleConfigPath (item 20).
     if (settingsBytes) writeFileAtomic(settingsPath, *settingsBytes, nullptr);
@@ -903,7 +933,17 @@ void Run::checkVendorLive() {
     proc_handler_t* apiPh =
         havePh ? static_cast<proc_handler_t*>(calldata_ptr(&phprobe, "ph")) : nullptr;
     calldata_free(&phprobe);
-    if (!apiPh) return; // obs-websocket absent from the profile: nothing to test
+    if (!apiPh) {
+        // obs-websocket is missing from this OBS: the live vendor path cannot be exercised. Fail
+        // when the runner requires it (run-selftest.ps1/.sh set
+        // OBS_SCOREBOARD_SELFTEST_REQUIRE_VENDOR) instead of passing without testing anything; a
+        // manual run without the bundle is a no-op.
+        if (env("OBS_SCOREBOARD_SELFTEST_REQUIRE_VENDOR") == "1") {
+            vendorLive_ = false;
+            fail("vendorLive: obs-websocket is absent from this OBS but this run requires it");
+        }
+        return; // obs-websocket absent and not required: nothing to test
+    }
 
     // Same layout as obs_websocket_request_response (obs-websocket-api.h), replicated to avoid the
     // include; WebSocketApi heap-allocates it and we free it with bfree like the official helper.
