@@ -1,0 +1,33 @@
+{
+  "fields": {
+    "away.fouls": "",
+    "away.fouls2": "",
+    "away.name": "AWAY",
+    "away.penalty1.label": "",
+    "away.penalty1.player": "",
+    "away.penalty1.time": "",
+    "away.penalty2.label": "",
+    "away.penalty2.player": "",
+    "away.penalty2.time": "",
+    "away.score": "0",
+    "away.shots": "0",
+    "clock": "20:00",
+    "home.fouls": "",
+    "home.fouls2": "",
+    "home.name": "HOME",
+    "home.penalty1.label": "",
+    "home.penalty1.player": "",
+    "home.penalty1.time": "",
+    "home.penalty2.label": "",
+    "home.penalty2.player": "",
+    "home.penalty2.time": "",
+    "home.score": "2",
+    "home.shots": "0",
+    "period": "1",
+    "playtime": "00:00",
+    "stoppage": "",
+    "stoppage.announced": "",
+    "strength": ""
+  },
+  "result": "ok"
+}

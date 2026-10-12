@@ -92,6 +92,10 @@ struct PenaltyCancelActive {
 struct StoppageSet {
     int minutes = 0;
 };
+// Relative announced stoppage: signed, clamped at 0 like the "+/- minute" hotkey step.
+struct StoppageAdd {
+    int minutes = 0;
+};
 // Idempotent: rejected with "match.ended" once the match has already been ended.
 struct EndMatch {};
 } // namespace cmd
@@ -101,7 +105,7 @@ using Command =
     std::variant<cmd::ClockToggle, cmd::ClockStart, cmd::ClockStop, cmd::ClockReset,
                  cmd::ClockAdjust, cmd::ClockSet, cmd::PeriodNext, cmd::PeriodPrev, cmd::AddStat,
                  cmd::SetTeamName, cmd::PenaltyAdd, cmd::PenaltyEdit, cmd::PenaltyCancel,
-                 cmd::PenaltyCancelActive, cmd::StoppageSet, cmd::EndMatch>;
+                 cmd::PenaltyCancelActive, cmd::StoppageSet, cmd::StoppageAdd, cmd::EndMatch>;
 
 struct CommandResult {
     enum class Status { Ok, Rejected, NeedsConfirmation };
@@ -173,6 +177,7 @@ private:
     CommandResult handle(const cmd::PenaltyCancel&, Micros now);
     CommandResult handle(const cmd::PenaltyCancelActive&, Micros now);
     CommandResult handle(const cmd::StoppageSet&, Micros now);
+    CommandResult handle(const cmd::StoppageAdd&, Micros now);
     CommandResult handle(const cmd::EndMatch&, Micros now);
 
     CommandResult changePeriod(int target, bool confirmed, Micros now);

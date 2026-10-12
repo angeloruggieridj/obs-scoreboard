@@ -334,6 +334,18 @@ TEST_CASE("the announced stoppage time is cleared when the period changes") {
     CHECK(field(e, FieldId::StoppageAnnounced) == "");
 }
 
+TEST_CASE("the relative announced stoppage adds and never goes below zero") {
+    MatchEngine e = engineFor("soccer");
+    run(e, cmd::StoppageSet{2});
+    CHECK(e.stoppageAnnounced() == 2);
+    run(e, cmd::StoppageAdd{3});
+    CHECK(e.stoppageAnnounced() == 5);
+    CHECK(field(e, FieldId::StoppageAnnounced) == "+5");
+    run(e, cmd::StoppageAdd{-10});
+    CHECK(e.stoppageAnnounced() == 0);
+    CHECK(field(e, FieldId::StoppageAnnounced) == "");
+}
+
 TEST_CASE("an arrow that drives a running countdown to zero ends the period") {
     MatchEngine e = engineFor("futsal");
     run(e, cmd::ClockStart{});

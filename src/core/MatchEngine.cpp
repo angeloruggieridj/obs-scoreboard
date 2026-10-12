@@ -235,6 +235,11 @@ CommandResult MatchEngine::handle(const cmd::StoppageSet& c, Micros) {
     return CommandResult::ok();
 }
 
+CommandResult MatchEngine::handle(const cmd::StoppageAdd& c, Micros) {
+    stoppageAnnounced_ = std::max(0, stoppageAnnounced_ + c.minutes);
+    return CommandResult::ok();
+}
+
 CommandResult MatchEngine::handle(const cmd::EndMatch&, Micros now) {
     if (matchEnded()) return CommandResult::rejected("match.ended");
     advance(now);

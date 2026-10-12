@@ -33,6 +33,7 @@ add_executable(
   test_settingschange.cpp
   test_hotkeycatalog.cpp
   test_penaltyfields.cpp
+  test_vendorprotocol.cpp
   test_selftest_verdict.cpp
   test_locale_fields.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/plugin/SelfTestVerdict.cpp
@@ -44,7 +45,9 @@ target_link_libraries(scoreboard-tests PRIVATE scoreboard-core)
 target_compile_definitions(scoreboard-tests PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS)
 target_compile_definitions(
   scoreboard-tests
-  PRIVATE SB_LOCALE_DIR="${CMAKE_CURRENT_LIST_DIR}/../data/locale"
+  PRIVATE
+    SB_LOCALE_DIR="${CMAKE_CURRENT_LIST_DIR}/../data/locale"
+    SB_FIXTURE_DIR="${CMAKE_CURRENT_LIST_DIR}/fixtures/vendor"
 )
 target_include_directories(scoreboard-tests PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src/plugin")
 target_include_directories(

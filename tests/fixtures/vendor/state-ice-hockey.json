@@ -1,0 +1,42 @@
+{
+  "result": "ok",
+  "state": {
+    "awayFouls": 0,
+    "awayFouls2": 0,
+    "awayName": "AWAY",
+    "awayScore": 0,
+    "awayShots": 0,
+    "clock": "20:00",
+    "clockDirection": "down",
+    "clockRunning": false,
+    "clockTenths": 12000,
+    "homeFouls": 0,
+    "homeFouls2": 0,
+    "homeName": "HOME",
+    "homeScore": 1,
+    "homeShots": 0,
+    "matchEnded": false,
+    "penalties": {
+      "away": [],
+      "home": [
+        {
+          "id": 1,
+          "phase2": "",
+          "player": "24",
+          "queued": false,
+          "time": "2:00"
+        }
+      ]
+    },
+    "period": 1,
+    "periodLabel": "1",
+    "playTime": "00:00",
+    "protocol": 1,
+    "regulationPeriods": 3,
+    "sport": "ice_hockey",
+    "stoppage": "",
+    "stoppageAnnounced": "",
+    "stoppageAnnouncedMinutes": 0,
+    "strength": "4-5"
+  }
+}
