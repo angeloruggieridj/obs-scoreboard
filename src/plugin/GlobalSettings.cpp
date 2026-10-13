@@ -55,3 +55,14 @@ void GlobalSettings::setColors(std::string scoreColor, std::string foulColor) {
     prefs_.foulColor = std::move(foulColor);
     save();
 }
+
+void GlobalSettings::setFileOutput(bool enabled, std::string dir) {
+    if (prefs_.fileOutputEnabled == enabled && prefs_.fileOutputDir == dir) return;
+    prefs_.fileOutputEnabled = enabled;
+    prefs_.fileOutputDir = std::move(dir);
+    save();
+}
+
+void GlobalSettings::setFileOutputEnabled(bool enabled) {
+    setFileOutput(enabled, prefs_.fileOutputDir);
+}

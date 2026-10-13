@@ -7,6 +7,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -54,12 +55,15 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
     auto* matchPage = new QWidget(tabs_);
     auto* textsPage = new QWidget(tabs_);
     auto* lookPage = new QWidget(tabs_);
+    auto* outputPage = new QWidget(tabs_);
     buildMatchTab(matchPage);
     buildTextsTab(textsPage);
     buildLookTab(lookPage);
+    buildOutputTab(outputPage);
     tabs_->addTab(matchPage, text("Settings.Tab.Match"));
     tabs_->addTab(textsPage, text("Settings.Tab.Texts"));
     tabs_->addTab(lookPage, text("Settings.Tab.Look"));
+    tabs_->addTab(outputPage, text("Settings.Tab.Output"));
     outer->addWidget(tabs_);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -211,6 +215,46 @@ void MatchSettingsDialog::buildLookTab(QWidget* page) {
     showColor(foulSwatch_, foulColor_);
 }
 
+void MatchSettingsDialog::buildOutputTab(QWidget* page) {
+    auto* form = new QFormLayout(page);
+    fileOutput_ = new QCheckBox(text("Settings.FileOutput"), page);
+    connect(fileOutput_, &QCheckBox::toggled, this, [this](bool) { refreshFileOutput(); });
+    form->addRow(fileOutput_);
+
+    fileOutputDirLabel_ = new QLabel(page);
+    fileOutputDirLabel_->setWordWrap(true);
+    fileOutputChoose_ = new QPushButton(text("Settings.FileOutputChoose"), page);
+    connect(fileOutputChoose_, &QPushButton::clicked, this,
+            &MatchSettingsDialog::chooseFileOutputDir);
+    auto* row = new QHBoxLayout();
+    row->addWidget(fileOutputDirLabel_, 1);
+    row->addWidget(fileOutputChoose_);
+    form->addRow(text("Settings.FileOutputFolder"), row);
+
+    auto* help = new QLabel(text("Settings.FileOutputHelp"), page);
+    help->setWordWrap(true);
+    form->addRow(help);
+
+    fileOutput_->setChecked(prefs_.fileOutputEnabled);
+    fileOutputDir_ = prefs_.fileOutputDir;
+    refreshFileOutput();
+}
+
+void MatchSettingsDialog::refreshFileOutput() {
+    const QString label = fileOutputDir_.empty() ? text("Settings.FileOutputNone")
+                                                 : QString::fromStdString(fileOutputDir_);
+    if (fileOutputDirLabel_->text() != label) fileOutputDirLabel_->setText(label);
+    fileOutputChoose_->setEnabled(fileOutput_->isChecked());
+}
+
+void MatchSettingsDialog::chooseFileOutputDir() {
+    const QString dir = QFileDialog::getExistingDirectory(this, text("Settings.FileOutputChoose"),
+                                                          QString::fromStdString(fileOutputDir_));
+    if (dir.isEmpty()) return;
+    fileOutputDir_ = dir.toStdString();
+    refreshFileOutput();
+}
+
 std::string MatchSettingsDialog::currentSportId() const {
     return sport_->currentData().toString().toStdString();
 }
@@ -342,6 +386,12 @@ bool MatchSettingsDialog::collect(Result& out, QString* problem) const {
     out.awayNameEdited = out.settings.awayName != openedAway_;
     out.scoreColor = scoreColor_;
     out.foulColor = foulColor_;
+    if (fileOutput_->isChecked() && fileOutputDir_.empty()) {
+        *problem = text("Settings.FileOutputNeedsFolder");
+        return false;
+    }
+    out.fileOutputEnabled = fileOutput_->isChecked();
+    out.fileOutputDir = fileOutputDir_;
     return true;
 }
 

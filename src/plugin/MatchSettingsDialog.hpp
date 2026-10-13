@@ -17,9 +17,9 @@ class QPushButton;
 class QSpinBox;
 class QTabWidget;
 
-// Match settings in three tabs (Match / Texts / Look). Non-modal: the clock keeps running, so the
-// dialog keeps no copy of the game state; it hands the edited settings to an Applier (the dock),
-// which classifies the change against the match as it is at that moment.
+// Match settings in four tabs (Match / Texts / Look / Output). Non-modal: the clock keeps running,
+// so the dialog keeps no copy of the game state; it hands the edited settings to an Applier (the
+// dock), which classifies the change against the match as it is at that moment.
 class MatchSettingsDialog : public QDialog {
     Q_OBJECT
 public:
@@ -29,6 +29,8 @@ public:
         bool awayNameEdited = false;
         std::string scoreColor; // "#RRGGBB" or empty = default
         std::string foulColor;
+        bool fileOutputEnabled = false;
+        std::string fileOutputDir;
     };
     using Applier = std::function<bool(const Result&)>;
 
@@ -40,6 +42,9 @@ private:
     void buildMatchTab(QWidget* page);
     void buildTextsTab(QWidget* page);
     void buildLookTab(QWidget* page);
+    void buildOutputTab(QWidget* page);
+    void chooseFileOutputDir();
+    void refreshFileOutput();
     void loadFrom(const sb::MatchSettings& settings, bool keepNames);
     bool collect(Result& out, QString* problem) const;
     void updateEnabled();
@@ -85,4 +90,8 @@ private:
     QPushButton* foulSwatch_ = nullptr;
     std::string scoreColor_;
     std::string foulColor_;
+    QCheckBox* fileOutput_ = nullptr;
+    QLabel* fileOutputDirLabel_ = nullptr;
+    QPushButton* fileOutputChoose_ = nullptr;
+    std::string fileOutputDir_;
 };
