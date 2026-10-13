@@ -8,6 +8,7 @@
 #include <QWidget>
 
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <string>
 
@@ -18,6 +19,7 @@
 class BindingsDialog;
 class ClockDriver;
 class ClockPanel;
+class EventLogDialog;
 class FieldSinks;
 class FileOutput;
 class GlobalSettings;
@@ -30,6 +32,13 @@ class QLabel;
 class QPushButton;
 class QToolButton;
 class TeamPanel;
+
+// The stream and recording start instants captured from the OBS frontend events (either may be
+// empty: nothing started in this session).
+struct StreamStarts {
+    std::optional<sb::Micros> stream;
+    std::optional<sb::Micros> recording;
+};
 
 // The dock: composes the clock block and the two team columns and is the single entry point of
 // every command (buttons, menu, hotkeys). It decides nothing about sports: it shows what
@@ -63,6 +72,9 @@ public:
     // Called by plugin-main once the file output exists. Safe with a null pointer.
     void setFileOutput(FileOutput* output);
 
+    // Supplies the OBS streaming and recording start instants for the chapter export.
+    void setStreamStartsProvider(std::function<StreamStarts()> provider);
+
 private:
     TeamPanel* panel(sb::Team team) const;
     void connectTeam(sb::Team team);
@@ -73,6 +85,7 @@ private:
     void clearMessage();
     void resumePrevious();
     void openBindings();
+    void openEventLog();
     void openSettings();
     void addPenalty(sb::Team team);
     void editPenalty(sb::Team team, unsigned id);
@@ -95,6 +108,7 @@ private:
     QPointer<QInputDialog> sportPicker_;
     QPointer<PenaltyDialog> penaltyDialog_;
     QPointer<FileOutput> output_;
+    QPointer<EventLogDialog> eventLog_;
     QPushButton* link_ = nullptr;
     QToolButton* menu_ = nullptr;
     QAction* fileOutputAction_ = nullptr;
@@ -107,6 +121,7 @@ private:
     QLabel* status_ = nullptr;
     QTimer messageTimer_;
     std::optional<sb::PanelLayout> layout_;
+    std::function<StreamStarts()> streamStartsProvider_;
     bool strengthShown_ = false;
     bool runPastShown_ = false;
     int shownLinkState_ = -1;

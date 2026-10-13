@@ -22,6 +22,7 @@
 #include "BindingsDialog.hpp"
 #include "ClockDriver.hpp"
 #include "ClockPanel.hpp"
+#include "EventLogDialog.hpp"
 #include "FieldSinks.hpp"
 #include "FileOutput.hpp"
 #include "GlobalSettings.hpp"
@@ -80,6 +81,8 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
             &ScoreboardDock::resumePrevious);
     connect(menu->addAction(text("Menu.EndMatch")), &QAction::triggered, this,
             &ScoreboardDock::endMatch);
+    connect(menu->addAction(text("Menu.EventLog")), &QAction::triggered, this,
+            &ScoreboardDock::openEventLog);
     menu->addSeparator();
     fileOutputAction_ = menu->addAction(text("Menu.FileOutput"));
     fileOutputAction_->setCheckable(true);
@@ -413,6 +416,26 @@ void ScoreboardDock::openBindings() {
     }
     bindings_ = new BindingsDialog(sinks_, this);
     bindings_->show();
+}
+
+void ScoreboardDock::openEventLog() {
+    if (!driver_) return;
+    if (eventLog_) {
+        eventLog_->raise();
+        eventLog_->activateWindow();
+        return;
+    }
+    const StreamStarts starts = streamStartsProvider_ ? streamStartsProvider_() : StreamStarts{};
+    auto* dialog = new EventLogDialog(driver_, starts.stream, starts.recording, this);
+    eventLog_ = dialog;
+    dialog->setModal(false);
+    dialog->show();
+    dialog->raise();
+    dialog->activateWindow();
+}
+
+void ScoreboardDock::setStreamStartsProvider(std::function<StreamStarts()> provider) {
+    streamStartsProvider_ = std::move(provider);
 }
 
 void ScoreboardDock::setFileOutput(FileOutput* output) {

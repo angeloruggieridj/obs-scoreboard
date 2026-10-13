@@ -91,6 +91,8 @@ target_sources(
     src/plugin/ClockPanel.hpp
     src/plugin/CounterControl.cpp
     src/plugin/CounterControl.hpp
+    src/plugin/EventLogDialog.cpp
+    src/plugin/EventLogDialog.hpp
     src/plugin/FieldSinks.cpp
     src/plugin/FieldSinks.hpp
     src/plugin/FileOutput.cpp

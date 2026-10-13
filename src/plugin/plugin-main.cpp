@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <system_error>
 
 #include "AtomicFile.hpp"
@@ -46,6 +47,11 @@ QPointer<VendorApi> g_vendorApi;
 std::unique_ptr<ObsWebSocketRegistry> g_vendorRegistry;
 GlobalSettings g_settings;
 std::unique_ptr<BindingStore> g_bindings;
+// The YouTube chapter reference, kept separately and NOT overwritten on STOPPED, so the chapters
+// can still be exported right after going offline. A recording started after a stream must not
+// move the stream base (and the other way round).
+std::optional<sb::Micros> g_streamStart;
+std::optional<sb::Micros> g_recordingStart;
 // After EXIT OBS has already cleared the frontend callbacks; removing ours would log an error.
 bool g_exited = false;
 
@@ -82,6 +88,12 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
     case OBS_FRONTEND_EVENT_FINISHED_LOADING:
         selftest::maybeStart(g_driver, g_sinks, g_hotkeys);
         if (g_dock && !pickerSuppressed()) g_dock->offerSportChoice();
+        break;
+    case OBS_FRONTEND_EVENT_STREAMING_STARTED:
+        g_streamStart = ClockDriver::nowMicros();
+        break;
+    case OBS_FRONTEND_EVENT_RECORDING_STARTED:
+        g_recordingStart = ClockDriver::nowMicros();
         break;
     case OBS_FRONTEND_EVENT_EXIT:
         g_exited = true;
@@ -153,6 +165,7 @@ bool obs_module_load(void) {
     }
     g_dock = dock;
     dock->setFileOutput(g_fileOutput);
+    dock->setStreamStartsProvider([]() { return StreamStarts{g_streamStart, g_recordingStart}; });
     obs_frontend_add_event_callback(onFrontendEvent, nullptr);
     obs_log(LOG_INFO, "loaded (version %s)", PLUGIN_VERSION);
     return true;
