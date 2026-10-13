@@ -152,6 +152,7 @@ bool obs_module_load(void) {
         return false;
     }
     g_dock = dock;
+    dock->setFileOutput(g_fileOutput);
     obs_frontend_add_event_callback(onFrontendEvent, nullptr);
     obs_log(LOG_INFO, "loaded (version %s)", PLUGIN_VERSION);
     return true;

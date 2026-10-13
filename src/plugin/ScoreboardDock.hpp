@@ -19,9 +19,11 @@ class BindingsDialog;
 class ClockDriver;
 class ClockPanel;
 class FieldSinks;
+class FileOutput;
 class GlobalSettings;
 class MatchStateSaver;
 class PenaltyDialog;
+class QAction;
 class QCheckBox;
 class QInputDialog;
 class QLabel;
@@ -58,6 +60,9 @@ public:
     // Starts a fresh match for `sportId` with its remembered settings (the vendor NewMatch).
     bool newMatchForSport(const std::string& sportId);
 
+    // Called by plugin-main once the file output exists. Safe with a null pointer.
+    void setFileOutput(FileOutput* output);
+
 private:
     TeamPanel* panel(sb::Team team) const;
     void connectTeam(sb::Team team);
@@ -89,8 +94,10 @@ private:
     QPointer<MatchSettingsDialog> settingsDialog_;
     QPointer<QInputDialog> sportPicker_;
     QPointer<PenaltyDialog> penaltyDialog_;
+    QPointer<FileOutput> output_;
     QPushButton* link_ = nullptr;
     QToolButton* menu_ = nullptr;
+    QAction* fileOutputAction_ = nullptr;
     ClockPanel* clock_ = nullptr;
     TeamPanel* home_ = nullptr;
     TeamPanel* away_ = nullptr;
@@ -103,4 +110,6 @@ private:
     bool strengthShown_ = false;
     bool runPastShown_ = false;
     int shownLinkState_ = -1;
+    bool outputFailing_ = false; // an I/O error is on screen and must survive clearMessage()
+    QString outputError_;
 };

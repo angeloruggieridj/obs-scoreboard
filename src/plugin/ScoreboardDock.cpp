@@ -23,6 +23,7 @@
 #include "ClockDriver.hpp"
 #include "ClockPanel.hpp"
 #include "FieldSinks.hpp"
+#include "FileOutput.hpp"
 #include "GlobalSettings.hpp"
 #include "MatchJson.hpp"
 #include "MatchStateSaver.hpp"
@@ -79,6 +80,25 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
             &ScoreboardDock::resumePrevious);
     connect(menu->addAction(text("Menu.EndMatch")), &QAction::triggered, this,
             &ScoreboardDock::endMatch);
+    menu->addSeparator();
+    fileOutputAction_ = menu->addAction(text("Menu.FileOutput"));
+    fileOutputAction_->setCheckable(true);
+    fileOutputAction_->setChecked(settings_ && settings_->prefs().fileOutputEnabled);
+    connect(fileOutputAction_, &QAction::toggled, this, [this](bool on) {
+        if (!settings_ || settings_->prefs().fileOutputEnabled == on) return;
+        if (on && settings_->prefs().fileOutputDir.empty()) {
+            showMessage(text("Output.NoFolder"));
+            openSettings();
+            refresh(); // the entry goes back to unchecked: nothing was enabled
+            return;
+        }
+        settings_->setFileOutputEnabled(on);
+        if (output_) {
+            output_->apply(settings_->prefs());
+            if (driver_) output_->publish(driver_->fields());
+        }
+        showMessage(on ? text("Output.Enabled") : text("Output.Disabled"));
+    });
     menu->addSeparator();
     connect(menu->addAction(text("Menu.About")), &QAction::triggered, this, &ScoreboardDock::about);
     menu_->setMenu(menu);
@@ -251,6 +271,7 @@ void ScoreboardDock::showMessage(const QString& message) {
 }
 
 void ScoreboardDock::clearMessage() {
+    if (outputFailing_) return; // the file output error stays until the folder is fixed
     if (!status_->text().isEmpty()) status_->setText(QString());
 }
 
@@ -337,6 +358,17 @@ void ScoreboardDock::refresh() {
     }
     const bool runPast = engine.settings().stoppage == sb::StoppageMode::RunPastDuration;
     if (runPast_->isChecked() != runPast) runPast_->setChecked(runPast);
+
+    if (fileOutputAction_) {
+        const bool on = settings_ && settings_->prefs().fileOutputEnabled;
+        if (fileOutputAction_->isChecked() != on) fileOutputAction_->setChecked(on);
+    }
+    if (outputFailing_) {
+        showMessage(outputError_); // the I/O error stays until the output recovers
+    } else if (!outputError_.isEmpty() && status_->text() == outputError_) {
+        outputError_.clear();
+        clearMessage();
+    }
 }
 
 bool ScoreboardDock::applySettings(const sb::MatchSettings& next) {
@@ -381,6 +413,22 @@ void ScoreboardDock::openBindings() {
     }
     bindings_ = new BindingsDialog(sinks_, this);
     bindings_->show();
+}
+
+void ScoreboardDock::setFileOutput(FileOutput* output) {
+    output_ = output;
+    if (!output_) return;
+    connect(output_, &FileOutput::outputError, this, [this](const QString& message) {
+        outputFailing_ = true;
+        outputError_ = message;
+        showMessage(message);
+    });
+    connect(output_, &FileOutput::outputRecovered, this, [this]() {
+        outputFailing_ = false; // refresh() clears the message on the next pass
+        refresh();
+    });
+    output_->apply(settings_ ? settings_->prefs() : sb::GlobalPrefs{});
+    if (driver_) output_->publish(driver_->fields());
 }
 
 void ScoreboardDock::addPenalty(sb::Team team) {
@@ -465,8 +513,16 @@ bool ScoreboardDock::applyDialogResult(const MatchSettingsDialog::Result& r) {
     if (!r.homeNameEdited) next.homeName = current.homeName;
     if (!r.awayNameEdited) next.awayName = current.awayName;
     if (!applySettings(next)) return false; // NO to "start a new match": nothing is saved
-    if (settings_) settings_->setColors(r.scoreColor, r.foulColor);
+    if (settings_) {
+        settings_->setColors(r.scoreColor, r.foulColor);
+        settings_->setFileOutput(r.fileOutputEnabled, r.fileOutputDir);
+        if (output_) {
+            output_->apply(settings_->prefs());
+            if (driver_) output_->publish(driver_->fields());
+        }
+    }
     applyColors();
+    refresh(); // keeps the file output menu entry in sync
     return true;
 }
 
