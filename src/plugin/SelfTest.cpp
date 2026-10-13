@@ -19,6 +19,7 @@
 #include <QPointer>
 #include <QSpinBox>
 #include <QStringList>
+#include <QTableWidget>
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
@@ -44,7 +45,9 @@
 
 #include "AtomicFile.hpp"
 #include "ClockDriver.hpp"
+#include "EventLogDialog.hpp"
 #include "FieldSinks.hpp"
+#include "FileOutput.hpp"
 #include "Format.hpp"
 #include "GlobalSettings.hpp"
 #include "Hotkeys.hpp"
@@ -220,6 +223,8 @@ private:
     void checkPersist();
     void checkSportsAndDock();
     void checkFoulsAndPenalties();
+    void checkFileOutput();
+    void checkChapters();
     void checkVendorApi();
     void checkVendorLive();
     void finish();
@@ -244,6 +249,7 @@ private:
     bool multiField_ = false, collection_ = false, duplicate_ = false, persistSaved_ = false;
     bool dock14_ = false, sportSwitch_ = false, penaltyRefresh_ = false, hotkeySaved_ = false;
     bool futsalFouls_ = false, basketFouls_ = false, penaltyControls_ = false;
+    bool fileOutput_ = false, chapters_ = false;
     bool vendorApi_ = false;
     bool vendorLive_ = false;
     // Only uuid and name of the sources made by the later checks (see textByUuid).
@@ -313,6 +319,8 @@ void Run::begin() {
 
     checkSportsAndDock(); // before the clock starts and any save is armed: nothing is written
     checkFoulsAndPenalties();
+    checkFileOutput();
+    checkChapters();
     checkVendorApi();
     checkVendorLive(); // real obs-websocket in the portable profile; fails if required and absent
     driver_->apply(sb::cmd::ClockStop{});
@@ -625,6 +633,130 @@ void Run::checkFoulsAndPenalties() {
         }
     }
 
+    driver_->replaceMatch(sb::MatchEngine(original));
+}
+
+// The optional .txt output, against real files: OFF by default, only changed files rewritten
+// (same mtime after an identical publish), atomic (no .tmp left) and one error report per pass.
+// Local FileOutput objects and a temp folder: settings.json is never touched.
+void Run::checkFileOutput() {
+    fileOutput_ = true;
+    const sb::GlobalPrefs off;
+    if (off.fileOutputEnabled || !off.fileOutputDir.empty()) {
+        fileOutput_ = false;
+        fail("fileOutput: the default preference is not off");
+        return;
+    }
+    std::error_code ec;
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path(ec) / "obs-scoreboard-selftest-files";
+    std::filesystem::remove_all(dir, ec);
+    std::filesystem::create_directories(dir, ec);
+
+    FileOutput disabled;
+    disabled.apply(off);
+    disabled.publish(driver_->fields());
+    if (disabled.written() != 0) {
+        fileOutput_ = false;
+        fail("fileOutput: it wrote while disabled");
+    }
+
+    sb::GlobalPrefs prefs;
+    prefs.fileOutputEnabled = true;
+    prefs.fileOutputDir = dir.u8string();
+    FileOutput out;
+    out.apply(prefs);
+    out.publish(driver_->fields());
+    if (out.written() != sb::kFieldCount) {
+        fileOutput_ = false;
+        fail("fileOutput: the first publish did not write every field");
+    }
+    const std::filesystem::path clockFile = dir / "clock.txt";
+    if (!std::filesystem::exists(clockFile, ec)) {
+        fileOutput_ = false;
+        fail("fileOutput: clock.txt is missing");
+    }
+    const std::size_t afterFirst = out.written();
+    const auto mtime = std::filesystem::last_write_time(clockFile, ec);
+    out.publish(driver_->fields()); // identical: nothing may be rewritten
+    if (out.written() != afterFirst || std::filesystem::last_write_time(clockFile, ec) != mtime) {
+        fileOutput_ = false;
+        fail("fileOutput: an identical publish rewrote a file");
+    }
+    sb::FieldValues changed = driver_->fields();
+    changed[static_cast<std::size_t>(sb::FieldId::PlayTime)] = "99:99";
+    out.publish(changed);
+    if (out.written() != afterFirst + 1 ||
+        readTextFile((dir / "playtime.txt").u8string()) != "99:99") {
+        fileOutput_ = false;
+        fail("fileOutput: a changed value was not written");
+    }
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec))
+        if (entry.path().extension() == ".tmp") {
+            fileOutput_ = false;
+            fail("fileOutput: a .tmp file was left behind");
+        }
+
+    // One bad file among good ones: every pass retries it (its text was never cached), so the
+    // per-pass latch must keep the error to a single report and only recover on a clean pass
+    // (Review Focus 3). A directory named like the file makes that one write fail.
+    const std::filesystem::path badPath = dir / "clock.txt";
+    std::filesystem::remove(badPath, ec);
+    std::filesystem::create_directory(badPath, ec);
+    FileOutput bad;
+    int errors = 0;
+    int recovered = 0;
+    QObject::connect(&bad, &FileOutput::outputError, &bad, [&errors](const QString&) { ++errors; });
+    QObject::connect(&bad, &FileOutput::outputRecovered, &bad, [&recovered]() { ++recovered; });
+    bad.apply(prefs); // prefs.fileOutputDir is still `dir`
+    bad.publish(driver_->fields());
+    bad.publish(driver_->fields());
+    bad.publish(driver_->fields());
+    if (errors != 1 || recovered != 0) {
+        fileOutput_ = false;
+        fail("fileOutput: one bad file reported " + std::to_string(errors) + " errors and " +
+             std::to_string(recovered) + " recoveries");
+    }
+    std::filesystem::remove(badPath, ec); // the folder is usable again
+    bad.publish(driver_->fields());
+    if (recovered != 1) {
+        fileOutput_ = false;
+        fail("fileOutput: a fixed folder did not recover the output");
+    }
+    std::filesystem::remove_all(dir, ec);
+}
+
+// The chapter export on a scripted match. applyAt() fixes each event's instant, so the times are
+// deterministic; runs before the clock starts and restores the settings at the end.
+void Run::checkChapters() {
+    chapters_ = true;
+    const sb::MatchSettings original = driver_->engine().settings();
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+    const sb::Micros t0 = 1'000'000'000LL; // an arbitrary instant on the monotonic scale
+    driver_->applyAt(sb::cmd::ClockStart{}, t0);
+    driver_->applyAt(sb::cmd::ClockStop{}, t0 + 1'000'000);
+    driver_->applyAt(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Score, 1}, t0 + 15'000'000);
+    driver_->applyAt(sb::cmd::AddStat{sb::Team::Away, sb::Stat::Score, 1}, t0 + 30'000'000);
+    driver_->applyAt(sb::cmd::EndMatch{}, t0 + 45'000'000);
+
+    GlobalSettings scratch;
+    ScoreboardDock probe(driver_, sinks_, &scratch, nullptr);
+    auto* dialog = new EventLogDialog(driver_, std::optional<sb::Micros>(t0), std::nullopt, &probe);
+    const QString text = QString::fromStdString(dialog->chaptersText());
+    const bool ok = text.startsWith(QStringLiteral("0:00 ")) &&
+                    text.contains(QStringLiteral("\n0:15 ")) &&
+                    text.contains(QStringLiteral("\n0:30 ")) &&
+                    text.contains(QStringLiteral("\n0:45 ")) && text.count(QLatin1Char('\n')) == 3;
+    if (!ok) {
+        chapters_ = false;
+        fail("chapters: the scripted match did not export four chapters");
+    }
+    auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("eventLogTable"));
+    if (!table || table->rowCount() != 4) {
+        chapters_ = false;
+        fail("chapters: the event log table does not list every event");
+    }
     driver_->replaceMatch(sb::MatchEngine(original));
 }
 
@@ -1345,8 +1477,8 @@ void Run::finish() {
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
                       multiField_ && collection_ && duplicate_ && persistSaved_ && dock14_ &&
                       sportSwitch_ && penaltyRefresh_ && hotkeySaved_ && futsalFouls_ &&
-                      basketFouls_ && penaltyControls_ && vendorApi_ && vendorLive_ && bad == 0 &&
-                      fpsOk && problems_.empty();
+                      basketFouls_ && penaltyControls_ && fileOutput_ && chapters_ && vendorApi_ &&
+                      vendorLive_ && bad == 0 && fpsOk && problems_.empty();
 
     nlohmann::json changes = nlohmann::json::array();
     for (const sbtest::ChangeResult& c : verdict_.changes) {
@@ -1395,6 +1527,8 @@ void Run::finish() {
                                      {"futsalFouls", futsalFouls_},
                                      {"basketFouls", basketFouls_},
                                      {"penaltyControls", penaltyControls_},
+                                     {"fileOutput", fileOutput_},
+                                     {"chapters", chapters_},
                                      {"vendorApi", vendorApi_},
                                      {"vendorLive", vendorLive_}}},
                                    {"problems", problems}};
