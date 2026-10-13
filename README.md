@@ -110,6 +110,27 @@ Two native clients are built on this protocol:
 
 Both talk to the plugin **only** through this vendor; no extra protocol is added to the plugin.
 
+### File output and YouTube chapters
+
+Writing a `.txt` file per value is **optional and off by default**. Turn it on in
+**Match settings → Output** (or the dock menu) and pick a folder: the plugin keeps one file per
+value there, named after the field key (for example `home.score.txt`), and rewrites a file only
+when its text changed, with an atomic write. Because OBS Text sources poll files at most once a
+second and compare whole-second timestamps (see [Description](#description)), files are for
+compatibility with other tools — the direct Text update remains the main output.
+
+The dock's menu also has **Event log…**, a non-modal window (the dock itself stays compact):
+it lists every event (period start/end, score, penalty, match end) with its time, team and
+description, and exports **YouTube chapters** — the `0:00 Title` format — relative to the start of
+your stream, the start of your recording or the game time. Copy the chapters to the clipboard or
+save them to a `.txt` file. YouTube needs at least three chapters, ten seconds apart; the window
+warns when there are fewer. Chapters are exported as **text**: the plugin does not write into a
+recording file.
+
+**Known limit:** a match resumed from a previous OBS session keeps the timestamps of that session.
+With the stream/recording base the window ignores those older events, so only the events of the
+current session appear there; the game-time base is unaffected.
+
 ### Building from source
 
 Requires CMake, a C++17 compiler, Qt 6 and OBS Studio 30.0+ development files.
@@ -233,6 +254,28 @@ Su questo protocollo sono basati due client nativi:
 
 Entrambi parlano al plugin **solo** tramite questo vendor; nessun protocollo aggiuntivo viene
 aggiunto al plugin.
+
+### Output su file e capitoli YouTube
+
+La scrittura di un file `.txt` per ogni valore è **opzionale e spenta di default**. Attivala in
+**Impostazioni partita → Output** (o dal menu del pannello) e scegli una cartella: il plugin vi
+tiene un file per valore, col nome della chiave del campo (per esempio `home.score.txt`), e
+riscrive un file solo quando il suo testo cambia, con scrittura atomica. Poiché le sorgenti Text di
+OBS leggono i file al massimo una volta al secondo e confrontano date al secondo intero (vedi
+[Descrizione](#descrizione)), i file servono per compatibilità con altri strumenti: l'aggiornamento
+diretto del Text resta l'output principale.
+
+Il menu del pannello ha anche **Registro eventi…**, una finestra non modale (il pannello resta
+compatto): elenca ogni evento (inizio/fine periodo, punto, penalità, fine partita) con orario,
+squadra e descrizione, ed esporta i **capitoli YouTube** — il formato `0:00 Titolo` — relativi
+all'inizio della diretta, all'inizio della registrazione o al tempo di gioco. I capitoli si copiano
+negli appunti o si salvano in un file `.txt`. YouTube richiede almeno tre capitoli, a dieci secondi
+l'uno; la finestra lo segnala quando sono meno. I capitoli sono esportati come **testo**: il plugin
+non scrive in un file di registrazione.
+
+**Limite noto:** una partita ripresa da una sessione OBS precedente conserva gli orari di quella
+sessione. Con la base diretta/registrazione la finestra ignora quegli eventi più vecchi, quindi lì
+compaiono solo gli eventi della sessione corrente; la base "tempo di gioco" non è toccata.
 
 ### Compilare dai sorgenti
 
