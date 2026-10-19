@@ -21,6 +21,7 @@ add_library(
   SettingsChange.cpp
   HotkeyCatalog.cpp
   VendorProtocol.cpp
+  UpdateCheck.cpp
 )
 target_include_directories(scoreboard-core PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_include_directories(

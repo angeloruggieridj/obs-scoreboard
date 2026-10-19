@@ -22,6 +22,7 @@
 #include "ScoreboardDock.hpp"
 #include "SelfTest.hpp"
 #include "SportCatalog.hpp"
+#include "UpdateChecker.hpp"
 #include "VendorApi.hpp"
 #include "plugin-support.h"
 
@@ -40,6 +41,7 @@ constexpr const char* kFallbackSport = "futsal";
 QPointer<ClockDriver> g_driver;
 QPointer<FieldSinks> g_sinks;
 QPointer<FileOutput> g_fileOutput;
+QPointer<UpdateChecker> g_updateChecker;
 QPointer<MatchStateSaver> g_saver;
 QPointer<ScoreboardDock> g_dock;
 QPointer<Hotkeys> g_hotkeys;
@@ -62,10 +64,11 @@ bool pickerSuppressed() {
 }
 
 void tearDown() {
-    selftest::stop();           // the video callback must go before the driver and sinks
-    delete g_saver.data();      // before the driver it listens to
-    delete g_fileOutput.data(); // before the driver it listens to
-    delete g_vendorApi.data();  // calls VendorRegistry::unregisterAll()
+    delete g_updateChecker.data(); // aborts a request in flight and joins its thread
+    selftest::stop();              // the video callback must go before the driver and sinks
+    delete g_saver.data();         // before the driver it listens to
+    delete g_fileOutput.data();    // before the driver it listens to
+    delete g_vendorApi.data();     // calls VendorRegistry::unregisterAll()
     g_vendorRegistry.reset();
     if (g_driver) g_driver->shutdown();
     g_bindings.reset(); // unregisters its save callback before the hotkeys and sinks go
@@ -167,6 +170,14 @@ bool obs_module_load(void) {
     dock->setFileOutput(g_fileOutput);
     dock->setStreamStartsProvider([]() { return StreamStarts{g_streamStart, g_recordingStart}; });
     obs_frontend_add_event_callback(onFrontendEvent, nullptr);
+    // One check per OBS start, off the UI thread, and never during the automated runs (no network
+    // from the selftest or the load check).
+    if (g_settings.prefs().updateCheck && !pickerSuppressed()) {
+        g_updateChecker = new UpdateChecker();
+        QObject::connect(g_updateChecker, &UpdateChecker::updateAvailable, dock,
+                         &ScoreboardDock::showUpdate);
+        g_updateChecker->start(PLUGIN_VERSION);
+    }
     obs_log(LOG_INFO, "loaded (version %s)", PLUGIN_VERSION);
     return true;
 }

@@ -35,6 +35,9 @@ struct GlobalPrefs {
     // picks a folder. See FileOutput.
     bool fileOutputEnabled = false;
     std::string fileOutputDir;
+    // Ask GitHub once per OBS start whether a newer release exists (UpdateChecker). ON by default,
+    // switchable from the dock menu; nothing but a version number ever leaves the machine.
+    bool updateCheck = true;
 };
 
 constexpr int kBindingsJsonVersion = 1;

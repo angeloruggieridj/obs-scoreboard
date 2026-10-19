@@ -56,6 +56,12 @@ void GlobalSettings::setColors(std::string scoreColor, std::string foulColor) {
     save();
 }
 
+void GlobalSettings::setUpdateCheck(bool enabled) {
+    if (prefs_.updateCheck == enabled) return;
+    prefs_.updateCheck = enabled;
+    save();
+}
+
 void GlobalSettings::setFileOutput(bool enabled, std::string dir) {
     if (prefs_.fileOutputEnabled == enabled && prefs_.fileOutputDir == dir) return;
     prefs_.fileOutputEnabled = enabled;

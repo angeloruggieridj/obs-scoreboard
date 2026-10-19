@@ -72,6 +72,9 @@ public:
     // Called by plugin-main once the file output exists. Safe with a null pointer.
     void setFileOutput(FileOutput* output);
 
+    // A release newer than this build exists: shows it in the menu and the status line.
+    void showUpdate(const QString& version, const QString& url);
+
     // Supplies the OBS streaming and recording start instants for the chapter export.
     void setStreamStartsProvider(std::function<StreamStarts()> provider);
 
@@ -112,6 +115,8 @@ private:
     QPushButton* link_ = nullptr;
     QToolButton* menu_ = nullptr;
     QAction* fileOutputAction_ = nullptr;
+    QAction* updateAction_ = nullptr;
+    QString updateUrl_;
     ClockPanel* clock_ = nullptr;
     TeamPanel* home_ = nullptr;
     TeamPanel* away_ = nullptr;

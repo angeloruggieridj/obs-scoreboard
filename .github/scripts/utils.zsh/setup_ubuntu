@@ -47,7 +47,8 @@ if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
     libavformat-dev \
     libavutil-dev \
     libswscale-dev \
-    libswresample-dev
+    libswresample-dev \
+    libcurl4-openssl-dev
 
   local -a _qt_packages=()
 

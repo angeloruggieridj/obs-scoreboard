@@ -248,3 +248,17 @@ TEST_CASE("settingsForSport returns the remembered settings or the preset") {
     // Other sports are untouched.
     CHECK(settingsForSport(p, *findSport("soccer")).sport.periodDuration == minutes(45));
 }
+
+TEST_CASE("the update check is on by default, round-trips and ignores a wrong type") {
+    CHECK(GlobalPrefs{}.updateCheck);
+
+    GlobalPrefs off;
+    off.updateCheck = false;
+    const auto out = prefsFromJson(prefsToJson(off));
+    REQUIRE(out.has_value());
+    CHECK_FALSE(out->updateCheck);
+
+    // Older files never recorded it, and a wrong type keeps the default.
+    CHECK(prefsFromJson("{\"version\": 3}")->updateCheck);
+    CHECK(prefsFromJson("{\"version\": 3, \"updateCheck\": \"no\"}")->updateCheck);
+}

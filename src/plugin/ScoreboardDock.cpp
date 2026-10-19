@@ -5,6 +5,7 @@
 
 #include <QAction>
 #include <QCheckBox>
+#include <QDesktopServices>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -12,6 +13,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QToolButton>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -103,6 +105,18 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
         showMessage(on ? text("Output.Enabled") : text("Output.Disabled"));
     });
     menu->addSeparator();
+    // Hidden until the update check finds a newer release (showUpdate).
+    updateAction_ = menu->addAction(QString());
+    updateAction_->setVisible(false);
+    connect(updateAction_, &QAction::triggered, this, [this]() {
+        if (!updateUrl_.isEmpty()) QDesktopServices::openUrl(QUrl(updateUrl_));
+    });
+    QAction* updateCheck = menu->addAction(text("Menu.UpdateCheck"));
+    updateCheck->setCheckable(true);
+    updateCheck->setChecked(settings_ && settings_->prefs().updateCheck);
+    connect(updateCheck, &QAction::toggled, this, [this](bool on) {
+        if (settings_) settings_->setUpdateCheck(on);
+    });
     connect(menu->addAction(text("Menu.About")), &QAction::triggered, this, &ScoreboardDock::about);
     menu_->setMenu(menu);
 
@@ -436,6 +450,15 @@ void ScoreboardDock::openEventLog() {
 
 void ScoreboardDock::setStreamStartsProvider(std::function<StreamStarts()> provider) {
     streamStartsProvider_ = std::move(provider);
+}
+
+void ScoreboardDock::showUpdate(const QString& version, const QString& url) {
+    updateUrl_ = url;
+    if (updateAction_) {
+        updateAction_->setText(text("Menu.UpdateAvailable").arg(version));
+        updateAction_->setVisible(true);
+    }
+    showMessage(text("Update.Available").arg(version));
 }
 
 void ScoreboardDock::setFileOutput(FileOutput* output) {

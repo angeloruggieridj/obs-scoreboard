@@ -17,6 +17,7 @@ public:
     // Remembers these settings for their sport (team names excluded) and makes it the last sport.
     void rememberSettings(const sb::MatchSettings& settings);
     void setColors(std::string scoreColor, std::string foulColor);
+    void setUpdateCheck(bool enabled);
     // Remembers the optional .txt output preferences (global; never in the scene collection).
     void setFileOutput(bool enabled, std::string dir);
     void setFileOutputEnabled(bool enabled);
