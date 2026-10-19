@@ -29,7 +29,7 @@
 
 ## English
 
-**Contents:** [Why](#why) · [Features](#features) · [Install](#install) · [Getting started](#getting-started) · [Remote control](#remote-control) · [Files and chapters](#files-and-youtube-chapters) · [Build](#build-from-source) · [License](#license)
+**Contents:** [Why](#why) · [Features](#features) · [Sports](#sports) · [Install](#install) · [Getting started](#getting-started) · [Remote control](#remote-control) · [Files and chapters](#files-and-youtube-chapters) · [Build](#build-from-source) · [License](#license)
 
 ### Why
 
@@ -49,6 +49,27 @@ so every change shows on the next frame. Your font, colors and position stay you
 | **Hotkeys** | 40, stored in the scene collection. |
 | **Remote control** | obs-websocket vendor, Stream Deck plugin, Bitfocus Companion module. |
 | **Extras** | Optional `.txt` output, event log with YouTube chapters export, update notice. |
+
+### Sports
+
+14 presets, one per sport below. Every value is a default you can change in *Match settings*.
+
+| Sport | Periods | Clock | Overtime | Extras and timed penalties |
+|---|---|---|---|---|
+| Ice hockey | 3 × 20:00 | down | 1 × 5:00 | Shots; penalties 2', 5', 10', 2+2, 2+5, 2+10; strength |
+| Basketball | 4 × 10:00 | down | 5:00, as many as needed | Team fouls per quarter; points +1 / +2 / +3 |
+| Soccer | 2 × 45:00 | up | 2 × 15:00 | Yellow and red cards; strength from red cards |
+| Futsal | 2 × 20:00 | down | 2 × 5:00 | Accumulated fouls, reset for the 2nd half |
+| American football | 4 × 15:00 | down | 1 × 10:00 | Flags; points +6 / +1 / +2 / +3 |
+| Lacrosse | 4 × 15:00 | down | 4:00, as many as needed | Shots; penalties 30", 1', 2', 3'; strength |
+| Rugby union | 2 × 40:00 | up | 2 × 10:00 | Points +5 / +2 / +3; penalties 10', 20'; strength |
+| Rugby sevens | 2 × 7:00 | up | 5:00, as many as needed | Points +5 / +2 / +3; penalty 2'; strength |
+| Field hockey | 4 × 15:00 | down | none | Penalties 2', 5', 10'; strength |
+| Water polo | 4 × 8:00 | down | none | Shots; exclusion 20"; strength |
+| Handball | 2 × 30:00 | up | 2 × 5:00 | Penalty 2'; strength |
+| Rink hockey | 2 × 25:00 | down | 2 × 5:00 | Team fouls; penalties 2', 4'; strength |
+| Floorball | 3 × 20:00 | down | 1 × 10:00 | Shots; penalties 2', 5', 10', 2+2, 2+10; strength |
+| Generic | 1 open segment | up | none | A plain clock and score for any other sport |
 
 ### Install
 
@@ -108,7 +129,7 @@ GPL-2.0-or-later ([LICENSE](LICENSE)). Companion module: MIT. Clock font [DSEG7]
 
 ## Italiano
 
-**Indice:** [Perché](#perché) · [Funzionalità](#funzionalità) · [Installazione](#installazione) · [Primi passi](#primi-passi) · [Controllo remoto](#controllo-remoto) · [File e capitoli](#file-e-capitoli-youtube) · [Compilazione](#compilare-dai-sorgenti) · [Licenza](#licenza)
+**Indice:** [Perché](#perché) · [Funzionalità](#funzionalità) · [Sport](#sport) · [Installazione](#installazione) · [Primi passi](#primi-passi) · [Controllo remoto](#controllo-remoto) · [File e capitoli](#file-e-capitoli-youtube) · [Compilazione](#compilare-dai-sorgenti) · [Licenza](#licenza)
 
 ### Perché
 
@@ -128,6 +149,27 @@ della sorgente tramite le API di OBS, così ogni cambio compare al fotogramma su
 | **Hotkey** | 40, salvate nella collezione di scene. |
 | **Controllo remoto** | Vendor obs-websocket, plugin Stream Deck, modulo Bitfocus Companion. |
 | **Extra** | Output `.txt` facoltativo, registro eventi con esportazione dei capitoli YouTube, avviso di aggiornamento. |
+
+### Sport
+
+14 preset, uno per ogni sport qui sotto. Ogni valore è un'impostazione di partenza che puoi cambiare in *Impostazioni partita*.
+
+| Sport | Periodi | Cronometro | Supplementari | Extra e penalità a tempo |
+|---|---|---|---|---|
+| Hockey su ghiaccio | 3 × 20:00 | indietro | 1 × 5:00 | Tiri; penalità 2', 5', 10', 2+2, 2+5, 2+10; inferiorità |
+| Basket | 4 × 10:00 | indietro | 5:00, quanti servono | Falli di squadra per quarto; punti +1 / +2 / +3 |
+| Calcio | 2 × 45:00 | avanti | 2 × 15:00 | Cartellini gialli e rossi; inferiorità dai rossi |
+| Futsal | 2 × 20:00 | indietro | 2 × 5:00 | Falli accumulati, azzerati nel 2° tempo |
+| Football americano | 4 × 15:00 | indietro | 1 × 10:00 | Flag; punti +6 / +1 / +2 / +3 |
+| Lacrosse | 4 × 15:00 | indietro | 4:00, quanti servono | Tiri; penalità 30", 1', 2', 3'; inferiorità |
+| Rugby a 15 | 2 × 40:00 | avanti | 2 × 10:00 | Punti +5 / +2 / +3; penalità 10', 20'; inferiorità |
+| Rugby a 7 | 2 × 7:00 | avanti | 5:00, quanti servono | Punti +5 / +2 / +3; penalità 2'; inferiorità |
+| Hockey su prato | 4 × 15:00 | indietro | nessuno | Penalità 2', 5', 10'; inferiorità |
+| Pallanuoto | 4 × 8:00 | indietro | nessuno | Tiri; espulsione 20"; inferiorità |
+| Pallamano | 2 × 30:00 | avanti | 2 × 5:00 | Penalità 2'; inferiorità |
+| Hockey su pista | 2 × 25:00 | indietro | 2 × 5:00 | Falli di squadra; penalità 2', 4'; inferiorità |
+| Floorball | 3 × 20:00 | indietro | 1 × 10:00 | Tiri; penalità 2', 5', 10', 2+2, 2+10; inferiorità |
+| Generico | 1 segmento aperto | avanti | nessuno | Cronometro e punteggio semplici per qualsiasi altro sport |
 
 ### Installazione
 
