@@ -316,6 +316,68 @@ jobs:
           config: ${{ needs.check-event.outputs.config }}
           package: ${{ fromJSON(needs.check-event.outputs.package) }}
 
+      # The installer packs the install tree the zip is made from into OBS's
+      # plugin folder, in both layouts (installer/obs-scoreboard.iss). Its
+      # version is buildspec's, pre-release suffix included, so the entry in
+      # Apps & features says what the plugin says. The file name carries
+      # `version` alone, like every other asset, so the release steps (rename,
+      # checksums, attestation) pick it up unchanged.
+      - name: Build Installer 🧰
+        run: |
+          # Build Installer 🧰
+          $ErrorActionPreference = 'Stop'
+          $BuildSpec = Get-Content -Path buildspec.json -Raw | ConvertFrom-Json
+          $Full = $BuildSpec.version
+          if ($BuildSpec.prerelease) { $Full = "$($BuildSpec.version)-$($BuildSpec.prerelease)" }
+          $Tree = "${{ github.workspace }}/release/${{ needs.check-event.outputs.config }}"
+          $Name = "${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-setup"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /Qp "/DAppVersion=$Full" "/DAppNumVersion=$($BuildSpec.version)" `
+            "/DPkgDir=$Tree" "/O${{ github.workspace }}/release" "/F$Name" installer/obs-scoreboard.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+          "INSTALLER_PATH=${{ github.workspace }}/release/$Name.exe" >> $env:GITHUB_ENV
+          "INSTALLER_VERSION=$Full" >> $env:GITHUB_ENV
+          "INSTALL_TREE=$Tree" >> $env:GITHUB_ENV
+
+      # Not a build check: the installer is run for real on the runner, the way
+      # a user would, and what it leaves on disk is inspected. Install, then
+      # again over it (the upgrade path), then uninstall. The runner has no OBS,
+      # so the "OBS is running" guard is not exercised here.
+      - name: Installer Installs, Upgrades and Uninstalls 🧪
+        run: |
+          # Installer Installs, Upgrades and Uninstalls 🧪
+          $ErrorActionPreference = 'Stop'
+          $app = "$env:ProgramData\obs-studio\plugins\obs-scoreboard"
+          $uninstaller = "$env:ProgramData\obs-scoreboard\uninstall\unins000.exe"
+          $key = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{ADB6AEBC-21CC-42A6-9664-1199C43E4AD8}_is1'
+          $shipped = (Get-FileHash "$env:INSTALL_TREE\obs-scoreboard\bin\64bit\obs-scoreboard.dll").Hash
+          foreach ($pass in 'install', 'upgrade') {
+            $p = Start-Process $env:INSTALLER_PATH -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$env:RUNNER_TEMP\setup-$pass.log" -Wait -PassThru
+            if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\setup-$pass.log"; throw "$pass exited with $($p.ExitCode)" }
+            foreach ($f in 'obs-scoreboard.dll', 'bin\64bit\obs-scoreboard.dll', 'data\locale\en-US.ini', 'data\locale\it-IT.ini', 'data\fonts\DSEG7Classic-Bold.ttf') {
+              if (-not (Test-Path "$app\$f")) { throw "after $pass, missing: $app\$f" }
+            }
+            # Both layouts carry the very binary that was built.
+            foreach ($dll in "$app\obs-scoreboard.dll", "$app\bin\64bit\obs-scoreboard.dll") {
+              if ((Get-FileHash $dll).Hash -ne $shipped) { throw "after $pass, $dll is not the built plugin" }
+            }
+            # The uninstaller lives OUTSIDE the plugin folder, which a reinstall
+            # replaces whole.
+            if (Test-Path "$app\uninstall") { throw "after $pass, an uninstaller sits inside the plugin folder" }
+            if (-not (Test-Path $uninstaller)) { throw "after $pass, missing: $uninstaller" }
+            $shown = (Get-ItemProperty $key).DisplayVersion
+            if ($shown -ne $env:INSTALLER_VERSION) { throw "Apps & features shows $shown, expected $env:INSTALLER_VERSION" }
+            "ok: $pass"
+          }
+          # The uninstaller relaunches itself from %TEMP% and returns at once,
+          # so wait for its effect rather than for the process.
+          Start-Process $uninstaller -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
+          $deadline = (Get-Date).AddSeconds(120)
+          while ((Test-Path $app) -or (Test-Path $key) -or (Test-Path $uninstaller)) {
+            if ((Get-Date) -gt $deadline) { throw "uninstall left $app, $uninstaller or its Apps & features entry behind" }
+            Start-Sleep -Seconds 2
+          }
+          "ok: uninstalled, nothing left behind"
+
       - name: Upload Artifacts 📡
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
