@@ -23,7 +23,7 @@ First stable release.
 - **Remote control**: an `obs-scoreboard` obs-websocket vendor (20 requests, 4 events), a native Stream Deck plugin and a Bitfocus Companion module (MIT).
 - **Optional `.txt` output** (off by default, files rewritten only when changed) and an **event log** with **YouTube chapters** export.
 - **Update check** (once per OBS start, notify-only, can be switched off) and a **Windows installer** tested for install, upgrade and uninstall in CI.
-- Packages for Windows (`.exe`, `.zip`), macOS (`.pkg`) and Linux (`.deb`, `.tar.xz`) with SHA-256 checksums and build provenance attestations.
+- Packages for Windows (`.exe`, `.zip`), macOS (`.pkg`) and Linux (`.deb`) with SHA-256 checksums and build provenance attestations.
 
 ### Compatibility
 

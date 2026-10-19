@@ -61,7 +61,7 @@ You need **OBS Studio 30.0 or newer**. Download the package for your system from
 |---|---|
 | Windows | `…-windows-x64-setup.exe`, or the `.zip` for portable OBS (extract it into the plugins folder) |
 | macOS | `…-macos-universal.pkg` (not signed: on first launch, right-click it and choose *Open*) |
-| Linux (Ubuntu 24.04) | the `.deb` or the `.tar.xz` |
+| Linux (Ubuntu 24.04) | the `.deb` |
 
 Close OBS, install, then turn on **Docks → ScoreBoard**. The first time, the plugin asks which sport you want.
 Each release comes with SHA-256 checksums and a build attestation you can check with
@@ -156,7 +156,7 @@ Serve **OBS Studio 30.0 o successivo**. Scarica il pacchetto per il tuo sistema 
 |---|---|
 | Windows | `…-windows-x64-setup.exe`, oppure lo `.zip` per OBS portatile (da estrarre nella cartella dei plugin) |
 | macOS | `…-macos-universal.pkg` (non firmato: al primo avvio fai clic destro e scegli *Apri*) |
-| Linux (Ubuntu 24.04) | il `.deb` o il `.tar.xz` |
+| Linux (Ubuntu 24.04) | il `.deb` |
 
 Chiudi OBS, installa e poi attiva **Pannelli → ScoreBoard**. La prima volta il plugin ti chiede quale sport vuoi usare.
 Ogni release include i checksum SHA-256 e un'attestazione della build, che puoi verificare con
