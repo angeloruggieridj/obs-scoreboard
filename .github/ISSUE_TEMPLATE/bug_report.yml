@@ -1,0 +1,44 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what you got. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: ScoreBoard for OBS version
+      description: Shown in the OBS log ("loaded (version …)") and in the dock menu → About.
+    validations:
+      required: true
+  - type: input
+    id: obs
+    attributes:
+      label: OBS Studio version and system
+      placeholder: "32.2.2, Windows 11"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Dock / clock
+        - Text source links
+        - Penalties
+        - Hotkeys
+        - Settings / sports
+        - File output / chapters
+        - Remote control (obs-websocket, Stream Deck, Companion)
+        - Installer / packages
+        - Other
+  - type: textarea
+    id: log
+    attributes:
+      label: OBS log
+      description: Help → Log Files → Upload Current Log File, then paste the URL (or the relevant lines).

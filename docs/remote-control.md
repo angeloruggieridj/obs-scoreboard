@@ -1,7 +1,7 @@
 # obs-scoreboard remote control (obs-websocket vendor)
 
-This document is the user copy of the **normative** `obs-scoreboard` wire protocol. It is kept
-identical to the tables in the README. The plugin exposes its scoreboard through [obs-websocket][obsws]
+This document is the user copy of the **normative** `obs-scoreboard` wire protocol; the README links here
+instead of repeating it. The plugin exposes its scoreboard through [obs-websocket][obsws]
 as a **vendor**, resolved at runtime; the plugin still loads and works when obs-websocket is absent
 (no vendor is registered in that case).
 

@@ -2,407 +2,199 @@
 
 # 🏒 ScoreBoard for OBS
 
-**Live scoreboard for OBS Studio — the clock and every value are written straight into
-your existing Text sources, the instant they change.**
-**Tabellone in diretta per OBS Studio — il cronometro e ogni valore vengono scritti
-direttamente nelle tue sorgenti Text esistenti, nell'istante in cui cambiano.**
+**Live scoreboard for OBS Studio — the clock and every value are written straight into your Text sources, the instant they change.**
+**Tabellone in diretta per OBS Studio — il cronometro e ogni valore vengono scritti direttamente nelle tue sorgenti Text, nell'istante in cui cambiano.**
 
 [English](#english) · [Italiano](#italiano)
 
-[![Selftest](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/selftest.yaml/badge.svg)](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/selftest.yaml)
-[![Core tests](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/core-tests.yaml/badge.svg)](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/core-tests.yaml)
-[![Build](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/push.yaml/badge.svg)](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/push.yaml)
-[![Latest release](https://img.shields.io/github/v/release/angeloruggieridj/obs-scoreboard?include_prereleases&sort=semver)](https://github.com/angeloruggieridj/obs-scoreboard/releases)
-[![License: GPL v2+](https://img.shields.io/github/license/angeloruggieridj/obs-scoreboard)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/angeloruggieridj/obs-scoreboard?include_prereleases&sort=semver&label=release)](https://github.com/angeloruggieridj/obs-scoreboard/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/angeloruggieridj/obs-scoreboard/total?label=downloads)](https://github.com/angeloruggieridj/obs-scoreboard/releases)
+[![License: GPL v2+](https://img.shields.io/badge/license-GPL--2.0--or--later-blue)](LICENSE)
+![OBS Studio](https://img.shields.io/badge/OBS%20Studio-30.0%2B-302e31?logo=obsstudio)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
-![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue)
-![OBS](https://img.shields.io/badge/OBS%20Studio-30.0%2B-302e31?logo=obsstudio)
+[![Build](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/push.yaml/badge.svg)](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/push.yaml)
+[![Core tests](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/core-tests.yaml/badge.svg)](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/core-tests.yaml)
+[![Selftest](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/selftest.yaml/badge.svg)](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/selftest.yaml)
+[![Integrations](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/integrations.yaml/badge.svg)](https://github.com/angeloruggieridj/obs-scoreboard/actions/workflows/integrations.yaml)
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/dock-hockey.png" width="324" alt="The ScoreBoard dock in OBS Studio"><br><sub>The dock in OBS (ice hockey, idle)</sub></td>
+    <td align="center"><img src="docs/images/dock-hockey-live.svg" width="324" alt="The ScoreBoard dock during a match: clock 14:32, score 2-1, penalties"><br><sub>Illustration: a match in progress</sub></td>
+  </tr>
+</table>
 
 </div>
 
 ## English
 
-### Description
+### Why
 
-Existing scoreboard plugins write every value to a `.txt` file and rely on OBS's
-**Text** sources ("Read from file") to pick it up. That approach has a structural
-flaw that no amount of careful file writing can fix: OBS's Text sources
-(*Text (GDI+)* on Windows, *Text (FreeType 2)* on macOS/Linux) poll the file
-**once a second**, and they decide whether to re-read it by comparing the file's
-last-modified time, which only has **whole-second** precision. If two updates
-land in the same calendar second, the second one is never seen — on stream, the
-clock visibly skips a second (e.g. `19:29 → 19:27`, `19:28` never appears).
+OBS Text sources read a `.txt` file **once a second** and compare its **whole-second** timestamp. Two updates in the
+same second → the second is never seen, and the stream clock visibly skips (`19:29 → 19:27`). Scoreboard plugins
+that write files cannot fix this.
 
-**ScoreBoard for OBS does not go through files.** It writes the text **directly
-into the OBS Text source** (through the OBS API) the exact moment a value
-changes; OBS shows it on the next frame. You keep using your own Text sources
-with whatever font, color and position you already picked — the plugin only
-changes their text. Writing to a `.txt` file remains available as an optional,
-secondary output for compatibility with other tools.
+**ScoreBoard for OBS does not use files.** It writes the text **directly into your Text source** through the OBS API,
+at the exact moment a value changes. You keep your own font, color and position; the plugin only changes the text.
 
 ### Features
 
-- **Direct Text-source update** — link any scoreboard value (28 in total: clock, period, team names,
-  scores, shots, fouls, penalties, strength, play time...) to a Text source from the dock menu
-  (⋮ → *Source links…*, with a one-click "create a new Text source"). Updates happen only when the
-  text really changes. Links survive renaming, scene changes, restarts and scene collections.
-- **Precise clock** — tenths of a second, counting up or down, driven by a monotonic clock; ±1 minute /
-  ±1 second arrows (never past the period length), two-digit minutes, stoppage time.
-- **14 sports** — ice hockey, basketball, soccer, futsal, American football, lacrosse, rugby
-  union and sevens, field hockey, water polo, handball, rink hockey, floorball and a generic one,
-  each with editable defaults (periods, lengths, overtime, score buttons, labels).
-- **Timed penalties** (hockey, lacrosse, rugby, ...) — up to 8 per team, 2 running at a time, compound
-  penalties, editing and cancelling by penalty, and the "strength" text (`5-4`).
-- **Compact dock** — everything visible at a glance in a narrow column, no scrolling; custom score and
-  foul colors; the match is saved as you play and can be resumed after a restart.
-- **Hotkeys** — 40 OBS hotkeys, saved in the scene collection.
-- **Remote control** — an obs-websocket vendor, a native Stream Deck plugin and a Bitfocus Companion
-  module (see below).
-- **Optional extras** — `.txt` file output and YouTube chapters export (see below).
-
-### Compatibility
-
-OBS Studio **30.0 or newer** (the plugin is built against OBS 30.0). The versions it has actually been
-loaded and run against are listed in [obs-compat.json](obs-compat.json).
+| | |
+|---|---|
+| **Direct update** | 28 values (clock, period, names, scores, shots, fouls, penalties, strength, play time…), each linked to a Text source; updated only when the text changes. Links survive renaming, scene changes, restarts and scene collections. |
+| **Precise clock** | Tenths of a second, up or down, monotonic time base; ±1 min / ±1 s arrows capped to the period; two-digit minutes; stoppage time. |
+| **14 sports** | Ice hockey, basketball, soccer, futsal, American football, lacrosse, rugby union and sevens, field hockey, water polo, handball, rink hockey, floorball, generic — editable presets. |
+| **Timed penalties** | Up to 8 per team, 2 running at once, compound (2+2…), edit/cancel per penalty, strength text (`5-4`). |
+| **Compact dock** | Narrow, no scrolling, custom score/foul colors; match saved as you play and resumable after a restart. |
+| **Hotkeys** | 40 OBS hotkeys, stored in the scene collection. |
+| **Remote control** | obs-websocket vendor, native **Stream Deck** plugin, **Bitfocus Companion** module. |
+| **Extras** | Optional `.txt` output; event log and **YouTube chapters** export; update notice. |
 
 ### Installation
 
-Download the package for your system from the
-[releases page](https://github.com/angeloruggieridj/obs-scoreboard/releases) (OBS Studio **30.0 or newer**):
+Requires **OBS Studio 30.0+**. Download from the [releases page](https://github.com/angeloruggieridj/obs-scoreboard/releases):
 
 | System | Package |
 |---|---|
-| Windows | `obs-scoreboard-<version>-windows-x64-setup.exe` (installer) or the `.zip` (extract into the OBS plugins folder, also for portable OBS) |
-| macOS | `obs-scoreboard-<version>-macos-universal.pkg` — not signed: on first launch right-click → *Open* |
-| Linux (Ubuntu 24.04) | the `.deb`, or the `.tar.xz` |
+| Windows | `…-windows-x64-setup.exe` (installer) or the `.zip` (portable OBS: extract into its plugins folder) |
+| macOS | `…-macos-universal.pkg` (unsigned: first launch → right-click → *Open*) |
+| Linux (Ubuntu 24.04) | `.deb` or `.tar.xz` |
 
-Close OBS before installing. Then open OBS and enable the dock from **Docks → ScoreBoard**. On the
-first launch the plugin asks which sport you score.
-
-Every release carries SHA-256 checksums and a
-[build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations)
-(`gh attestation verify <file> --repo angeloruggieridj/obs-scoreboard`).
+Close OBS, install, then enable **Docks → ScoreBoard**. The first launch asks which sport you score.
+Releases ship SHA-256 checksums and a build provenance attestation
+(`gh attestation verify <file> --repo angeloruggieridj/obs-scoreboard`). Verified OBS versions: [obs-compat.json](obs-compat.json).
 
 ### Quick start
 
-1. Add a **Text** source for the clock (or let the plugin create it: menu ⋮ → *Source links…* → **+**).
-2. In *Source links…* pick that source for **Clock**, and the same for any other value you want on screen.
-3. Press **Start** in the dock. The text changes in OBS on the very next frame — no files involved.
-
-### Updates
-
-Once per OBS start the plugin asks GitHub whether a newer release exists (only the version number is
-exchanged, in the background; it never downloads or installs anything). If there is one, the dock menu
-shows **Update available**, which opens the release page. Turn it off from the dock menu
-(*Check for updates at start*).
+1. Add a **Text** source for the clock — or let the plugin create it: dock menu **⋮ → Source links… → +**.
+2. In *Source links…* pick it for **Clock** (and any other value you want on screen).
+3. Press **Start**. OBS shows the new text on the very next frame.
 
 ### Remote control
 
-The plugin exposes its scoreboard to
-[obs-websocket](https://github.com/obsproject/obs-websocket) as the `obs-scoreboard`
-**vendor** (resolved at run time), so external tools can drive it with `CallVendorRequest`
-and follow the live values through the vendor `VendorEvent`s. The **normative** wire protocol
-is in [docs/remote-control.md](docs/remote-control.md); the tables below are a summary.
-
-To turn it on in OBS: **Tools → WebSocket Server Settings → Enable WebSocket server**
-(default port `4455`; set a password if you enable authentication). The plugin still loads and
-works **without** obs-websocket — it simply registers no vendor and the dock keeps working.
-
-Every response is one JSON object whose `result` is `ok`, `rejected`, `confirmation` or `error`
-(stable error codes: `unknownRequest`, `badRequest`, `badField`, `unknownSport`, `notReady`).
-
-**Requests (20):**
-
-| `<Name>` | `requestData` | Response beyond `result` |
+| Client | What it is | Docs |
 |---|---|---|
-| `ClockToggle` | `{}` | — |
-| `ClockStart` | `{}` | — |
-| `ClockStop` | `{}` | — |
-| `ClockReset` | `{}` | — |
-| `ClockAdjust` | `{"deltaTenths": int}` | — |
-| `ClockSet` | `{"tenths": int}` | — |
-| `PeriodNext` | `{"confirmed"?: bool}` (default `false`) | — |
-| `PeriodPrev` | `{"confirmed"?: bool}` | — |
-| `AddStat` | `{"team":"home"\|"away","stat":"score"\|"shots"\|"fouls"\|"fouls2","delta": int}` | — |
-| `SetTeamName` | `{"team":"home"\|"away","name": string}` | — |
-| `PenaltyAdd` | `{"team":"home"\|"away","player": string,"phases":[...]}` | — |
-| `PenaltyEdit` | `{"id": int, "tenths": int}` | — |
-| `PenaltyCancel` | `{"id": int}` | — |
-| `PenaltyCancelActive` | `{"team":"home"\|"away","slot": int}` | — |
-| `StoppageSet` | `{"minutes": int}` (absolute, ≥ 0) | — |
-| `StoppageAdd` | `{"minutes": int}` (relative, signed) | — |
-| `EndMatch` | `{}` | — |
-| `NewMatch` | `{"sport": string, "confirmed"?: bool}` (id of one of the 14 presets) | — |
-| `GetState` | `{}` | `state` (object; includes `protocol` and `stoppageAnnouncedMinutes`) |
-| `GetFields` | `{}` | `fields` (all 28 `fieldKey` keys) |
+| obs-websocket | vendor `obs-scoreboard`: 20 requests, 4 events, resolved at run time (the plugin works without obs-websocket) | [docs/remote-control.md](docs/remote-control.md) |
+| Stream Deck | native plugin, one action per command, live key feedback | [streamdeck/](streamdeck/) |
+| Bitfocus Companion | native module: actions, feedbacks, variables, presets | [companion/](companion/) |
 
-`StoppageAdd` is **relative** (`+/-` minutes) while `StoppageSet` sets the **absolute** announced
-value. **`ResumePrevious` is not exposed** remotely: resuming a previous match stays in the dock.
-`NewMatch` answers `confirmation`/`match.inProgress` while a match is in progress until it is
-resent with `confirmed:true`.
+Enable the server in OBS: **Tools → WebSocket Server Settings**. Stream Deck stores the connection password in its
+own global settings, in plain text.
 
-**Events (4):** they arrive as `VendorEvent` and require the `Vendors` subscription (`1 << 9`).
+### Output files and YouTube chapters
 
-| `<EventName>` | `eventData` |
-|---|---|
-| `StateChanged` | `{"changed": {"<fieldKey>": "<value>", …}, "clockRunning": bool, "matchEnded": bool}` — only the fields whose text changed; after a new match, all 28 fields |
-| `PeriodEnded` | `{"period": int, "label": "<period label>"}` |
-| `MatchEnded` | `{"period": int, "label": "<period label>"}` |
-| `ScoreChanged` | `{"team":"home"\|"away", "score": int, "homeScore": int, "awayScore": int}` |
+- **File output** (off by default): *Match settings → Output* — one `.txt` per value in a folder you pick, rewritten only
+  when its content changed (atomic writes). For other tools; Text sources are updated directly regardless.
+- **Event log…** (dock menu): every event with its time; **export YouTube chapters** (`0:00 Title`) relative to the stream
+  start, the recording start or game time, to the clipboard or a `.txt`. Text only — nothing is written into a recording.
 
-Two native clients are built on this protocol:
+### Updates
 
-- [**Stream Deck plugin**](streamdeck) (`streamdeck/`): one action per command, live key feedback
-  for clock, score and period, reconnect and initial state.
-- [**Bitfocus Companion module**](companion) (`companion/`): actions, feedbacks and variables for
-  the clock, scores, period and penalties, with reconnect and initial state.
-
-Both talk to the plugin **only** through this vendor; no extra protocol is added to the plugin.
-
-### File output and YouTube chapters
-
-Writing a `.txt` file per value is **optional and off by default**. Turn it on in
-**Match settings → Output** (or the dock menu) and pick a folder: the plugin keeps one file per
-value there, named after the field key (for example `home.score.txt`), and rewrites a file only
-when its text changed, with an atomic write. Because OBS Text sources poll files at most once a
-second and compare whole-second timestamps (see [Description](#description)), files are for
-compatibility with other tools — the direct Text update remains the main output.
-
-The dock's menu also has **Event log…**, a non-modal window (the dock itself stays compact):
-it lists every event (period start/end, score, penalty, match end) with its time, team and
-description, and exports **YouTube chapters** — the `0:00 Title` format — relative to the start of
-your stream, the start of your recording or the game time. Copy the chapters to the clipboard or
-save them to a `.txt` file. YouTube needs at least three chapters, ten seconds apart; the window
-warns when there are fewer. Chapters are exported as **text**: the plugin does not write into a
-recording file.
-
-**Known limit:** a match resumed from a previous OBS session keeps the timestamps of that session.
-With the stream/recording base the window ignores those older events, so only the events of the
-current session appear there; the game-time base is unaffected.
+Once per OBS start the plugin asks GitHub for the latest release (only its own version number is sent) and, if
+newer, adds **Update available** to the dock menu. Nothing is downloaded or installed. Switch it off in the menu.
 
 ### Building from source
 
-Requires CMake, a C++17 compiler, Qt 6 and OBS Studio 30.0+ development files.
-The project uses [CMake presets](CMakePresets.json), usable from Visual Studio
-or VS Code.
+CMake, a C++17 compiler, Qt 6 and OBS Studio 30.0+ development files; [CMake presets](CMakePresets.json) included.
 
 ```bash
-# core unit tests (no OBS, no Qt)
-cmake -S tests -B build_tests
-cmake --build build_tests --config Debug
+cmake -S tests -B build_tests && cmake --build build_tests --config Debug      # core tests: no OBS, no Qt
 ctest --test-dir build_tests -C Debug --output-on-failure
+cmake --preset windows-x64 && cmake --build --preset windows-x64               # plugin (macos / ubuntu-x86_64 too)
 ```
 
-```bash
-# the plugin itself
-cmake --preset windows-x64 && cmake --build --preset windows-x64   # Windows
-cmake --preset macos && cmake --build --preset macos               # macOS
-cmake --preset ubuntu-x86_64 && cmake --build --preset ubuntu-x86_64 # Linux
-```
-
-The first plugin build downloads OBS, obs-deps and Qt into `.deps/`. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the full command list, including how to
-load the built plugin into a local OBS install and how to check translations.
+Details, translation checks and loading a build into OBS: [CONTRIBUTING.md](CONTRIBUTING.md).
+History: [CHANGELOG.md](CHANGELOG.md). Problems or ideas: [issues](https://github.com/angeloruggieridj/obs-scoreboard/issues).
 
 ### License
 
-GNU General Public License v2.0 or later (GPL-2.0-or-later), the same license as
-OBS Studio — see [LICENSE](LICENSE).
+GPL-2.0-or-later, like OBS Studio — see [LICENSE](LICENSE). The Companion module in [companion/](companion/) is MIT.
+The clock font [DSEG7](third_party/dseg/DSEG-LICENSE.txt) is under the SIL Open Font License 1.1.
+
+---
 
 ## Italiano
 
-### Descrizione
+### Perché
 
-I plugin di tabellone esistenti scrivono ogni valore in un file `.txt` e si
-affidano alle sorgenti **Text** di OBS ("Leggi da file") per rilevarlo. Questo
-approccio ha un difetto strutturale che non si può correggere scrivendo meglio i
-file: le sorgenti Text di OBS (*Text (GDI+)* su Windows, *Text (FreeType 2)* su
-macOS/Linux) controllano il file **una volta al secondo**, e decidono se
-rileggerlo confrontando la data di ultima modifica del file, che ha precisione
-al **secondo intero**. Se due aggiornamenti cadono nello stesso secondo di
-calendario, il secondo non viene mai visto: in diretta il cronometro salta
-visibilmente un secondo (es. `19:29 → 19:27`, `19:28` non appare mai).
+Le sorgenti Text di OBS leggono un file `.txt` **una volta al secondo** e ne confrontano la data al **secondo intero**.
+Due aggiornamenti nello stesso secondo → il secondo non viene visto e il cronometro in diretta salta (`19:29 → 19:27`).
+I plugin che scrivono file non possono risolverlo.
 
-**ScoreBoard for OBS non passa dai file.** Scrive il testo **direttamente dentro
-la sorgente Text di OBS** (tramite l'API di OBS) nel momento esatto in cui il
-valore cambia; OBS lo mostra al fotogramma successivo. L'utente continua a usare
-le proprie sorgenti Text con il font, il colore e la posizione già scelti: il
-plugin ne cambia solo il testo. La scrittura su file `.txt` resta disponibile
-come opzione secondaria, per compatibilità con altri strumenti.
+**ScoreBoard for OBS non usa i file.** Scrive il testo **direttamente nella tua sorgente Text** tramite l'API di OBS, nel
+momento esatto in cui il valore cambia. Font, colore e posizione restano i tuoi: il plugin cambia solo il testo.
 
 ### Funzionalità
 
-- **Aggiornamento diretto delle sorgenti Text** — collega qualsiasi valore del tabellone (28 in totale:
-  cronometro, periodo, nomi, punteggi, tiri, falli, penalità, inferiorità, tempo di gioco...) a una
-  sorgente Text dal menu del pannello (⋮ → *Collegamenti sorgenti…*, con "crea una nuova sorgente
-  Text" in un clic). L'aggiornamento avviene solo quando il testo cambia davvero. I collegamenti
-  sopravvivono a rinomina, cambio scena, riavvio e collezioni di scene.
-- **Cronometro preciso** — decimi di secondo, avanti o indietro, guidato da un orologio monotono;
-  frecce ±1 minuto / ±1 secondo (mai oltre la durata del periodo), minuti a due cifre, recupero.
-- **14 sport** — hockey su ghiaccio, basket, calcio, futsal, football americano, lacrosse, rugby a 15 e a 7,
-  hockey su prato, pallanuoto, pallamano, hockey su pista, floorball e uno generico, con valori
-  predefiniti modificabili (periodi, durate, supplementari, pulsanti punto, etichette).
-- **Penalità a tempo** (hockey, lacrosse, rugby, ...) — fino a 8 per squadra, 2 in corso
-  contemporaneamente, penalità composte, modifica e annullamento per singola penalità, e testo di
-  inferiorità numerica (`5-4`).
-- **Pannello compatto** — tutto visibile a colpo d'occhio in una colonna stretta, senza scorrimento; colori
-  personalizzabili di punteggi e falli; la partita viene salvata mentre si gioca e si può riprendere
-  dopo un riavvio.
-- **Hotkey** — 40 hotkey OBS, salvate nella collezione di scene.
-- **Controllo remoto** — un vendor obs-websocket, un plugin Stream Deck nativo e un modulo Bitfocus
-  Companion (vedi sotto).
-- **Extra opzionali** — output su file `.txt` ed esportazione dei capitoli YouTube (vedi sotto).
-
-### Compatibilità
-
-OBS Studio **30.0 o successivo** (il plugin è compilato contro OBS 30.0). Le versioni con cui è stato
-realmente caricato ed eseguito sono elencate in [obs-compat.json](obs-compat.json).
+| | |
+|---|---|
+| **Aggiornamento diretto** | 28 valori (cronometro, periodo, nomi, punteggi, tiri, falli, penalità, inferiorità, tempo di gioco…), ognuno collegato a una sorgente Text; aggiornata solo se il testo cambia. I collegamenti sopravvivono a rinomina, cambio scena, riavvio e collezioni di scene. |
+| **Cronometro preciso** | Decimi di secondo, avanti o indietro, base temporale monotona; frecce ±1 min / ±1 s limitate al periodo; minuti a due cifre; recupero. |
+| **14 sport** | Hockey su ghiaccio, basket, calcio, futsal, football americano, lacrosse, rugby a 15 e a 7, hockey su prato, pallanuoto, pallamano, hockey su pista, floorball, generico — preset modificabili. |
+| **Penalità a tempo** | Fino a 8 per squadra, 2 in corso, composte (2+2…), modifica/annulla per penalità, testo di inferiorità (`5-4`). |
+| **Pannello compatto** | Stretto, senza scorrimento, colori di punteggi/falli personalizzabili; partita salvata mentre si gioca e riprendibile dopo un riavvio. |
+| **Hotkey** | 40 hotkey OBS, salvate nella collezione di scene. |
+| **Controllo remoto** | vendor obs-websocket, plugin **Stream Deck** nativo, modulo **Bitfocus Companion**. |
+| **Extra** | Output `.txt` opzionale; registro eventi ed esportazione **capitoli YouTube**; avviso di aggiornamento. |
 
 ### Installazione
 
-Scarica il pacchetto per il tuo sistema dalla
-[pagina delle release](https://github.com/angeloruggieridj/obs-scoreboard/releases) (OBS Studio **30.0 o successivo**):
+Richiede **OBS Studio 30.0+**. Scarica dalla [pagina delle release](https://github.com/angeloruggieridj/obs-scoreboard/releases):
 
 | Sistema | Pacchetto |
 |---|---|
-| Windows | `obs-scoreboard-<versione>-windows-x64-setup.exe` (installer) oppure lo `.zip` (da estrarre nella cartella dei plugin di OBS, anche per OBS portatile) |
-| macOS | `obs-scoreboard-<versione>-macos-universal.pkg` — non firmato: al primo avvio tasto destro → *Apri* |
-| Linux (Ubuntu 24.04) | il `.deb`, oppure il `.tar.xz` |
+| Windows | `…-windows-x64-setup.exe` (installer) oppure lo `.zip` (OBS portatile: estrarre nella sua cartella plugin) |
+| macOS | `…-macos-universal.pkg` (non firmato: primo avvio → tasto destro → *Apri*) |
+| Linux (Ubuntu 24.04) | `.deb` oppure `.tar.xz` |
 
-Chiudi OBS prima di installare. Poi apri OBS e attiva il pannello da **Pannelli → ScoreBoard**. Al
-primo avvio il plugin chiede quale sport stai seguendo.
-
-Ogni release include i checksum SHA-256 e un'
-[attestazione di provenienza della build](https://docs.github.com/it/actions/security-for-github-actions/using-artifact-attestations)
-(`gh attestation verify <file> --repo angeloruggieridj/obs-scoreboard`).
+Chiudi OBS, installa, poi attiva **Pannelli → ScoreBoard**. Al primo avvio viene chiesto quale sport segui.
+Le release includono checksum SHA-256 e attestazione di provenienza
+(`gh attestation verify <file> --repo angeloruggieridj/obs-scoreboard`). Versioni di OBS verificate: [obs-compat.json](obs-compat.json).
 
 ### Primi passi
 
-1. Aggiungi una sorgente **Text** per il cronometro (oppure fai creare quella al plugin: menu ⋮ → *Collegamenti sorgenti…* → **+**).
-2. In *Collegamenti sorgenti…* scegli quella sorgente per **Cronometro**, e lo stesso per ogni altro valore che vuoi a schermo.
-3. Premi **Avvia** nel pannello. Il testo cambia in OBS al fotogramma successivo: nessun file di mezzo.
-
-### Aggiornamenti
-
-Una volta a ogni avvio di OBS il plugin chiede a GitHub se esiste una release più recente (viene scambiato
-solo il numero di versione, in background; non scarica né installa nulla). Se c'è, il menu del pannello
-mostra **Aggiornamento disponibile**, che apre la pagina della release. Si disattiva dal menu del pannello
-(*Controlla gli aggiornamenti all'avvio*).
+1. Aggiungi una sorgente **Text** per il cronometro — oppure falla creare al plugin: menu del pannello **⋮ → Collegamenti sorgenti… → +**.
+2. In *Collegamenti sorgenti…* sceglila per **Cronometro** (e per ogni altro valore da mostrare).
+3. Premi **Avvia**. OBS mostra il nuovo testo al fotogramma successivo.
 
 ### Controllo remoto
 
-Il plugin espone il proprio tabellone a
-[obs-websocket](https://github.com/obsproject/obs-websocket) come **vendor**
-`obs-scoreboard` (risolto a runtime), così strumenti esterni possono comandarlo con
-`CallVendorRequest` e seguire i valori in diretta tramite i `VendorEvent` del vendor. Il
-protocollo wire **normativo** è in [docs/remote-control.md](docs/remote-control.md); le tabelle
-seguenti ne sono una sintesi.
-
-Per abilitarlo in OBS: **Strumenti → WebSocket Server Settings → Enable WebSocket server**
-(porta predefinita `4455`; imposta una password se attivi l'autenticazione). Il plugin si carica
-e funziona **anche senza** obs-websocket: in quel caso non registra alcun vendor e il pannello
-continua a funzionare.
-
-Ogni risposta è un oggetto JSON il cui `result` è `ok`, `rejected`, `confirmation` o `error`
-(codici d'errore stabili: `unknownRequest`, `badRequest`, `badField`, `unknownSport`, `notReady`).
-
-**Richieste (20):**
-
-| `<Name>` | `requestData` | Risposta oltre a `result` |
+| Client | Cos'è | Documentazione |
 |---|---|---|
-| `ClockToggle` | `{}` | — |
-| `ClockStart` | `{}` | — |
-| `ClockStop` | `{}` | — |
-| `ClockReset` | `{}` | — |
-| `ClockAdjust` | `{"deltaTenths": int}` | — |
-| `ClockSet` | `{"tenths": int}` | — |
-| `PeriodNext` | `{"confirmed"?: bool}` (default `false`) | — |
-| `PeriodPrev` | `{"confirmed"?: bool}` | — |
-| `AddStat` | `{"team":"home"\|"away","stat":"score"\|"shots"\|"fouls"\|"fouls2","delta": int}` | — |
-| `SetTeamName` | `{"team":"home"\|"away","name": string}` | — |
-| `PenaltyAdd` | `{"team":"home"\|"away","player": string,"phases":[...]}` | — |
-| `PenaltyEdit` | `{"id": int, "tenths": int}` | — |
-| `PenaltyCancel` | `{"id": int}` | — |
-| `PenaltyCancelActive` | `{"team":"home"\|"away","slot": int}` | — |
-| `StoppageSet` | `{"minutes": int}` (assoluto, ≥ 0) | — |
-| `StoppageAdd` | `{"minutes": int}` (relativo, con segno) | — |
-| `EndMatch` | `{}` | — |
-| `NewMatch` | `{"sport": string, "confirmed"?: bool}` (id di uno dei 14 preset) | — |
-| `GetState` | `{}` | `state` (oggetto; include `protocol` e `stoppageAnnouncedMinutes`) |
-| `GetFields` | `{}` | `fields` (tutte e 28 le chiavi `fieldKey`) |
+| obs-websocket | vendor `obs-scoreboard`: 20 richieste, 4 eventi, risolto a runtime (il plugin funziona anche senza obs-websocket) | [docs/remote-control.md](docs/remote-control.md) |
+| Stream Deck | plugin nativo, un'azione per comando, feedback sui tasti | [streamdeck/](streamdeck/) |
+| Bitfocus Companion | modulo nativo: azioni, feedback, variabili, preset | [companion/](companion/) |
 
-`StoppageAdd` è **relativo** (`+/-` minuti) mentre `StoppageSet` imposta il valore annunciato
-**assoluto**. **`ResumePrevious` non è esposto** da remoto: la ripresa della partita precedente
-resta nel pannello. `NewMatch` risponde `confirmation`/`match.inProgress` quando una partita è in
-corso, finché non viene rimandata con `confirmed:true`.
-
-**Eventi (4):** arrivano come `VendorEvent` e richiedono la sottoscrizione `Vendors` (`1 << 9`).
-
-| `<EventName>` | `eventData` |
-|---|---|
-| `StateChanged` | `{"changed": {"<fieldKey>": "<value>", …}, "clockRunning": bool, "matchEnded": bool}` — solo i campi il cui testo è cambiato; dopo una nuova partita, tutti e 28 i campi |
-| `PeriodEnded` | `{"period": int, "label": "<period label>"}` |
-| `MatchEnded` | `{"period": int, "label": "<period label>"}` |
-| `ScoreChanged` | `{"team":"home"\|"away", "score": int, "homeScore": int, "awayScore": int}` |
-
-Su questo protocollo sono basati due client nativi:
-
-- [**Plugin Stream Deck**](streamdeck) (`streamdeck/`): un'azione per comando, feedback dal vivo
-  sul tasto per cronometro, punteggio e periodo, riconnessione e stato iniziale.
-- [**Modulo Bitfocus Companion**](companion) (`companion/`): azioni, feedback e variabili per
-  cronometro, punteggi, periodo e penalità, con riconnessione e stato iniziale.
-
-Entrambi parlano al plugin **solo** tramite questo vendor; nessun protocollo aggiuntivo viene
-aggiunto al plugin.
+Attiva il server in OBS: **Strumenti → Impostazioni server WebSocket**. Lo Stream Deck conserva la password di connessione
+nelle proprie impostazioni globali, in chiaro.
 
 ### Output su file e capitoli YouTube
 
-La scrittura di un file `.txt` per ogni valore è **opzionale e spenta di default**. Attivala in
-**Impostazioni partita → Output** (o dal menu del pannello) e scegli una cartella: il plugin vi
-tiene un file per valore, col nome della chiave del campo (per esempio `home.score.txt`), e
-riscrive un file solo quando il suo testo cambia, con scrittura atomica. Poiché le sorgenti Text di
-OBS leggono i file al massimo una volta al secondo e confrontano date al secondo intero (vedi
-[Descrizione](#descrizione)), i file servono per compatibilità con altri strumenti: l'aggiornamento
-diretto del Text resta l'output principale.
+- **Output su file** (spento di default): *Impostazioni partita → Output* — un `.txt` per valore nella cartella scelta, riscritto
+  solo se il contenuto cambia (scrittura atomica). Per altri strumenti; le sorgenti Text restano aggiornate direttamente.
+- **Registro eventi…** (menu del pannello): ogni evento con il suo orario; **esporta i capitoli YouTube** (`0:00 Titolo`) rispetto
+  all'inizio della diretta, della registrazione o al tempo di gioco, negli appunti o in un `.txt`. Solo testo: nulla viene scritto nella registrazione.
 
-Il menu del pannello ha anche **Registro eventi…**, una finestra non modale (il pannello resta
-compatto): elenca ogni evento (inizio/fine periodo, punto, penalità, fine partita) con orario,
-squadra e descrizione, ed esporta i **capitoli YouTube** — il formato `0:00 Titolo` — relativi
-all'inizio della diretta, all'inizio della registrazione o al tempo di gioco. I capitoli si copiano
-negli appunti o si salvano in un file `.txt`. YouTube richiede almeno tre capitoli, a dieci secondi
-l'uno; la finestra lo segnala quando sono meno. I capitoli sono esportati come **testo**: il plugin
-non scrive in un file di registrazione.
+### Aggiornamenti
 
-**Limite noto:** una partita ripresa da una sessione OBS precedente conserva gli orari di quella
-sessione. Con la base diretta/registrazione la finestra ignora quegli eventi più vecchi, quindi lì
-compaiono solo gli eventi della sessione corrente; la base "tempo di gioco" non è toccata.
+Una volta a ogni avvio di OBS il plugin chiede a GitHub l'ultima release (invia solo il proprio numero di versione) e, se più
+recente, aggiunge **Aggiornamento disponibile** al menu del pannello. Non scarica né installa nulla. Si disattiva dal menu.
 
 ### Compilare dai sorgenti
 
-Richiede CMake, un compilatore C++17, Qt 6 e i file di sviluppo di OBS Studio
-30.0+. Il progetto usa [CMake presets](CMakePresets.json), utilizzabili sia da
-Visual Studio sia da VS Code.
+CMake, compilatore C++17, Qt 6 e file di sviluppo di OBS Studio 30.0+; [preset CMake](CMakePresets.json) inclusi.
 
 ```bash
-# test unitari del core (senza OBS, senza Qt)
-cmake -S tests -B build_tests
-cmake --build build_tests --config Debug
+cmake -S tests -B build_tests && cmake --build build_tests --config Debug      # test del core: senza OBS né Qt
 ctest --test-dir build_tests -C Debug --output-on-failure
+cmake --preset windows-x64 && cmake --build --preset windows-x64               # plugin (anche macos / ubuntu-x86_64)
 ```
 
-```bash
-# il plugin vero e proprio
-cmake --preset windows-x64 && cmake --build --preset windows-x64   # Windows
-cmake --preset macos && cmake --build --preset macos               # macOS
-cmake --preset ubuntu-x86_64 && cmake --build --preset ubuntu-x86_64 # Linux
-```
-
-Il primo avvio della build del plugin scarica OBS, obs-deps e Qt in `.deps/`.
-Vedi [CONTRIBUTING.md](CONTRIBUTING.md) per l'elenco completo dei comandi,
-incluso come caricare il plugin compilato in un'installazione locale di OBS e
-come verificare le traduzioni.
+Dettagli, controllo delle traduzioni e caricamento in OBS: [CONTRIBUTING.md](CONTRIBUTING.md).
+Storico: [CHANGELOG.md](CHANGELOG.md). Problemi o idee: [issues](https://github.com/angeloruggieridj/obs-scoreboard/issues).
 
 ### Licenza
 
-GNU General Public License v2.0 o successiva (GPL-2.0-or-later), la stessa
-licenza di OBS Studio — vedi [LICENSE](LICENSE).
+GPL-2.0-or-later, come OBS Studio — vedi [LICENSE](LICENSE). Il modulo Companion in [companion/](companion/) è MIT.
+Il font del cronometro [DSEG7](third_party/dseg/DSEG-LICENSE.txt) è sotto SIL Open Font License 1.1.
