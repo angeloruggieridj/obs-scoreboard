@@ -45,6 +45,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+# The version the plugin reports in its log line comes from buildspec.json (not a literal here).
+$buildspec = Get-Content (Join-Path $repo 'buildspec.json') -Raw | ConvertFrom-Json
+$expectedVersion = if ($buildspec.prerelease) { "$($buildspec.version)-$($buildspec.prerelease)" } else { $buildspec.version }
 $dll = Join-Path $repo 'build_x64\RelWithDebInfo\obs-scoreboard.dll'
 $localeSrc = Join-Path $repo 'data\locale'
 $fontsSrc = Join-Path $repo 'data\fonts'
@@ -105,7 +108,7 @@ foreach ($layout in $Layouts) {
     $check = [ordered]@{
         layout          = $layout
         running_after   = $alive
-        loaded          = $text -match [regex]::Escape('[obs-scoreboard] loaded (version 0.1.0)')
+        loaded          = $text -match [regex]::Escape("[obs-scoreboard] loaded (version $expectedVersion)")
         no_error_lines  = ($errorLines.Count -eq 0)
         no_load_failure = $text -notmatch 'Failed to load module.*obs-scoreboard'
         # Informational only (not part of $check.pass): a bare OBS 32.2.2 portable install,

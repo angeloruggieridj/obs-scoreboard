@@ -4,6 +4,7 @@
 
 #include <QMainWindow>
 #include <QPointer>
+#include <QTimer>
 
 #include <filesystem>
 #include <memory>
@@ -14,6 +15,7 @@
 #include "BindingStore.hpp"
 #include "ClockDriver.hpp"
 #include "FieldSinks.hpp"
+#include "DockGrab.hpp"
 #include "FileOutput.hpp"
 #include "GlobalSettings.hpp"
 #include "Hotkeys.hpp"
@@ -91,6 +93,13 @@ void onFrontendEvent(enum obs_frontend_event event, void*) {
     case OBS_FRONTEND_EVENT_FINISHED_LOADING:
         selftest::maybeStart(g_driver, g_sinks, g_hotkeys);
         if (g_dock && !pickerSuppressed()) g_dock->offerSportChoice();
+        if (g_dock && qEnvironmentVariableIsSet("OBS_SCOREBOARD_GRAB")) {
+            // Development tool: renders the dock to PNG files (see DockGrab.hpp).
+            const QString directory = qEnvironmentVariable("OBS_SCOREBOARD_GRAB");
+            QTimer::singleShot(1500, g_dock.data(), [directory]() {
+                if (g_driver) dockgrab::run(g_driver, g_sinks, directory);
+            });
+        }
         break;
     case OBS_FRONTEND_EVENT_STREAMING_STARTED:
         g_streamStart = ClockDriver::nowMicros();
