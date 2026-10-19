@@ -733,7 +733,11 @@ void Run::checkChapters() {
     const sb::MatchSettings original = driver_->engine().settings();
     driver_->replaceMatch(
         sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
-    const sb::Micros t0 = 1'000'000'000LL; // an arbitrary instant on the monotonic scale
+    // The script ends 45 s after t0 and the export ignores events later than "now": anchor t0 a
+    // minute in the past so a freshly booted runner (monotonic clock still small) cannot make the
+    // scripted events look like they lie in the future.
+    const sb::Micros now = ClockDriver::nowMicros();
+    const sb::Micros t0 = now > 60'000'000LL ? now - 60'000'000LL : 0;
     driver_->applyAt(sb::cmd::ClockStart{}, t0);
     driver_->applyAt(sb::cmd::ClockStop{}, t0 + 1'000'000);
     driver_->applyAt(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Score, 1}, t0 + 15'000'000);
