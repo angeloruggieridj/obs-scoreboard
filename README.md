@@ -40,12 +40,56 @@ with whatever font, color and position you already picked — the plugin only
 changes their text. Writing to a `.txt` file remains available as an optional,
 secondary output for compatibility with other tools.
 
-### Status
+### Features
 
-**In development — not usable yet.** The project currently ships a build
-skeleton (CMake, an OBS module that loads an empty dock, a core library and its
-unit tests, and CI on Windows, macOS and Linux) with no scoreboard behavior
-implemented yet. Track progress in [CHANGELOG.md](CHANGELOG.md).
+- **Direct Text-source update** — link any scoreboard value (28 in total: clock, period, team names,
+  scores, shots, fouls, penalties, strength, play time...) to a Text source from the dock menu
+  (⋮ → *Source links…*, with a one-click "create a new Text source"). Updates happen only when the
+  text really changes. Links survive renaming, scene changes, restarts and scene collections.
+- **Precise clock** — tenths of a second, counting up or down, driven by a monotonic clock; ±1 minute /
+  ±1 second arrows (never past the period length), two-digit minutes, stoppage time.
+- **14 sports** — ice hockey, basketball, soccer, futsal, American football, lacrosse, rugby
+  union and sevens, field hockey, water polo, handball, rink hockey, floorball and a generic one,
+  each with editable defaults (periods, lengths, overtime, score buttons, labels).
+- **Timed penalties** (hockey, lacrosse, rugby, ...) — up to 8 per team, 2 running at a time, compound
+  penalties, editing and cancelling by penalty, and the "strength" text (`5-4`).
+- **Compact dock** — everything visible at a glance in a narrow column, no scrolling; custom score and
+  foul colors; the match is saved as you play and can be resumed after a restart.
+- **Hotkeys** — 40 OBS hotkeys, saved in the scene collection.
+- **Remote control** — an obs-websocket vendor, a native Stream Deck plugin and a Bitfocus Companion
+  module (see below).
+- **Optional extras** — `.txt` file output and YouTube chapters export (see below).
+
+### Installation
+
+Download the package for your system from the
+[releases page](https://github.com/angeloruggieridj/obs-scoreboard/releases) (OBS Studio **30.0 or newer**):
+
+| System | Package |
+|---|---|
+| Windows | `obs-scoreboard-<version>-windows-x64-setup.exe` (installer) or the `.zip` (extract into the OBS plugins folder, also for portable OBS) |
+| macOS | `obs-scoreboard-<version>-macos-universal.pkg` — not signed: on first launch right-click → *Open* |
+| Linux (Ubuntu 24.04) | the `.deb`, or the `.tar.xz` |
+
+Close OBS before installing. Then open OBS and enable the dock from **Docks → ScoreBoard**. On the
+first launch the plugin asks which sport you score.
+
+Every release carries SHA-256 checksums and a
+[build provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations)
+(`gh attestation verify <file> --repo angeloruggieridj/obs-scoreboard`).
+
+### Quick start
+
+1. Add a **Text** source for the clock (or let the plugin create it: menu ⋮ → *Source links…* → **+**).
+2. In *Source links…* pick that source for **Clock**, and the same for any other value you want on screen.
+3. Press **Start** in the dock. The text changes in OBS on the very next frame — no files involved.
+
+### Updates
+
+Once per OBS start the plugin asks GitHub whether a newer release exists (only the version number is
+exchanged, in the background; it never downloads or installs anything). If there is one, the dock menu
+shows **Update available**, which opens the release page. Turn it off from the dock menu
+(*Check for updates at start*).
 
 ### Remote control
 
@@ -181,13 +225,59 @@ le proprie sorgenti Text con il font, il colore e la posizione già scelti: il
 plugin ne cambia solo il testo. La scrittura su file `.txt` resta disponibile
 come opzione secondaria, per compatibilità con altri strumenti.
 
-### Stato
+### Funzionalità
 
-**In sviluppo — non ancora utilizzabile.** Il progetto al momento comprende
-solo lo scheletro di compilazione (CMake, un modulo OBS che carica un pannello
-vuoto, una libreria core con i relativi test unitari, e la CI su Windows, macOS
-e Linux); nessuna funzionalità di tabellone è ancora implementata. Segui i
-progressi in [CHANGELOG.md](CHANGELOG.md).
+- **Aggiornamento diretto delle sorgenti Text** — collega qualsiasi valore del tabellone (28 in totale:
+  cronometro, periodo, nomi, punteggi, tiri, falli, penalità, inferiorità, tempo di gioco...) a una
+  sorgente Text dal menu del pannello (⋮ → *Collegamenti sorgenti…*, con "crea una nuova sorgente
+  Text" in un clic). L'aggiornamento avviene solo quando il testo cambia davvero. I collegamenti
+  sopravvivono a rinomina, cambio scena, riavvio e collezioni di scene.
+- **Cronometro preciso** — decimi di secondo, avanti o indietro, guidato da un orologio monotono;
+  frecce ±1 minuto / ±1 secondo (mai oltre la durata del periodo), minuti a due cifre, recupero.
+- **14 sport** — hockey su ghiaccio, basket, calcio, futsal, football americano, lacrosse, rugby a 15 e a 7,
+  hockey su prato, pallanuoto, pallamano, hockey su pista, floorball e uno generico, con valori
+  predefiniti modificabili (periodi, durate, supplementari, pulsanti punto, etichette).
+- **Penalità a tempo** (hockey, lacrosse, rugby, ...) — fino a 8 per squadra, 2 in corso
+  contemporaneamente, penalità composte, modifica e annullamento per singola penalità, e testo di
+  inferiorità numerica (`5-4`).
+- **Pannello compatto** — tutto visibile a colpo d'occhio in una colonna stretta, senza scorrimento; colori
+  personalizzabili di punteggi e falli; la partita viene salvata mentre si gioca e si può riprendere
+  dopo un riavvio.
+- **Hotkey** — 40 hotkey OBS, salvate nella collezione di scene.
+- **Controllo remoto** — un vendor obs-websocket, un plugin Stream Deck nativo e un modulo Bitfocus
+  Companion (vedi sotto).
+- **Extra opzionali** — output su file `.txt` ed esportazione dei capitoli YouTube (vedi sotto).
+
+### Installazione
+
+Scarica il pacchetto per il tuo sistema dalla
+[pagina delle release](https://github.com/angeloruggieridj/obs-scoreboard/releases) (OBS Studio **30.0 o successivo**):
+
+| Sistema | Pacchetto |
+|---|---|
+| Windows | `obs-scoreboard-<versione>-windows-x64-setup.exe` (installer) oppure lo `.zip` (da estrarre nella cartella dei plugin di OBS, anche per OBS portatile) |
+| macOS | `obs-scoreboard-<versione>-macos-universal.pkg` — non firmato: al primo avvio tasto destro → *Apri* |
+| Linux (Ubuntu 24.04) | il `.deb`, oppure il `.tar.xz` |
+
+Chiudi OBS prima di installare. Poi apri OBS e attiva il pannello da **Pannelli → ScoreBoard**. Al
+primo avvio il plugin chiede quale sport stai seguendo.
+
+Ogni release include i checksum SHA-256 e un'
+[attestazione di provenienza della build](https://docs.github.com/it/actions/security-for-github-actions/using-artifact-attestations)
+(`gh attestation verify <file> --repo angeloruggieridj/obs-scoreboard`).
+
+### Primi passi
+
+1. Aggiungi una sorgente **Text** per il cronometro (oppure fai creare quella al plugin: menu ⋮ → *Collegamenti sorgenti…* → **+**).
+2. In *Collegamenti sorgenti…* scegli quella sorgente per **Cronometro**, e lo stesso per ogni altro valore che vuoi a schermo.
+3. Premi **Avvia** nel pannello. Il testo cambia in OBS al fotogramma successivo: nessun file di mezzo.
+
+### Aggiornamenti
+
+Una volta a ogni avvio di OBS il plugin chiede a GitHub se esiste una release più recente (viene scambiato
+solo il numero di versione, in background; non scarica né installa nulla). Se c'è, il menu del pannello
+mostra **Aggiornamento disponibile**, che apre la pagina della release. Si disattiva dal menu del pannello
+(*Controlla gli aggiornamenti all'avvio*).
 
 ### Controllo remoto
 
