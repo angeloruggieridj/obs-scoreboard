@@ -6,38 +6,73 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include "DockStyle.hpp"
 #include "PanelModel.hpp"
 
 CounterControl::CounterControl(QWidget* parent) : QWidget(parent) {
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
-    outer->setSpacing(1);
+    outer->setSpacing(2);
 
+    // The cells of a row touch each other: their borders form the separators of one segmented
+    // group.
     top_ = new QHBoxLayout();
-    top_->setSpacing(1);
-    top_->addWidget(makeButton(QStringLiteral("−1"), -1));
+    top_->setSpacing(0);
+    minus_ = makeButton(QStringLiteral("−1"), -1);
+    top_->addWidget(minus_);
     value_ = new QLabel(this);
     value_->setAlignment(Qt::AlignCenter);
     value_->setMinimumWidth(32);
     value_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    QFont font = value_->font();
-    font.setBold(true);
-    font.setPointSizeF(font.pointSizeF() * 1.2);
-    value_->setFont(font);
+    dockstyle::setProp(value_, dockstyle::kRole, QStringLiteral("segval"));
     top_->addWidget(value_, 1);
     outer->addLayout(top_);
 
     extra_ = new QHBoxLayout();
-    extra_->setSpacing(1);
+    extra_->setSpacing(0);
     outer->addLayout(extra_);
+    restyle();
 }
 
 QPushButton* CounterControl::makeButton(const QString& text, int delta) {
     auto* button = new QPushButton(text, this);
-    button->setMinimumWidth(28);
     button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    button->setFocusPolicy(Qt::TabFocus);
+    dockstyle::setProp(button, dockstyle::kRole, QStringLiteral("seg"));
     connect(button, &QPushButton::clicked, this, [this, delta]() { emit deltaRequested(delta); });
     return button;
+}
+
+void CounterControl::restyle() {
+    // First and last cell of each row get the rounded outer corners.
+    const QString size = large_ ? QStringLiteral("large") : QString();
+    for (QWidget* w : {static_cast<QWidget*>(minus_), static_cast<QWidget*>(value_)}) {
+        dockstyle::setProp(w, dockstyle::kSize, size);
+    }
+    dockstyle::setProp(minus_, dockstyle::kPos, QStringLiteral("first"));
+    const std::size_t topPlus = plusButtons_.empty() ? 0 : 1; // plusButtons_[0] ends the top row
+    for (std::size_t i = 0; i < plusButtons_.size(); ++i) {
+        QString pos;
+        if (i == 0) {
+            pos = QStringLiteral("last");
+        } else {
+            const std::size_t extras = plusButtons_.size() - topPlus;
+            const std::size_t k = i - topPlus; // index inside the extra row
+            pos =
+                extras == 1
+                    ? QStringLiteral("only")
+                    : (k == 0 ? QStringLiteral("first")
+                              : (k + 1 == extras ? QStringLiteral("last") : QStringLiteral("mid")));
+        }
+        dockstyle::setProp(plusButtons_[i], dockstyle::kPos, pos);
+        dockstyle::setProp(plusButtons_[i], dockstyle::kSize, size);
+    }
+}
+
+void CounterControl::setLarge(bool large) {
+    if (large_ == large) return;
+    large_ = large;
+    restyle();
 }
 
 void CounterControl::setPlusValues(const std::vector<int>& values) {
@@ -48,11 +83,12 @@ void CounterControl::setPlusValues(const std::vector<int>& values) {
     for (int v : plusValues_) {
         QPushButton* button = makeButton(QStringLiteral("+%1").arg(v), v);
         plusButtons_.push_back(button);
-        if (plusValues_.size() == 1)
-            top_->addWidget(button);
+        if (plusButtons_.size() == 1)
+            top_->addWidget(button); // the first plus ends the top row...
         else
-            extra_->addWidget(button);
+            extra_->addWidget(button); // ...the others share a second row
     }
+    restyle();
 }
 
 void CounterControl::setValue(int value) {
@@ -70,7 +106,7 @@ void CounterControl::setColor(const QString& hex) {
         return;
     }
     const char* text = sb::darkTextOn(*rgb) ? "#111111" : "#FFFFFF";
+    // Only the fill and the text color: the border, size and font come from the shared style.
     value_->setStyleSheet(
-        QStringLiteral("QLabel{background:%1;color:%2;border-radius:4px;padding:2px 6px;}")
-            .arg(hex, QString::fromLatin1(text)));
+        QStringLiteral("QLabel{background:%1;color:%2;}").arg(hex, QString::fromLatin1(text)));
 }

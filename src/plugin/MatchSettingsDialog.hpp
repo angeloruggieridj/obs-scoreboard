@@ -31,6 +31,7 @@ public:
         std::string foulColor;
         bool fileOutputEnabled = false;
         std::string fileOutputDir;
+        bool comfortableDock = false;
     };
     using Applier = std::function<bool(const Result&)>;
 
@@ -90,6 +91,7 @@ private:
     QPushButton* foulSwatch_ = nullptr;
     std::string scoreColor_;
     std::string foulColor_;
+    QComboBox* density_ = nullptr;
     QCheckBox* fileOutput_ = nullptr;
     QLabel* fileOutputDirLabel_ = nullptr;
     QPushButton* fileOutputChoose_ = nullptr;

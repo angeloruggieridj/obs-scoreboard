@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "MatchSettingsDialog.hpp"
+#include "DockStyle.hpp"
 
 #include <obs-module.h>
 
@@ -46,6 +47,7 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
     : QDialog(parent), prefs_(prefs), base_(current), openedHome_(current.homeName),
       openedAway_(current.awayName), applier_(std::move(applier)) {
     setWindowTitle(text("Settings.Title"));
+    setMinimumWidth(460);
     setAttribute(Qt::WA_DeleteOnClose);
     scoreColor_ = prefs_.scoreColor;
     foulColor_ = prefs_.foulColor;
@@ -69,6 +71,7 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, &QDialogButtonBox::accepted, this, &MatchSettingsDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    dockstyle::styleDialog(this);
     outer->addWidget(buttons);
 
     // Cross-tab connections: every widget exists now.
@@ -213,6 +216,13 @@ void MatchSettingsDialog::buildLookTab(QWidget* page) {
     });
     form->addRow(text("Settings.FoulColor"), foulRow);
     showColor(foulSwatch_, foulColor_);
+
+    // Taller buttons and more air, for a mouse that is not as precise as the match is fast.
+    density_ = new QComboBox(page);
+    density_->addItem(text("Settings.Density.Compact"), 0);
+    density_->addItem(text("Settings.Density.Comfortable"), 1);
+    density_->setCurrentIndex(prefs_.comfortableDock ? 1 : 0);
+    form->addRow(text("Settings.Density"), density_);
 }
 
 void MatchSettingsDialog::buildOutputTab(QWidget* page) {
@@ -326,14 +336,23 @@ void MatchSettingsDialog::updatePreview() {
 }
 
 void MatchSettingsDialog::showColor(QPushButton* swatch, const std::string& hex) {
-    const QString label = hex.empty() ? text("Settings.ColorDefault") : QString::fromStdString(hex);
+    // The swatch always shows the color in use: the default one, marked as such, when none was
+    // picked.
+    const std::string effective =
+        !hex.empty()
+            ? hex
+            : std::string(swatch == scoreSwatch_ ? sb::kDefaultScoreColor : sb::kDefaultFoulColor);
+    const QString label =
+        hex.empty() ? QStringLiteral("%1  (%2)")
+                          .arg(QString::fromStdString(effective), text("Settings.ColorDefault"))
+                    : QString::fromStdString(effective);
     if (swatch->text() != label) swatch->setText(label);
-    const auto rgb = sb::parseColor(hex);
+    const auto rgb = sb::parseColor(effective);
     QString style;
     if (rgb)
         style =
             QStringLiteral("QPushButton{background:%1;color:%2;}")
-                .arg(QString::fromStdString(hex),
+                .arg(QString::fromStdString(effective),
                      sb::darkTextOn(*rgb) ? QStringLiteral("#111111") : QStringLiteral("#FFFFFF"));
     if (swatch->styleSheet() != style) swatch->setStyleSheet(style);
 }
@@ -386,6 +405,7 @@ bool MatchSettingsDialog::collect(Result& out, QString* problem) const {
     out.awayNameEdited = out.settings.awayName != openedAway_;
     out.scoreColor = scoreColor_;
     out.foulColor = foulColor_;
+    out.comfortableDock = density_ && density_->currentData().toInt() == 1;
     if (fileOutput_->isChecked() && fileOutputDir_.empty()) {
         *problem = text("Settings.FileOutputNeedsFolder");
         return false;

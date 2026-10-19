@@ -56,6 +56,12 @@ void GlobalSettings::setColors(std::string scoreColor, std::string foulColor) {
     save();
 }
 
+void GlobalSettings::setComfortableDock(bool comfortable) {
+    if (prefs_.comfortableDock == comfortable) return;
+    prefs_.comfortableDock = comfortable;
+    save();
+}
+
 void GlobalSettings::setUpdateCheck(bool enabled) {
     if (prefs_.updateCheck == enabled) return;
     prefs_.updateCheck = enabled;

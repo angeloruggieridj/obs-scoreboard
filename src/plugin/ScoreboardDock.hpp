@@ -113,7 +113,7 @@ private:
     QPointer<FileOutput> output_;
     QPointer<EventLogDialog> eventLog_;
     QPushButton* link_ = nullptr;
-    QToolButton* menu_ = nullptr;
+    QPushButton* menu_ = nullptr;
     QAction* fileOutputAction_ = nullptr;
     QAction* updateAction_ = nullptr;
     QString updateUrl_;

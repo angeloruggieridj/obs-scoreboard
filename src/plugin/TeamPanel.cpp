@@ -6,7 +6,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QToolButton>
+#include <QPushButton>
 #include <QVBoxLayout>
 
 #include <cstring>
@@ -14,6 +14,7 @@
 
 #include "Counters.hpp"
 #include "CounterControl.hpp"
+#include "DockStyle.hpp"
 #include "PenaltyList.hpp"
 
 namespace {
@@ -26,31 +27,37 @@ void setIfChanged(QLabel* label, const QString& value) {
     if (label->text() != value) label->setText(value);
 }
 
-QLabel* makeCaption(QWidget* parent) {
+// Small grey caption above a control; set through setCaption() so the text is upper-cased once.
+QLabel* makeCaption(QWidget* parent, Qt::Alignment alignment = Qt::AlignCenter) {
     auto* label = new QLabel(parent);
-    label->setAlignment(Qt::AlignCenter);
-    QFont font = label->font();
-    font.setBold(true);
-    font.setPointSizeF(font.pointSizeF() * 0.8);
-    label->setFont(font);
+    label->setAlignment(alignment);
+    dockstyle::setProp(label, dockstyle::kText, QStringLiteral("caption"));
     return label;
+}
+
+void setCaption(QLabel* label, const QString& value) {
+    setIfChanged(label, value.toUpper());
 }
 
 } // namespace
 
-TeamPanel::TeamPanel(QWidget* parent) : QWidget(parent) {
+TeamPanel::TeamPanel(QWidget* parent) : QFrame(parent) {
+    dockstyle::setProp(this, dockstyle::kCard, QStringLiteral("team"));
+    dockstyle::setProp(this, dockstyle::kTeam, QStringLiteral("home"));
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(1, 1, 1, 1);
-    layout->setSpacing(1);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
 
     name_ = new QLineEdit(this);
     name_->setAlignment(Qt::AlignCenter);
+    dockstyle::setProp(name_, dockstyle::kText, QStringLiteral("name"));
     connect(name_, &QLineEdit::editingFinished, this, [this]() { emit nameEdited(name_->text()); });
     layout->addWidget(name_);
 
     scoreCaption_ = makeCaption(this);
     layout->addWidget(scoreCaption_);
     score_ = new CounterControl(this);
+    score_->setLarge(true);
     connect(score_, &CounterControl::deltaRequested, this,
             [this](int delta) { emit statDelta(static_cast<int>(sb::Stat::Score), delta); });
     layout->addWidget(score_);
@@ -64,13 +71,12 @@ TeamPanel::TeamPanel(QWidget* parent) : QWidget(parent) {
     }
 
     auto* penaltiesRow = new QHBoxLayout();
-    penaltiesCaption_ = makeCaption(this);
-    penaltiesAdd_ = new QToolButton(this);
-    penaltiesAdd_->setText(QStringLiteral("+"));
-    penaltiesAdd_->setAutoRaise(true);
+    penaltiesCaption_ = makeCaption(this, Qt::AlignLeft | Qt::AlignVCenter);
+    penaltiesAdd_ = new dockstyle::IconButton(dockstyle::Icon::Plus, this);
+    dockstyle::setProp(penaltiesAdd_, dockstyle::kRole, QStringLiteral("small"));
     penaltiesAdd_->setObjectName(QStringLiteral("penaltyAdd"));
     penaltiesAdd_->setToolTip(QString::fromUtf8(obs_module_text("Panel.PenaltyAdd")));
-    connect(penaltiesAdd_, &QToolButton::clicked, this, &TeamPanel::penaltyAddRequested);
+    connect(penaltiesAdd_, &QPushButton::clicked, this, &TeamPanel::penaltyAddRequested);
     penaltiesRow->addWidget(penaltiesCaption_, 1);
     penaltiesRow->addWidget(penaltiesAdd_);
     penaltiesCaption_->hide();
@@ -82,6 +88,11 @@ TeamPanel::TeamPanel(QWidget* parent) : QWidget(parent) {
     layout->addLayout(penaltiesRow);
     layout->addWidget(penalties_);
     layout->addStretch(1);
+}
+
+void TeamPanel::setSide(bool away) {
+    dockstyle::setProp(this, dockstyle::kTeam,
+                       away ? QStringLiteral("away") : QStringLiteral("home"));
 }
 
 TeamPanel::Row TeamPanel::makeRow(int stat) {
@@ -110,12 +121,12 @@ void TeamPanel::applyLayout(const sb::PanelLayout& layout) {
     const std::string scoreKey = "Panel.Score." + layout.scoreLabel;
     const std::string foulsKey = "Panel.Fouls." + layout.foulsLabel;
     const std::string fouls2Key = "Panel.Fouls2." + layout.fouls2Label;
-    setIfChanged(scoreCaption_, text(scoreKey));
+    setCaption(scoreCaption_, text(scoreKey));
     score_->setPlusValues(layout.scoreValues);
-    setIfChanged(shots_.caption, text("Panel.Shots"));
-    setIfChanged(fouls_.caption, text(foulsKey));
-    setIfChanged(fouls2_.caption, text(fouls2Key));
-    setIfChanged(penaltiesCaption_, text("Panel.Penalties"));
+    setCaption(shots_.caption, text("Panel.Shots"));
+    setCaption(fouls_.caption, text(foulsKey));
+    setCaption(fouls2_.caption, text(fouls2Key));
+    setCaption(penaltiesCaption_, text("Panel.Penalties"));
     shots_.counter->setPlusValues({1});
     fouls_.counter->setPlusValues({1});
     fouls2_.counter->setPlusValues({1});

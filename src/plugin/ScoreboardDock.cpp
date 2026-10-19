@@ -25,6 +25,7 @@
 #include "ClockDriver.hpp"
 #include "ClockPanel.hpp"
 #include "EventLogDialog.hpp"
+#include "DockStyle.hpp"
 #include "FieldSinks.hpp"
 #include "FileOutput.hpp"
 #include "GlobalSettings.hpp"
@@ -60,18 +61,16 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     : QWidget(parent), driver_(driver), sinks_(sinks), settings_(settings), saver_(saver) {
     setMinimumWidth(280);
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(3, 3, 3, 3);
-    layout->setSpacing(3);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
 
     link_ = new QPushButton(this);
-    link_->setFlat(true);
+    dockstyle::setProp(link_, dockstyle::kText, QStringLiteral("pill"));
     connect(link_, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
 
-    menu_ = new QToolButton(this);
-    menu_->setText(QStringLiteral("..."));
-    menu_->setPopupMode(QToolButton::InstantPopup);
-    menu_->setAutoRaise(true);
-    menu_->setStyleSheet(QStringLiteral("QToolButton::menu-indicator{image:none;}"));
+    menu_ = new dockstyle::IconButton(dockstyle::Icon::Menu, this);
+    dockstyle::setProp(menu_, dockstyle::kRole, QStringLiteral("iconghost"));
+    menu_->setToolTip(text("Menu.Tooltip"));
     auto* menu = new QMenu(menu_);
     connect(menu->addAction(text("Menu.Settings")), &QAction::triggered, this,
             &ScoreboardDock::openSettings);
@@ -120,38 +119,35 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     connect(menu->addAction(text("Menu.About")), &QAction::triggered, this, &ScoreboardDock::about);
     menu_->setMenu(menu);
 
-    // OBS shows the dock title itself, so there is no header row: the link indicator and the menu
-    // sit at the top-right of the clock row.
-    auto* corner = new QWidget(this);
-    auto* cornerColumn = new QVBoxLayout(corner);
-    cornerColumn->setContentsMargins(0, 0, 0, 0);
-    cornerColumn->setSpacing(0);
-    cornerColumn->addWidget(link_, 0, Qt::AlignCenter);
-    cornerColumn->addWidget(menu_, 0, Qt::AlignCenter);
+    // OBS shows the dock title itself; the first row of the dock holds the link indicator and the
+    // menu.
+    auto* header = new QHBoxLayout();
+    header->setSpacing(6);
+    header->addWidget(link_);
+    header->addStretch(1);
+    header->addWidget(menu_);
+    layout->addLayout(header);
 
     clock_ = new ClockPanel(this);
-    clock_->addTopRightWidget(corner);
     layout->addWidget(clock_);
 
     auto* teams = new QHBoxLayout();
-    teams->setSpacing(3);
+    teams->setSpacing(6);
     home_ = new TeamPanel(this);
     away_ = new TeamPanel(this);
+    away_->setSide(true);
     teams->addWidget(home_, 1);
     teams->addWidget(away_, 1);
     layout->addLayout(teams);
 
     strength_ = new QLabel(this);
     strength_->setAlignment(Qt::AlignCenter);
-    QFont big = strength_->font();
-    big.setBold(true);
-    big.setPointSizeF(big.pointSizeF() * 1.2);
-    strength_->setFont(big);
+    dockstyle::setProp(strength_, dockstyle::kText, QStringLiteral("pillLabel"));
     strength_->hide();
-    layout->addWidget(strength_);
+    layout->addWidget(strength_, 0, Qt::AlignHCenter);
 
-    auto* toggles = new QHBoxLayout();
-    toggles->setSpacing(8);
+    auto* toggles = new QVBoxLayout();
+    toggles->setSpacing(2);
     countdown_ = new QCheckBox(text("Panel.Countdown"), this);
     connect(countdown_, &QCheckBox::clicked, this, [this](bool checked) {
         if (!driver_) return;
@@ -178,13 +174,13 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
         refresh();
     });
     toggles->addWidget(runPast_);
-    toggles->addStretch(1);
     layout->addLayout(toggles);
 
     // Always present, so a message appearing or clearing never moves the layout above it.
     status_ = new QLabel(this);
     status_->setObjectName(QStringLiteral("dockStatus"));
     status_->setWordWrap(true);
+    dockstyle::setProp(status_, dockstyle::kText, QStringLiteral("status"));
     layout->addWidget(status_);
 
     layout->addStretch(1);
@@ -233,6 +229,10 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
         refresh();
     }
     showLinkState();
+    if (settings_)
+        dockstyle::setDensity(settings_->prefs().comfortableDock ? dockstyle::Density::Comfortable
+                                                                 : dockstyle::Density::Compact);
+    dockstyle::install(this);
 }
 
 TeamPanel* ScoreboardDock::panel(sb::Team team) const {
@@ -333,10 +333,9 @@ void ScoreboardDock::showLinkState() {
     if (link_->text() != label) link_->setText(label);
     if (state == shownLinkState_) return;
     shownLinkState_ = state;
-    static const char* colors[] = {"#27AE60", "#F2C94C", "#888888"};
+    static const char* levels[] = {"ok", "warn", "none"};
     static const char* tips[] = {"Panel.Link.Ok", "Panel.Link.Broken", "Panel.Link.None"};
-    link_->setStyleSheet(QStringLiteral("QPushButton{color:%1;font-weight:bold;}")
-                             .arg(QLatin1String(colors[state])));
+    dockstyle::setProp(link_, dockstyle::kLink, QString::fromLatin1(levels[state]));
     link_->setToolTip(text(tips[state]));
 }
 
@@ -360,6 +359,9 @@ void ScoreboardDock::refresh() {
     }
     const QString strength = field(values, sb::FieldId::Strength);
     if (strength_->text() != strength) strength_->setText(strength);
+    // An empty strength (everyone on the ice) shows no pill at all.
+    const bool strengthVisible = strengthShown_ && !strength.isEmpty();
+    if (strength_->isVisibleTo(this) != strengthVisible) strength_->setVisible(strengthVisible);
 
     const bool started = sb::matchStarted(engine);
     const bool down = engine.settings().sport.direction == sb::Direction::Down;
@@ -561,6 +563,9 @@ bool ScoreboardDock::applyDialogResult(const MatchSettingsDialog::Result& r) {
     if (!applySettings(next)) return false; // NO to "start a new match": nothing is saved
     if (settings_) {
         settings_->setColors(r.scoreColor, r.foulColor);
+        settings_->setComfortableDock(r.comfortableDock);
+        dockstyle::setDensity(r.comfortableDock ? dockstyle::Density::Comfortable
+                                                : dockstyle::Density::Compact);
         settings_->setFileOutput(r.fileOutputEnabled, r.fileOutputDir);
         if (output_) {
             output_->apply(settings_->prefs());

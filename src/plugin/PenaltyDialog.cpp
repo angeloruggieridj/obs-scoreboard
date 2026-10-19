@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "PenaltyDialog.hpp"
+#include "DockStyle.hpp"
 
 #include <obs-module.h>
 
@@ -106,6 +107,8 @@ void PenaltyDialog::finishLayout(QVBoxLayout* outer) {
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, &QDialogButtonBox::accepted, this, &PenaltyDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    setMinimumWidth(340);
+    dockstyle::styleDialog(this);
     outer->addWidget(buttons);
 }
 

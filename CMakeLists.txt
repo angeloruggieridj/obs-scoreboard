@@ -97,6 +97,10 @@ target_sources(
     src/plugin/ClockPanel.hpp
     src/plugin/CounterControl.cpp
     src/plugin/CounterControl.hpp
+    src/plugin/DockGrab.cpp
+    src/plugin/DockGrab.hpp
+    src/plugin/DockStyle.cpp
+    src/plugin/DockStyle.hpp
     src/plugin/EventLogDialog.cpp
     src/plugin/EventLogDialog.hpp
     src/plugin/FieldSinks.cpp

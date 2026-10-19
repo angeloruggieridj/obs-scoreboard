@@ -7,11 +7,13 @@
 
 #include "PanelModel.hpp"
 
+class QFrame;
 class QLabel;
-class QToolButton;
+class QPushButton;
 class QVBoxLayout;
 
-// One team's penalties: running ones with their time, queued ones marked, a cross to cancel each.
+// One team's penalties: running ones with their time and a thin bar of what is left, queued ones
+// dimmed, a pencil and a cross on each.
 // The cross cancels by penalty id, never by position: the list moves while the clock runs.
 class PenaltyList : public QWidget {
     Q_OBJECT
@@ -26,10 +28,12 @@ signals:
 
 private:
     struct Slot {
-        QWidget* box = nullptr;
+        QFrame* box = nullptr;
         QLabel* label = nullptr;
-        QToolButton* edit = nullptr;
-        QToolButton* cancel = nullptr;
+        QPushButton* edit = nullptr;
+        QPushButton* cancel = nullptr;
+        QWidget* meter = nullptr; // time left in the phase (hidden for a queued penalty)
+        bool queued = false;
         unsigned id = 0; // the penalty this slot shows right now
     };
     void ensureSlots(std::size_t count);

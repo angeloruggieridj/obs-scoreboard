@@ -22,10 +22,6 @@ public:
     void setRunning(bool running);
     void setResetEnabled(bool enabled);
 
-    // Places a widget at the top-right of the clock row (the dock puts the link indicator and the
-    // menu there so they do not need a row of their own).
-    void addTopRightWidget(QWidget* widget);
-
 signals:
     void arrowRequested(qint64 deltaTenths);
     void toggleRequested();
@@ -52,7 +48,6 @@ private:
     QPushButton* startStop_ = nullptr;
     QPushButton* reset_ = nullptr;
     int shownPixelSize_ = 0;
-    int cornerWidth_ = 0; // width reserved for the top-right widget(s)
     bool stoppageShown_ = false;
     int shownRunning_ = -1; // -1 unknown, 0 stopped, 1 running
 };

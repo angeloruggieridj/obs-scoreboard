@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "BindingsDialog.hpp"
+#include "DockStyle.hpp"
 
 #include <obs-module.h>
 
@@ -42,19 +43,21 @@ BindingsDialog::BindingsDialog(FieldSinks* sinks, QWidget* parent)
         const auto field = static_cast<sb::FieldId>(i);
         auto* row = new QHBoxLayout();
         auto* picker = new SourcePicker(page);
-        auto* add = new QToolButton(page);
-        add->setText(QStringLiteral("+"));
+        auto* add = new dockstyle::IconButton(dockstyle::Icon::Plus, page);
+        dockstyle::setProp(add, dockstyle::kRole, QStringLiteral("icon"));
         add->setToolTip(text("Bindings.Create"));
         row->addWidget(picker, 1);
         row->addWidget(add);
         form->addRow(fieldLabel(field), row);
         pickers_[i] = picker;
         connect(picker, &QComboBox::activated, this, [this, field](int) { choose(field); });
-        connect(add, &QToolButton::clicked, this, [this, field]() { create(field); });
+        connect(add, &QPushButton::clicked, this, [this, field]() { create(field); });
         if (sinks_) picker->showBinding(sinks_->sink(field));
     }
     scroll->setWidget(page);
     outer->addWidget(scroll);
+    resize(560, 520);
+    dockstyle::styleDialog(this);
     if (sinks_) {
         connect(sinks_, &FieldSinks::bindingChanged, this, [this](int index) {
             if (index < 0 || static_cast<std::size_t>(index) >= sb::kFieldCount || !sinks_) return;

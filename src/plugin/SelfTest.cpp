@@ -22,7 +22,7 @@
 #include <QTableWidget>
 #include <QThread>
 #include <QTimer>
-#include <QToolButton>
+#include <QPushButton>
 
 #include <nlohmann/json.hpp>
 
@@ -608,7 +608,7 @@ void Run::checkFoulsAndPenalties() {
 
     // The dock opens the add window; replacing the match closes it (Review Focus 2).
     {
-        auto* plus = probe.findChild<QToolButton*>(QStringLiteral("penaltyAdd"));
+        auto* plus = probe.findChild<QPushButton*>(QStringLiteral("penaltyAdd"));
         if (!plus) {
             penaltyControls_ = false;
             fail("penaltyControls: the add button is not found");
@@ -915,7 +915,7 @@ void Run::checkVendorApi() {
         sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
     driver_->apply(sb::cmd::AddStat{sb::Team::Home, sb::Stat::Score, 1}); // make it a live match
     {
-        auto* plus = probe.findChild<QToolButton*>(QStringLiteral("penaltyAdd"));
+        auto* plus = probe.findChild<QPushButton*>(QStringLiteral("penaltyAdd"));
         if (plus) plus->click();
         if (probe.findChildren<QDialog*>().isEmpty()) {
             vendorApi_ = false;

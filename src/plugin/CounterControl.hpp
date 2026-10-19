@@ -20,6 +20,8 @@ public:
 
     void setPlusValues(const std::vector<int>& values);
     void setValue(int value);
+    // The score counter is a little larger than the others.
+    void setLarge(bool large);
     // "#RRGGBB" background of the value box; empty = the theme's look. Restyles only on change.
     void setColor(const QString& hex);
 
@@ -28,10 +30,13 @@ signals:
 
 private:
     QPushButton* makeButton(const QString& text, int delta);
+    void restyle();
 
     QHBoxLayout* top_ = nullptr;
     QHBoxLayout* extra_ = nullptr; // second row, used with two or more plus buttons
     QLabel* value_ = nullptr;
+    QPushButton* minus_ = nullptr;
+    bool large_ = false;
     std::vector<QPushButton*> plusButtons_;
     std::vector<int> plusValues_;
     std::optional<int> shownValue_;

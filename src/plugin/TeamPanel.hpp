@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include <QFrame>
 #include <QString>
-#include <QWidget>
 
 #include <optional>
 #include <vector>
@@ -14,14 +14,17 @@ class CounterControl;
 class PenaltyList;
 class QLabel;
 class QLineEdit;
-class QToolButton;
+class QPushButton;
 
 // One team's column: name, score, shots, fouls, second fouls, penalties. Shows what it is told;
 // every user action leaves as a signal and goes through the dock's dispatch().
-class TeamPanel : public QWidget {
+class TeamPanel : public QFrame {
     Q_OBJECT
 public:
     explicit TeamPanel(QWidget* parent = nullptr);
+
+    // Which side this column is: sets the color of the bar on top of the card.
+    void setSide(bool away);
 
     void applyLayout(const sb::PanelLayout& layout);
     void setName(const QString& name);
@@ -57,7 +60,7 @@ private:
     Row fouls_;
     Row fouls2_;
     QLabel* penaltiesCaption_ = nullptr;
-    QToolButton* penaltiesAdd_ = nullptr;
+    QPushButton* penaltiesAdd_ = nullptr;
     PenaltyList* penalties_ = nullptr;
     bool penaltiesShown_ = false;
     std::optional<sb::PanelLayout> applied_;

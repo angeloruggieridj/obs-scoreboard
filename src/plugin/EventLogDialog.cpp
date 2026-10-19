@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "EventLogDialog.hpp"
+#include "DockStyle.hpp"
 
 #include <obs-module.h>
 
@@ -81,6 +82,7 @@ EventLogDialog::EventLogDialog(ClockDriver* driver, std::optional<sb::Micros> st
     buttons->addStretch(1);
     auto* close = new QDialogButtonBox(QDialogButtonBox::Close, this);
     connect(close, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    dockstyle::styleDialog(this);
     buttons->addWidget(close);
     outer->addLayout(buttons);
 
