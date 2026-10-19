@@ -20,8 +20,8 @@
 
 <table>
   <tr>
-    <td align="center"><img src="docs/images/dock-hockey.png" width="324" alt="The ScoreBoard dock in OBS Studio"><br><sub>The dock in OBS (ice hockey)</sub></td>
-    <td align="center"><img src="docs/images/dock-hockey-live.svg" width="324" alt="The ScoreBoard dock during a match: clock 14:32, score 2-1, penalties"><br><sub>Illustration: match in progress</sub></td>
+    <td align="center"><img src="docs/images/dock-hockey.png" width="324" alt="The ScoreBoard dock in OBS Studio: ice hockey, dark theme"><br><sub>Ice hockey, OBS dark theme</sub></td>
+    <td align="center"><img src="docs/images/dock-soccer-light.png" width="324" alt="The ScoreBoard dock in OBS Studio: soccer, light theme"><br><sub>Soccer, OBS light theme</sub></td>
   </tr>
 </table>
 
