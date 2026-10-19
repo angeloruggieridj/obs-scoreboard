@@ -60,6 +60,11 @@ secondary output for compatibility with other tools.
   module (see below).
 - **Optional extras** — `.txt` file output and YouTube chapters export (see below).
 
+### Compatibility
+
+OBS Studio **30.0 or newer** (the plugin is built against OBS 30.0). The versions it has actually been
+loaded and run against are listed in [obs-compat.json](obs-compat.json).
+
 ### Installation
 
 Download the package for your system from the
@@ -247,6 +252,11 @@ come opzione secondaria, per compatibilità con altri strumenti.
 - **Controllo remoto** — un vendor obs-websocket, un plugin Stream Deck nativo e un modulo Bitfocus
   Companion (vedi sotto).
 - **Extra opzionali** — output su file `.txt` ed esportazione dei capitoli YouTube (vedi sotto).
+
+### Compatibilità
+
+OBS Studio **30.0 o successivo** (il plugin è compilato contro OBS 30.0). Le versioni con cui è stato
+realmente caricato ed eseguito sono elencate in [obs-compat.json](obs-compat.json).
 
 ### Installazione
 

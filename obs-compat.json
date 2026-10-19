@@ -1,0 +1,16 @@
+{
+  "_comment": "OBS Studio versions ScoreBoard for OBS has been checked against. min_supported comes from the OBS APIs the plugin uses (see CLAUDE.md); only the versions listed under results were actually loaded and run.",
+  "min_supported": "30.0",
+  "max_tested": "32.2.2",
+  "built_against": "30.0.0",
+  "results": {
+    "30.2.3": {
+      "check": "check-obs-load (plugin loads, vendor registers, clean shutdown)",
+      "status": "ok"
+    },
+    "32.2.2": {
+      "check": "check-obs-load + selftest at 25/30/50/60 fps (Windows and Linux CI), reopen pass",
+      "status": "ok"
+    }
+  }
+}
