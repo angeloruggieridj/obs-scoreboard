@@ -83,12 +83,15 @@ std::string prefsToJson(const GlobalPrefs& prefs) {
     json stored = json::object();
     for (const auto& entry : prefs.sportSettings)
         stored[entry.first] = json::parse(settingsToJson(entry.second));
-    return json{
-        {"version", kPrefsJsonVersion},         {"lastSport", prefs.lastSport},
-        {"scoreColor", prefs.scoreColor},       {"sportChosen", prefs.sportChosen},
-        {"foulColor", prefs.foulColor},         {"fileOutputEnabled", prefs.fileOutputEnabled},
-        {"fileOutputDir", prefs.fileOutputDir}, {"updateCheck", prefs.updateCheck},
-        {"sportSettings", stored}}
+    return json{{"version", kPrefsJsonVersion},
+                {"lastSport", prefs.lastSport},
+                {"scoreColor", prefs.scoreColor},
+                {"sportChosen", prefs.sportChosen},
+                {"foulColor", prefs.foulColor},
+                {"fileOutputEnabled", prefs.fileOutputEnabled},
+                {"fileOutputDir", prefs.fileOutputDir},
+                {"updateCheck", prefs.updateCheck},
+                {"sportSettings", stored}}
         .dump(2, ' ', false, json::error_handler_t::replace);
 }
 

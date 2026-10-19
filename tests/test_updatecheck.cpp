@@ -43,7 +43,8 @@ TEST_CASE("versions compare by numbers first") {
     CHECK(compareVersions(v("2.0.0"), v("1.99.99")) > 0);
 }
 
-TEST_CASE("a final release outranks its pre-releases and pre-releases order by letters and number") {
+TEST_CASE(
+    "a final release outranks its pre-releases and pre-releases order by letters and number") {
     CHECK(compareVersions(v("1.0.0"), v("1.0.0-rc1")) > 0);
     CHECK(compareVersions(v("1.0.0-beta2"), v("1.0.0")) < 0);
     CHECK(compareVersions(v("1.0.0-beta2"), v("1.0.0-beta10")) < 0);
