@@ -77,3 +77,19 @@ TEST_CASE("an empty box has no rows") {
     PenaltyBox box;
     CHECK(penaltyRows(box).empty());
 }
+
+TEST_CASE("penalty rows carry the share of the current phase still to serve") {
+    PenaltyBox box;
+    REQUIRE(box.add(1, "24", {{minutes(2), true}}));
+    REQUIRE(box.add(2, "7", {{minutes(2), true}, {minutes(2), true}}));
+    auto rows = penaltyRows(box);
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[0].percent == 100);
+    CHECK(rows[1].percent == 100);
+
+    box.elapse(seconds(30)); // a quarter of 2:00
+    rows = penaltyRows(box);
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[0].percent == 75);
+    CHECK(rows[1].percent == 75);
+}

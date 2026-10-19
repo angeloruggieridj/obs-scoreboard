@@ -33,6 +33,7 @@ struct PenaltyRow {
     std::string time;   // current phase, "M:SS"
     std::string phase2; // "+2:00" when a next phase follows, else empty
     bool queued = false;
+    int percent = 100; // time left in the current phase, 0..100 (a queued penalty is untouched)
 };
 
 std::vector<PenaltyRow> penaltyRows(const PenaltyBox& box);

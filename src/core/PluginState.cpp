@@ -91,6 +91,7 @@ std::string prefsToJson(const GlobalPrefs& prefs) {
                 {"fileOutputEnabled", prefs.fileOutputEnabled},
                 {"fileOutputDir", prefs.fileOutputDir},
                 {"updateCheck", prefs.updateCheck},
+                {"comfortableDock", prefs.comfortableDock},
                 {"sportSettings", stored}}
         .dump(2, ' ', false, json::error_handler_t::replace);
 }
@@ -117,6 +118,9 @@ std::optional<GlobalPrefs> prefsFromJson(std::string_view text, std::string* err
     if (dir != j->end() && dir->is_string()) prefs.fileOutputDir = dir->get<std::string>();
     const auto updates = j->find("updateCheck");
     if (updates != j->end() && updates->is_boolean()) prefs.updateCheck = updates->get<bool>();
+    const auto comfortable = j->find("comfortableDock");
+    prefs.comfortableDock =
+        comfortable != j->end() && comfortable->is_boolean() && comfortable->get<bool>();
     const auto stored = j->find("sportSettings");
     if (stored != j->end() && stored->is_object()) {
         for (auto it = stored->begin(); it != stored->end(); ++it) {

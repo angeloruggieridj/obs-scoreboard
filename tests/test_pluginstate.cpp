@@ -262,3 +262,14 @@ TEST_CASE("the update check is on by default, round-trips and ignores a wrong ty
     CHECK(prefsFromJson("{\"version\": 3}")->updateCheck);
     CHECK(prefsFromJson("{\"version\": 3, \"updateCheck\": \"no\"}")->updateCheck);
 }
+
+TEST_CASE("the dock density defaults to compact and round-trips") {
+    CHECK_FALSE(GlobalPrefs{}.comfortableDock);
+    GlobalPrefs p;
+    p.comfortableDock = true;
+    const auto out = prefsFromJson(prefsToJson(p));
+    REQUIRE(out.has_value());
+    CHECK(out->comfortableDock);
+    CHECK_FALSE(prefsFromJson("{\"version\": 3}")->comfortableDock);
+    CHECK_FALSE(prefsFromJson("{\"version\": 3, \"comfortableDock\": 1}")->comfortableDock);
+}

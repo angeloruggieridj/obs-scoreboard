@@ -38,6 +38,8 @@ struct GlobalPrefs {
     // Ask GitHub once per OBS start whether a newer release exists (UpdateChecker). ON by default,
     // switchable from the dock menu; nothing but a version number ever leaves the machine.
     bool updateCheck = true;
+    // Taller buttons and a little more air in the dock and the windows (DockStyle density).
+    bool comfortableDock = false;
 };
 
 constexpr int kBindingsJsonVersion = 1;

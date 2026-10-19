@@ -123,6 +123,9 @@ std::vector<PenaltyRow> penaltyRows(const PenaltyBox& box) {
         row.time = formatPenaltyTime(p.remaining);
         if (p.hasNextPhase()) row.phase2 = "+" + formatPenaltyTime(p.phases[p.phase + 1].duration);
         row.queued = queued;
+        const Tenths whole = p.current().duration;
+        row.percent =
+            whole > 0 ? static_cast<int>(std::clamp<Tenths>(p.remaining * 100 / whole, 0, 100)) : 0;
         return row;
     };
     std::vector<PenaltyRow> rows;
