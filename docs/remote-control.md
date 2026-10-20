@@ -168,5 +168,5 @@ must differ). A request without a valid key gets `401`; a view key that asks for
 | `POST /api/<Name>` | control | the vendor response envelope; `<Name>` is any request of the table above except `GetState` and `GetFields` |
 
 The commands go through the same code as the dock and obs-websocket, so a rejection (`rejected`, `confirmation`) is the same
-envelope. On a phone the page can vibrate when a button is pressed (`navigator.vibrate`, Android browsers); the viewer switches it on or
+envelope. On a phone the page can vibrate when a button is pressed (`navigator.vibrate` on Android; on iPhone, iOS 17.4 or later, a hidden native switch gives a short haptic tick instead, one tick per press and no patterns); the viewer switches it on or
 off in the footer of the page, and the choice stays in that browser. Requests are limited to 16 KB, a connection lives at most 8 seconds, and at most 32 are open at once.

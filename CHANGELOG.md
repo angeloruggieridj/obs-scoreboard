@@ -9,7 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- **Remote web page** (⚙ → Remote): off by default; *View only* or *View and control* from a phone, tablet or another computer on the same network. It looks like the dock: same colors, same arrangement of the buttons, the progress border around the clock, the clock color and the clock font. Two links (view, control) whose keys are random or typed by the user. Covers the clock, periods, stoppage, scores, shots, fouls, team names and penalty cancellation. On a phone it can vibrate on each press; the viewer switches that on or off.
+- **Remote web page** (⚙ → Remote): off by default; *View only* or *View and control* from a phone, tablet or another computer on the same network. It looks like the dock: same colors, same arrangement of the buttons, the progress border around the clock, the clock color and the clock font. Two links (view, control) whose keys are random or typed by the user. Covers the clock, periods, stoppage, scores, shots, fouls, team names and penalty cancellation. On a phone it can vibrate on each press (on iPhone, iOS 17.4 or later, as a short haptic tick); the viewer switches that on or off.
 - *Check for updates now* (Settings → Updates), with a message for "up to date" and for "could not check". A newer release shows its changelog, taken from GitHub, and an "Update" button in the dock.
 - The sport of the match is always shown in the dock.
 - Custom accent color for each team card (*Match settings → Look*).

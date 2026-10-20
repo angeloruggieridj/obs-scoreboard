@@ -115,9 +115,25 @@ var ICON={
  prev:'<svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
  next:'<svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
  cross:'<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'};
-var last={}, lost=0, msgTimer=0, timer=0, vibOn=false, canVib=("vibrate" in navigator);
+var last={}, lost=0, msgTimer=0, timer=0, vibOn=false, canVib=("vibrate" in navigator), tick=null;
+/* iOS has no vibrate(): since iOS 17.4 a native switch gives a haptic tick when it is toggled, and a click from
+   a touch handler does that too (best effort: it cannot play a pattern, only ticks). */
+var IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+if(!canVib&&IOS){
+  var lab=document.createElement("label");
+  lab.style.cssText="position:fixed;left:-100px;top:0;width:40px;height:20px;opacity:0.01;pointer-events:none";
+  lab.setAttribute("aria-hidden","true");
+  var sw=document.createElement("input");sw.type="checkbox";sw.setAttribute("switch","");sw.tabIndex=-1;
+  lab.appendChild(sw);document.body.appendChild(lab);tick=lab;canVib=true}
 try{vibOn=localStorage.getItem("sbVib")!=="0"}catch(e){vibOn=true}
-function buzz(p){if(CONTROL&&canVib&&vibOn)try{navigator.vibrate(p)}catch(e){}}
+function buzz(p){
+  if(!CONTROL||!canVib||!vibOn)return;
+  try{
+    if(!tick){navigator.vibrate(p);return}
+    var n=Array.isArray(p)?Math.ceil(p.length/2):1;
+    tick.click(); /* the first tick runs inside the touch handler, as iOS wants */
+    for(var i=1;i<n;i++)setTimeout(function(){tick.click()},i*90)
+  }catch(e){}}
 function say(text){$("msg").textContent=text||"";clearTimeout(msgTimer);if(text)msgTimer=setTimeout(function(){say("")},4000)}
 function api(path,body){
   return fetch(path+"?k="+encodeURIComponent(KEY),body===undefined?{cache:"no-store"}:
