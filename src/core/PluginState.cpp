@@ -158,6 +158,12 @@ std::string prefsToJson(const GlobalPrefs& prefs) {
                 {"periodBar", barKey(prefs.periodBar)},
                 {"periodBarColor", prefs.periodBarColor},
                 {"clockColor", clockColorToJson(prefs.clockColor)},
+                {"remoteMode", prefs.remoteMode == RemoteMode::Control
+                                   ? "control"
+                                   : (prefs.remoteMode == RemoteMode::View ? "view" : "off")},
+                {"remotePort", prefs.remotePort},
+                {"remoteViewKey", prefs.remoteViewKey},
+                {"remoteControlKey", prefs.remoteControlKey},
                 {"sportSettings", stored}}
         .dump(2, ' ', false, json::error_handler_t::replace);
 }
@@ -195,6 +201,22 @@ std::optional<GlobalPrefs> prefsFromJson(std::string_view text, std::string* err
         if (bar->get<std::string>() == "off") prefs.periodBar = PeriodBarMode::Off;
         if (bar->get<std::string>() == "consumed") prefs.periodBar = PeriodBarMode::Consumed;
     }
+    const auto remoteMode = j->find("remoteMode");
+    if (remoteMode != j->end() && remoteMode->is_string()) {
+        if (remoteMode->get<std::string>() == "view") prefs.remoteMode = RemoteMode::View;
+        if (remoteMode->get<std::string>() == "control") prefs.remoteMode = RemoteMode::Control;
+    }
+    const auto remotePort = j->find("remotePort");
+    if (remotePort != j->end() && remotePort->is_number_integer()) {
+        const long port = remotePort->get<long>();
+        if (port >= 1024 && port <= 65535) prefs.remotePort = static_cast<int>(port);
+    }
+    const auto viewKey = j->find("remoteViewKey");
+    if (viewKey != j->end() && viewKey->is_string())
+        prefs.remoteViewKey = viewKey->get<std::string>();
+    const auto controlKey = j->find("remoteControlKey");
+    if (controlKey != j->end() && controlKey->is_string())
+        prefs.remoteControlKey = controlKey->get<std::string>();
     const auto clockColor = j->find("clockColor");
     if (clockColor != j->end()) prefs.clockColor = clockColorFromJson(*clockColor);
     const auto stored = j->find("sportSettings");

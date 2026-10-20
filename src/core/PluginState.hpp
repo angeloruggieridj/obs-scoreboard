@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "ClockColor.hpp"
+#include "WebRemote.hpp"
 #include "Fields.hpp"
 #include "MatchEngine.hpp"
 
@@ -53,6 +54,12 @@ struct GlobalPrefs {
     std::string periodBarColor;
     // The color of the clock digits, optionally by the time left. Off by default.
     ClockColorSettings clockColor;
+    // The remote web page: off by default. Two random links, one that only watches and one that
+    // also commands; the keys are made on first use (empty until then).
+    RemoteMode remoteMode = RemoteMode::Off;
+    int remotePort = kDefaultRemotePort;
+    std::string remoteViewKey;
+    std::string remoteControlKey;
 };
 
 constexpr int kBindingsJsonVersion = 1;

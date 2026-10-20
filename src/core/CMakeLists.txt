@@ -23,6 +23,7 @@ add_library(
   HotkeyCatalog.cpp
   VendorProtocol.cpp
   UpdateCheck.cpp
+  WebRemote.cpp
 )
 target_include_directories(scoreboard-core PUBLIC "${CMAKE_CURRENT_LIST_DIR}")
 target_include_directories(

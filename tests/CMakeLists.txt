@@ -37,6 +37,7 @@ add_executable(
   test_vendorprotocol.cpp
   test_updatecheck.cpp
   test_clockcolor.cpp
+  test_webremote.cpp
   test_selftest_verdict.cpp
   test_locale_fields.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/plugin/SelfTestVerdict.cpp
