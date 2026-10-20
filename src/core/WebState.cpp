@@ -62,6 +62,20 @@ std::string webStateJson(const MatchEngine& engine, bool canControl, const Globa
     const Clock& clock = engine.clock();
     const Direction direction = settings.sport.direction;
     const Tenths left = timeLeft(clock.value(), clock.duration(), direction);
+    // What the page needs to run the clock by itself between two answers (and to show tenths
+    // smoothly): the value, whether it runs, and the rules of MatchEngine::fields().
+    state["clockModel"] = {
+        {"value", clock.value()},
+        {"offset", engine.periods().displayOffset()},
+        {"running", clock.running()},
+        {"down", direction == Direction::Down},
+        {"duration", clock.duration()},
+        {"stopAtLimit", settings.stoppage == StoppageMode::StopAtDuration},
+        {"secondary", settings.stoppage == StoppageMode::SecondaryCounter &&
+                          direction == Direction::Up && clock.duration() > 0},
+        {"twoDigit", settings.twoDigitMinutes},
+        {"tenths", settings.tenthsInLastMinute},
+    };
     state["look"] = {
         {"periodBar", barKey(prefs.periodBar)},
         {"periodBarColor", prefs.periodBarColor},

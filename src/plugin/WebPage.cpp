@@ -23,15 +23,17 @@ constexpr const char* kStyle = R"HTML(<!doctype html>
 @media(pointer:coarse){:root{--h:42px;--hs:32px;--fs:15px}}
 *{box-sizing:border-box}html,body{margin:0}
 body{background:var(--win);color:var(--txt);font:var(--fs)/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;
-padding:8px max(8px,env(safe-area-inset-right)) 16px max(8px,env(safe-area-inset-left));-webkit-text-size-adjust:100%}
-main{max-width:520px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+-webkit-text-size-adjust:100%;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+main{max-width:520px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:6px;flex:1}
 [hidden]{display:none!important}
 button{font:inherit;font-weight:600;color:var(--txt);background:var(--btn);border:1px solid var(--btn);border-radius:4px;
 height:var(--h);padding:0 10px;touch-action:manipulation;cursor:pointer;display:inline-flex;align-items:center;
 justify-content:center;gap:6px;min-width:0}
-button:hover{background:var(--btn-hi)}button:active{filter:brightness(.85)}button:disabled{opacity:.45;cursor:default}
+button:active{filter:brightness(.85)}button:disabled{opacity:.45;cursor:default}
+@media(hover:hover){button:hover{background:var(--btn-hi)}.ghost:hover{background:var(--btn)}.go:hover{background:#2cb53a;border-color:#2cb53a}.stop:hover{background:#d8294a;border-color:#d8294a}}
 button svg{width:14px;height:14px;flex:none}
-.ghost{background:transparent;border-color:var(--bdr);font-weight:500}.ghost:hover{background:var(--btn)}
+.ghost{background:transparent;border-color:var(--bdr);font-weight:500}
 .go,.stop{height:calc(var(--h) + 6px);font-size:1.08em;color:#fff}
 .go{background:var(--go);border-color:var(--go)}.stop{background:var(--stop);border-color:var(--stop)}
 .big{height:calc(var(--h) + 6px)}
@@ -53,7 +55,8 @@ border-left-width:0;font-weight:700;height:var(--h);min-width:34px;padding:0 6px
 #clock{grid-column:2;min-width:0;overflow:hidden;text-align:center;align-self:center;color:var(--txt)}
 #clk{display:inline-block;font-family:DSEG7,ui-monospace,Consolas,monospace;font-weight:700;font-size:64px;line-height:1.15;
 white-space:nowrap;font-variant-numeric:tabular-nums}
-.sub{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:6px;color:var(--mut)}
+.sub{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 10px;margin-top:6px;color:var(--mut)}
+.sub .seg{flex:none}.sub .val{flex:1 1 auto;min-width:calc(var(--h) + 6px)}#of{flex:none;white-space:nowrap}
 .row{display:flex;gap:6px}.row>.go,.row>.stop{flex:1}
 .teams{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
 .team{background:var(--card);border:1px solid var(--bdr);border-top:3px solid var(--home);border-radius:6px;padding:8px;min-width:0}
@@ -69,8 +72,8 @@ border-radius:4px;padding:2px 2px 5px 8px;margin-top:4px;font-weight:700;overflo
 .pen.q span{color:var(--mut);font-weight:400}
 .pen button{height:var(--hs);width:var(--hs);padding:0;flex:none}
 .pen i{position:absolute;left:0;bottom:0;height:3px;background:var(--pen)}
-.pill{justify-self:center;border:1px solid var(--bdr);border-radius:10px;padding:1px 10px;background:var(--card);font-size:.92em;color:var(--txt2)}
-.foot{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--bdr);border-radius:6px;padding:4px 4px 4px 8px}
+.pill{align-self:center;border:1px solid var(--bdr);border-radius:10px;padding:1px 10px;background:var(--card);font-size:.92em;color:var(--txt2)}
+.foot{margin-top:auto;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--bdr);border-radius:6px;padding:4px 4px 4px 8px}
 .foot b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{border:1px solid var(--bdr);border-radius:10px;padding:1px 9px;color:var(--mut);font-size:.9em}
 .badge.live{color:#3fb950;border-color:#3fb950}.badge.lost{color:var(--stop);border-color:var(--stop)}
@@ -115,25 +118,31 @@ var ICON={
  prev:'<svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
  next:'<svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
  cross:'<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'};
-var last={}, lost=0, msgTimer=0, timer=0, vibOn=false, canVib=("vibrate" in navigator), tick=null;
-/* iOS has no vibrate(): since iOS 17.4 a native switch gives a haptic tick when it is toggled, and a click from
-   a touch handler does that too (best effort: it cannot play a pattern, only ticks). */
+var last={}, lost=0, msgTimer=0, timer=0, vibOn=false, canVib=("vibrate" in navigator);
+/* iOS has no vibrate(), and since iOS 26.5 a script can no longer toggle a native switch to get its haptic tick.
+   What still works is a real touch on the switch itself: one invisible switch covers the controls, the touch
+   toggles it (the system gives the tick) and the click is passed on to the button under the finger. */
 var IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
-if(!canVib&&IOS){
+var cover=null;
+function buildCover(){
   var lab=document.createElement("label");
-  lab.style.cssText="position:fixed;left:-100px;top:0;width:40px;height:20px;opacity:0.01;pointer-events:none";
+  lab.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;z-index:50;margin:0;opacity:0.011";
   lab.setAttribute("aria-hidden","true");
   var sw=document.createElement("input");sw.type="checkbox";sw.setAttribute("switch","");sw.tabIndex=-1;
-  lab.appendChild(sw);document.body.appendChild(lab);tick=lab;canVib=true}
+  sw.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;margin:0;border-radius:0";
+  sw.addEventListener("click",function(ev){
+    lab.style.pointerEvents="none";
+    var under=document.elementFromPoint(ev.clientX,ev.clientY);
+    lab.style.pointerEvents="";
+    var hit=under&&under.closest&&under.closest("button,input,a");
+    if(!hit)return;
+    if(hit.tagName==="INPUT"){hit.focus()}else if(!hit.disabled){hit.click()}});
+  lab.appendChild(sw);document.body.appendChild(lab);return lab}
+if(!canVib&&IOS&&CONTROL){canVib=true;cover=buildCover()}
 try{vibOn=localStorage.getItem("sbVib")!=="0"}catch(e){vibOn=true}
 function buzz(p){
-  if(!CONTROL||!canVib||!vibOn)return;
-  try{
-    if(!tick){navigator.vibrate(p);return}
-    var n=Array.isArray(p)?Math.ceil(p.length/2):1;
-    tick.click(); /* the first tick runs inside the touch handler, as iOS wants */
-    for(var i=1;i<n;i++)setTimeout(function(){tick.click()},i*90)
-  }catch(e){}}
+  if(!CONTROL||!canVib||!vibOn||cover)return; // with the cover the touch itself gives the tick
+  try{navigator.vibrate(p)}catch(e){}}
 function say(text){$("msg").textContent=text||"";clearTimeout(msgTimer);if(text)msgTimer=setTimeout(function(){say("")},4000)}
 function api(path,body){
   return fetch(path+"?k="+encodeURIComponent(KEY),body===undefined?{cache:"no-store"}:
@@ -226,13 +235,39 @@ function fitClock(){
   k.style.fontSize="100px";
   var w=k.offsetWidth||1,size=Math.max(24,Math.min(120,Math.floor(100*(c.clientWidth-4)/w)));
   k.style.fontSize=size+"px"}
+/* ---- the clock runs in the page between two answers, so the tenths of the last minute are smooth ---- */
+var model=null, shownClock="";
+function pad2(n){return (n<10?"0":"")+n}
+function fmtClock(t){
+  var m=model,shown=m.secondary&&m.duration>0?Math.min(t,m.duration):t,v=Math.max(0,m.offset+shown);
+  if(m.tenths&&m.down&&v<600)return Math.floor(v/10)+"."+(v%10);
+  var secs=m.down?Math.ceil(v/10):Math.floor(v/10),mm=Math.floor(secs/60);
+  return (m.twoDigit?pad2(mm):String(mm))+":"+pad2(secs%60)}
+function clockNow(){
+  var m=model,t=m.value;
+  if(m.running){var d=Math.floor((performance.now()-m.at)/100);
+    t=m.down?Math.max(0,t-d):t+d;
+    if(!m.down&&m.stopAtLimit&&m.duration>0)t=Math.min(t,m.duration)}
+  return t}
+function takeModel(m,fallback){
+  var keep=model&&model.running&&m.running&&model.down===m.down&&model.offset===m.offset;
+  if(keep&&Math.abs(clockNow()-m.value)<=3){m.value=model.value;m.at=model.at}   /* a small difference is the network, not the clock */
+  else m.at=performance.now();
+  model=m;shownClock=""}
+function paintClock(){
+  if(!model)return;
+  var text=model.running?fmtClock(clockNow()):last.clock;
+  if(text===shownClock)return;
+  var before=shownClock.length;shownClock=text;$("clk").textContent=text;
+  if(text.length!==before)fitClock()}
+function frame(){paintClock();requestAnimationFrame(frame)}
 function render(s){
   last=s;
   var K=s.look,L=s.layout;
   var r=document.documentElement.style;
   r.setProperty("--home",K.homeColor||"#284cb8");r.setProperty("--away",K.awayColor||"#ef7d57");
   $("sport").textContent=T["Sport."+s.sport]||s.sport;
-  var c=$("clock");$("clk").textContent=s.clock;c.style.color=K.clockColor||"";fitClock();
+  var c=$("clock");takeModel(s.clockModel);paintClock();c.style.color=K.clockColor||"";
   $("period").textContent=s.periodLabel;
   $("of").textContent=t("Panel.Of").replace("%1",s.regulationPeriods);
   $("stoppage").hidden=!L.stoppage;$("stopval").textContent=String(s.stoppageAnnouncedMinutes);
@@ -264,12 +299,13 @@ $("prev").innerHTML=ICON.prev;$("next").innerHTML=ICON.next;
 if(CONTROL)Array.prototype.forEach.call(document.querySelectorAll("[data-c]"),function(b){
   b.onclick=function(){send(b.dataset.c,b.dataset.a?JSON.parse(b.dataset.a):{})}});
 if(CONTROL&&canVib){var v=$("vib");v.hidden=false;
+  if(cover)cover.style.display=vibOn?"":"none";
   var paintVib=function(){v.textContent=t("Web.Vibration")+": "+(vibOn?t("Web.On"):t("Web.Off"))};
-  paintVib();v.onclick=function(){vibOn=!vibOn;try{localStorage.setItem("sbVib",vibOn?"1":"0")}catch(e){}paintVib();buzz(20)}}
+  paintVib();v.onclick=function(){vibOn=!vibOn;if(cover)cover.style.display=vibOn?"":"none";try{localStorage.setItem("sbVib",vibOn?"1":"0")}catch(e){}paintVib();buzz(20)}}
 TEAM.home=makeTeam("home");TEAM.away=makeTeam("away");
 window.addEventListener("resize",function(){fitClock();if(last.look)paintBar(last.look)});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitClock);
-document.title="ScoreBoard";badge();poll();
+document.title="ScoreBoard";badge();poll();requestAnimationFrame(frame);
 </script></body></html>
 )HTML";
 

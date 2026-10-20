@@ -213,5 +213,9 @@ TEST_CASE("the web state carries the layout, the look and the right to command")
     CHECK(view["state"]["look"]["scoreColor"] == "#F2C94C"); // the default is spelled out
     CHECK(view["state"]["look"]["clockColor"] == "#FF0000");
     CHECK(view["state"]["look"]["share"].is_number());
+    CHECK(view["state"]["clockModel"]["down"] == true);
+    CHECK(view["state"]["clockModel"]["running"] == false);
+    CHECK(view["state"]["clockModel"]["duration"].is_number());
+    CHECK(view["state"]["clockModel"]["twoDigit"].is_boolean());
     CHECK(nlohmann::json::parse(webStateJson(engine, true, prefs))["state"]["control"] == true);
 }
