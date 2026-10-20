@@ -22,6 +22,7 @@
   <tr>
     <td align="center"><img src="docs/images/dock-hockey.png" width="324" alt="The ScoreBoard dock in OBS Studio: ice hockey, dark theme"><br><sub>Ice hockey, OBS dark theme</sub></td>
     <td align="center"><img src="docs/images/dock-soccer-light.png" width="324" alt="The ScoreBoard dock in OBS Studio: soccer, light theme"><br><sub>Soccer, OBS light theme</sub></td>
+    <td align="center"><img src="docs/images/dock-custom.png" width="324" alt="The dock with custom team colors, a progress border and a clock that turns red"><br><sub>Optional looks: team colors, progress border, clock color</sub></td>
   </tr>
 </table>
 
@@ -87,7 +88,7 @@ checksums and a build attestation: `gh attestation verify <file> --repo angeloru
 
 ### Getting started
 
-1. Add a **Text** source for the clock, or create it from the dock menu: **⋮ → Source links… → +**.
+1. Add a **Text** source for the clock, or create it from the dock menu: **⋮ → Settings → Source links… → +**.
 2. In *Source links…*, pick it for **Clock** (repeat for any other value).
 3. Press **Start**.
 
@@ -106,8 +107,17 @@ Enable the server under **Tools → WebSocket Server Settings**. The Stream Deck
 | Feature | Where | Behavior |
 |---|---|---|
 | File output | *Match settings → Output* | Off by default. One `.txt` per value in a folder you choose, rewritten only when its content changes. |
-| Event log | Dock menu → *Event log…* | Lists events with times; exports YouTube chapters (`0:00 Title`) from stream start, recording start or game time, as text. |
-| Update check | Dock menu → *Check for updates at start* | Once per start; sends only the plugin version; notifies, never installs. |
+| Event log | Dock menu → *Match → Event log…* | Lists events with times; exports YouTube chapters (`0:00 Title`) from stream start, recording start or game time, as text. |
+| Update check | Dock menu → *Updates* | *Check for updates now* asks GitHub on demand; *Check for updates at start* does it once per start. Sends only the plugin version; notifies, never installs. |
+
+### Look
+
+| Feature | Where | Behavior |
+|---|---|---|
+| Sport | Dock header | The sport of the match is always shown next to the link indicator. |
+| Team colors | *Match settings → Look* | Accent color of each team card; "Default" restores blue and orange. |
+| Period progress | *Match settings → Look → Period progress* | The border of the clock frame shrinks with the time left (or fills with the time played). On by default; color and mode are yours, or turn it off. |
+| Clock color | *Match settings → Look → Clock digits* | Off by default. One color, or up to four steps by time left (for example amber at 1:00, red at 0:30), optionally blended. |
 
 ### Build from source
 
@@ -187,7 +197,7 @@ SHA-256 e un'attestazione della build: `gh attestation verify <file> --repo ange
 
 ### Primi passi
 
-1. Aggiungi una sorgente **Text** per il cronometro, oppure creala dal menu del pannello: **⋮ → Collegamenti sorgenti… → +**.
+1. Aggiungi una sorgente **Text** per il cronometro, oppure creala dal menu del pannello: **⋮ → Impostazioni → Collegamenti sorgenti… → +**.
 2. In *Collegamenti sorgenti…* scegli quella sorgente per il **Cronometro** (e per gli altri valori che vuoi mostrare).
 3. Premi **Avvia**.
 
@@ -206,8 +216,17 @@ Attiva il server da **Strumenti → Impostazioni server WebSocket**. Il plugin S
 | Funzione | Dove | Comportamento |
 |---|---|---|
 | Output su file | *Impostazioni partita → Output* | Spento di default. Un `.txt` per valore nella cartella scelta, riscritto solo se il contenuto cambia. |
-| Registro eventi | Menu del pannello → *Registro eventi…* | Elenca gli eventi con l'orario; esporta i capitoli YouTube (`0:00 Titolo`) da inizio diretta, inizio registrazione o tempo di gioco, come testo. |
-| Controllo aggiornamenti | Menu del pannello → *Controlla gli aggiornamenti all'avvio* | Una volta per avvio; invia solo la versione del plugin; avvisa, non installa. |
+| Registro eventi | Menu del pannello → *Partita → Registro eventi…* | Elenca gli eventi con l'orario; esporta i capitoli YouTube (`0:00 Titolo`) da inizio diretta, inizio registrazione o tempo di gioco, come testo. |
+| Controllo aggiornamenti | Menu del pannello → *Aggiornamenti* | *Controlla aggiornamenti ora* interroga GitHub su richiesta; *Controlla gli aggiornamenti all'avvio* lo fa una volta per avvio. Invia solo la versione del plugin; avvisa, non installa. |
+
+### Aspetto
+
+| Funzione | Dove | Comportamento |
+|---|---|---|
+| Sport | Intestazione del pannello | Lo sport della partita è sempre visibile accanto all'indicatore dei collegamenti. |
+| Colori squadra | *Impostazioni partita → Aspetto* | Colore d'accento della scheda di ogni squadra; "Predefinito" ripristina blu e arancione. |
+| Avanzamento del periodo | *Impostazioni partita → Aspetto → Avanzamento del periodo* | Il bordo del riquadro del cronometro si accorcia col tempo rimanente (o si riempie col tempo giocato). Attivo di default; colore e modalità a scelta, oppure spento. |
+| Colore del cronometro | *Impostazioni partita → Aspetto → Cifre del cronometro* | Spento di default. Un solo colore, oppure fino a quattro passaggi in base al tempo rimanente (ad esempio ambra a 1:00, rosso a 0:30), anche sfumati. |
 
 ### Compilare dai sorgenti
 

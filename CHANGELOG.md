@@ -12,8 +12,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - A new look for the dock and every window: one button style with a single height, segmented `[ -1 | 2 | +1 ]` counters with a larger score button, the clock in a framed display with the period and stoppage steppers under it, a card per team with its own accent color, icons drawn by the plugin (menu, plus, pencil, cross, play/pause, reset) instead of text glyphs, and a thin bar of the time left under each running penalty. Colors now come from the OBS theme, so the dock and the windows follow the dark and light themes (and the others OBS ships); only start green, stop red and the score and foul colors stay fixed.
 - Match settings, Penalty and Source links windows share the same look (tabs with an underline, a highlighted OK, colored swatches that show the color in use).
 
+- The dock menu is organized in sections (Match, Settings, Output, Updates). The About window is gone: the version is the last line of the Updates section.
+
 ### Added
 
+- *Check for updates now* in the dock menu, with a message for "up to date" and for "could not check".
+- The sport of the match is shown in the dock header.
+- Custom accent color for each team card (*Match settings → Look*).
+- A progress border around the clock: it shrinks with the time left of the period (or fills with the time played). On by default; mode and color in *Match settings → Look*, or off.
+- Clock color: off by default; one color, or steps by time left (for example amber at 1:00 and red at 0:30, up to four), optionally blended.
+- Penalty types in the add-penalty window are chips instead of a drop-down.
 - *Match settings → Look → Dock density*: Compact (as before) or Comfortable (taller buttons and fields).
 
 ## [1.0.0] - 2026-10-19
