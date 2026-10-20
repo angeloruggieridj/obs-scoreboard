@@ -7,11 +7,6 @@
 #include <charconv>
 #include <system_error>
 
-#include <nlohmann/json.hpp>
-
-#include "PanelLayout.hpp"
-#include "VendorProtocol.hpp"
-
 namespace sb {
 
 namespace {
@@ -104,6 +99,13 @@ std::string keyFromBytes(const std::array<unsigned char, 12>& bytes) {
         out += digits[b & 15];
     }
     return out;
+}
+
+bool validKey(std::string_view key) {
+    if (key.size() < 6 || key.size() > 64) return false;
+    return std::all_of(key.begin(), key.end(), [](unsigned char c) {
+        return std::isalnum(c) != 0 || c == '-' || c == '_';
+    });
 }
 
 bool constantTimeEqual(std::string_view a, std::string_view b) {
@@ -206,6 +208,10 @@ WebRoute routeWebRequest(const HttpRequest& request, WebAccess access) {
     }
     const bool get = request.method == "GET";
     const bool post = request.method == "POST";
+    if (request.path == "/font") {
+        route.kind = get ? Kind::Font : Kind::MethodNotAllowed;
+        return route;
+    }
     if (request.path == "/" || request.path == "/api/state") {
         if (!get) {
             route.kind = Kind::MethodNotAllowed;
@@ -239,26 +245,6 @@ WebRoute routeWebRequest(const HttpRequest& request, WebAccess access) {
     return route;
 }
 
-std::string webStateJson(const MatchEngine& engine, bool canControl) {
-    using json = nlohmann::json;
-    json doc = json::parse(vendorStateJson(engine));
-    json& state = doc["state"];
-    const PanelLayout layout = panelLayout(engine.settings());
-    state["layout"] = {{"shots", layout.shots},
-                       {"fouls", layout.fouls},
-                       {"fouls2", layout.fouls2},
-                       {"penalties", layout.penalties},
-                       {"strength", layout.strength},
-                       {"stoppage", layout.stoppage},
-                       {"scoreValues", layout.scoreValues},
-                       {"foulsLabel", layout.foulsLabel},
-                       {"fouls2Label", layout.fouls2Label},
-                       {"scoreLabel", layout.scoreLabel},
-                       {"segmentLabel", layout.segmentLabel}};
-    state["control"] = canControl;
-    return doc.dump(-1, ' ', false, json::error_handler_t::replace);
-}
-
 std::string httpResponse(int status, std::string_view contentType, std::string_view body) {
     std::string out = "HTTP/1.1 " + std::to_string(status) + " " + reason(status) + "\r\n";
     if (status != 204) {
@@ -270,7 +256,7 @@ std::string httpResponse(int status, std::string_view contentType, std::string_v
     out += "Referrer-Policy: no-referrer\r\n";
     // The page is one inline script and style; it talks only to the server it came from.
     out += "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; "
-           "style-src 'unsafe-inline'; connect-src 'self'\r\n";
+           "style-src 'unsafe-inline'; font-src 'self'; connect-src 'self'\r\n";
     out += "Connection: close\r\n\r\n";
     if (status != 204) out += std::string(body);
     return out;

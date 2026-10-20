@@ -12,8 +12,6 @@
 #include <string>
 #include <string_view>
 
-#include "MatchEngine.hpp"
-
 namespace sb {
 
 // Who may open the remote page: nobody (the default), anyone with the view link, or anyone with
@@ -28,6 +26,9 @@ constexpr std::size_t kMaxRequestBodyBytes = 16 * 1024;
 
 // A random key as 24 hex digits, from 12 bytes the caller drew from a secure source.
 std::string keyFromBytes(const std::array<unsigned char, 12>& bytes);
+
+// A key the user may type: 6 to 64 letters, digits, dashes and underscores (it sits in a link).
+bool validKey(std::string_view key);
 
 // Compares without stopping at the first difference.
 bool constantTimeEqual(std::string_view a, std::string_view b);
@@ -60,6 +61,7 @@ struct WebRoute {
         State,        // GET /api/state
         Command,      // POST /api/<requestType>
         Favicon,      // GET /favicon.ico (answered empty)
+        Font,         // GET /font (the clock digits of the dock)
         Unauthorized, // no valid key
         Forbidden,    // a view key asked for a command
         NotFound,
@@ -71,10 +73,6 @@ struct WebRoute {
 };
 
 WebRoute routeWebRequest(const HttpRequest& request, WebAccess access);
-
-// What the web page draws: the vendor state of the match plus what the dock shows for the sport
-// (which counters exist, the score buttons) and whether this viewer may command. JSON text.
-std::string webStateJson(const MatchEngine& engine, bool canControl);
 
 // A complete HTTP/1.1 answer that closes the connection.
 std::string httpResponse(int status, std::string_view contentType, std::string_view body);

@@ -8,6 +8,7 @@
 #include "PluginState.hpp"
 #include "SportCatalog.hpp"
 #include "WebRemote.hpp"
+#include "WebState.hpp"
 
 using namespace sb;
 
@@ -170,17 +171,47 @@ TEST_CASE("the remote settings survive saving and a damaged file falls back to o
     CHECK(odd->remoteViewKey.empty());
 }
 
-TEST_CASE("the web state carries the layout of the sport and the right to command") {
+TEST_CASE("typed keys are limited to what fits in a link") {
+    CHECK(validKey("match-2026_A"));
+    CHECK(validKey("abcdef"));
+    CHECK_FALSE(validKey("short"));
+    CHECK_FALSE(validKey("has space"));
+    CHECK_FALSE(validKey("slash/inside"));
+    CHECK_FALSE(validKey("a?b=c&d"));
+    CHECK_FALSE(validKey(std::string(65, 'a')));
+    CHECK(validKey(std::string(64, 'a')));
+}
+
+TEST_CASE("the font route is answered for any method rule of the page") {
+    HttpRequest request;
+    request.method = "GET";
+    request.path = "/font";
+    CHECK(routeWebRequest(request, WebAccess::View).kind == WebRoute::Kind::Font);
+    request.method = "POST";
+    CHECK(routeWebRequest(request, WebAccess::View).kind == WebRoute::Kind::MethodNotAllowed);
+}
+
+TEST_CASE("the web state carries the layout, the look and the right to command") {
     const SportPreset* hockey = findSport("ice_hockey");
     REQUIRE(hockey != nullptr);
     const MatchEngine engine(MatchSettings::forSport(*hockey));
-    const auto view = nlohmann::json::parse(webStateJson(engine, false));
+    GlobalPrefs prefs;
+    prefs.homeColor = "#2E9E6B";
+    prefs.clockColor.mode = ClockColorMode::Single;
+    prefs.clockColor.base = "#FF0000";
+    const auto view = nlohmann::json::parse(webStateJson(engine, false, prefs));
     CHECK(view["result"] == "ok");
     CHECK(view["state"]["control"] == false);
     CHECK(view["state"]["layout"]["shots"] == true);
     CHECK(view["state"]["layout"]["penalties"] == true);
     CHECK(view["state"]["layout"]["fouls"] == false);
+    CHECK(view["state"]["layout"]["segmentLabel"] == "Period");
     CHECK(view["state"]["sport"] == "ice_hockey");
-    CHECK(view["state"]["homeName"].is_string());
-    CHECK(nlohmann::json::parse(webStateJson(engine, true))["state"]["control"] == true);
+    CHECK(view["state"]["look"]["periodBar"] == "remaining");
+    CHECK(view["state"]["look"]["homeColor"] == "#2E9E6B");
+    CHECK(view["state"]["look"]["awayColor"] == "");
+    CHECK(view["state"]["look"]["scoreColor"] == "#F2C94C"); // the default is spelled out
+    CHECK(view["state"]["look"]["clockColor"] == "#FF0000");
+    CHECK(view["state"]["look"]["share"].is_number());
+    CHECK(nlohmann::json::parse(webStateJson(engine, true, prefs))["state"]["control"] == true);
 }
