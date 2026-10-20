@@ -1,0 +1,271 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#include "WebServer.hpp"
+
+#include <obs-module.h>
+
+#include <QHostAddress>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkInterface>
+#include <QRandomGenerator>
+#include <QTcpSocket>
+#include <QTimer>
+
+#include <array>
+#include <string>
+
+#include "ClockDriver.hpp"
+#include "GlobalSettings.hpp"
+#include "SportCatalog.hpp"
+#include "VendorApi.hpp"
+#include "WebPage.hpp"
+#include "plugin-support.h"
+
+namespace {
+
+constexpr int kMaxOpenConnections = 32;
+constexpr int kRequestTimeoutMs = 8000;
+
+// The texts the page shows, by locale key.
+constexpr std::array<const char*, 33> kPageKeys = {
+    "Dock.Start",
+    "Dock.Stop",
+    "Dock.Reset",
+    "Panel.Shots",
+    "Panel.Penalties",
+    "Panel.Queued",
+    "Panel.PenaltyCancel",
+    "Panel.Of",
+    "Panel.Segment.Period",
+    "Panel.Segment.Quarter",
+    "Panel.Segment.Half",
+    "Panel.Segment.Segment",
+    "Panel.Score.Goal",
+    "Panel.Score.Points",
+    "Panel.Score.Score",
+    "Panel.Fouls.Fouls",
+    "Panel.Fouls.Yellow",
+    "Panel.Fouls.Flags",
+    "Panel.Fouls2.Fouls2",
+    "Panel.Fouls2.Red",
+    "Reason.clock.atLimit",
+    "Reason.clock.running",
+    "Reason.match.ended",
+    "Reason.period.clockRunning",
+    "Reason.period.midPeriod",
+    "Reason.period.noNext",
+    "Reason.period.noPrev",
+    "Reason.stat.disabled",
+    "Reason.penalty.notFound",
+    "Reason.plugin.shuttingDown",
+    "Web.Lost",
+    "Web.ViewOnly",
+    "Web.Control",
+};
+
+std::string newKey() {
+    std::array<unsigned char, 12> bytes{};
+    for (unsigned char& b : bytes)
+        b = static_cast<unsigned char>(QRandomGenerator::system()->bounded(256));
+    return sb::keyFromBytes(bytes);
+}
+
+} // namespace
+
+struct WebServer::Connection {
+    QTcpSocket* socket = nullptr;
+    QTimer* timeout = nullptr;
+    std::string buffer;
+    bool replied = false;
+};
+
+WebServer::WebServer(ClockDriver* driver, VendorApi* api, GlobalSettings* settings, QObject* parent)
+    : QObject(parent), driver_(driver), api_(api), settings_(settings), server_(this) {
+    connect(&server_, &QTcpServer::newConnection, this, &WebServer::onNewConnection);
+}
+
+WebServer::~WebServer() {
+    server_.close();
+}
+
+void WebServer::apply() {
+    if (!settings_) return;
+    const sb::GlobalPrefs& prefs = settings_->prefs();
+    if (prefs.remoteMode == sb::RemoteMode::Off) {
+        const bool was = server_.isListening();
+        server_.close();
+        error_.clear();
+        if (was) obs_log(LOG_INFO, "remote page stopped");
+        emit statusChanged();
+        return;
+    }
+    if (prefs.remoteViewKey.empty() || prefs.remoteControlKey.empty())
+        settings_->setRemoteKeys(newKey(), newKey());
+    const int port = settings_->prefs().remotePort;
+    if (server_.isListening() && server_.serverPort() == port) {
+        emit statusChanged(); // only the mode (or nothing) changed
+        return;
+    }
+    server_.close();
+    if (server_.listen(QHostAddress::Any, static_cast<quint16>(port))) {
+        error_.clear();
+        obs_log(LOG_INFO, "remote page listening on port %d", port);
+    } else {
+        error_ = server_.errorString();
+        obs_log(LOG_WARNING, "remote page: port %d could not be opened: %s", port,
+                qPrintable(error_));
+    }
+    emit statusChanged();
+}
+
+void WebServer::regenerateKeys() {
+    if (!settings_) return;
+    settings_->setRemoteKeys(newKey(), newKey());
+    emit statusChanged();
+}
+
+QStringList WebServer::links(bool control) const {
+    QStringList out;
+    if (!settings_ || !server_.isListening()) return out;
+    const sb::GlobalPrefs& prefs = settings_->prefs();
+    if (control && prefs.remoteMode != sb::RemoteMode::Control) return out;
+    const QString key =
+        QString::fromStdString(control ? prefs.remoteControlKey : prefs.remoteViewKey);
+    QStringList addresses;
+    for (const QNetworkInterface& iface : QNetworkInterface::allInterfaces()) {
+        const auto flags = iface.flags();
+        if (!(flags & QNetworkInterface::IsUp) || !(flags & QNetworkInterface::IsRunning) ||
+            (flags & QNetworkInterface::IsLoopBack))
+            continue;
+        for (const QNetworkAddressEntry& entry : iface.addressEntries())
+            if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol)
+                addresses << entry.ip().toString();
+    }
+    if (addresses.isEmpty()) addresses << QStringLiteral("127.0.0.1");
+    for (const QString& address : addresses)
+        out << QStringLiteral("http://%1:%2/?k=%3").arg(address).arg(prefs.remotePort).arg(key);
+    return out;
+}
+
+void WebServer::onNewConnection() {
+    while (QTcpSocket* socket = server_.nextPendingConnection()) {
+        if (open_ >= kMaxOpenConnections) {
+            socket->write(sb::httpResponse(503, "text/plain; charset=utf-8", "Busy").c_str());
+            socket->disconnectFromHost();
+            connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            continue;
+        }
+        ++open_;
+        auto* connection = new Connection();
+        connection->socket = socket;
+        connection->timeout = new QTimer(socket);
+        connection->timeout->setSingleShot(true);
+        connect(connection->timeout, &QTimer::timeout, this, [this, connection]() {
+            if (!connection->replied)
+                reply(connection, 408, "text/plain; charset=utf-8", "Timeout");
+        });
+        connection->timeout->start(kRequestTimeoutMs);
+        connect(socket, &QTcpSocket::readyRead, this, [this, connection]() {
+            if (connection->replied) return;
+            const QByteArray data = connection->socket->readAll();
+            connection->buffer.append(data.constData(), static_cast<std::size_t>(data.size()));
+            serve(connection);
+        });
+        connect(socket, &QTcpSocket::disconnected, this, [this, connection]() {
+            --open_;
+            connection->timeout->stop();
+            connection->socket->deleteLater();
+            delete connection;
+        });
+    }
+}
+
+void WebServer::serve(Connection* connection) {
+    sb::HttpRequest request;
+    switch (sb::parseHttpRequest(connection->buffer, request)) {
+    case sb::ParseStatus::Incomplete:
+        return;
+    case sb::ParseStatus::Bad:
+        reply(connection, 400, "text/plain; charset=utf-8", "Bad request");
+        return;
+    case sb::ParseStatus::TooLarge:
+        reply(connection, 413, "text/plain; charset=utf-8", "Too large");
+        return;
+    case sb::ParseStatus::Ready:
+        handle(request, connection);
+        return;
+    }
+}
+
+void WebServer::handle(const sb::HttpRequest& request, Connection* connection) {
+    static const char* const kText = "text/plain; charset=utf-8";
+    static const char* const kJson = "application/json; charset=utf-8";
+    if (!settings_ || !driver_ || driver_->isShutDown()) {
+        reply(connection, 503, kText, "Not ready");
+        return;
+    }
+    const sb::GlobalPrefs& prefs = settings_->prefs();
+    const std::string provided = sb::queryParam(request.query, "k").value_or(std::string());
+    const sb::WebAccess access =
+        sb::authorizeKey(prefs.remoteMode, prefs.remoteViewKey, prefs.remoteControlKey, provided);
+    const sb::WebRoute route = sb::routeWebRequest(request, access);
+    using Kind = sb::WebRoute::Kind;
+    switch (route.kind) {
+    case Kind::Page:
+        reply(connection, 200, "text/html; charset=utf-8",
+              webPageHtml(route.canControl, i18nJson().toStdString()));
+        return;
+    case Kind::State:
+        reply(connection, 200, kJson, sb::webStateJson(driver_->engine(), route.canControl));
+        return;
+    case Kind::Command: {
+        if (!api_) {
+            reply(connection, 503, kText, "Not ready");
+            return;
+        }
+        const QString body =
+            request.body.empty() ? QStringLiteral("{}") : QString::fromStdString(request.body);
+        const QString answer = api_->handleRequest(QString::fromStdString(route.requestType), body);
+        reply(connection, 200, kJson, answer.toStdString());
+        return;
+    }
+    case Kind::Favicon:
+        reply(connection, 204, kText, std::string());
+        return;
+    case Kind::Unauthorized:
+        reply(connection, 401, kText, "This link is not valid.");
+        return;
+    case Kind::Forbidden:
+        reply(connection, 403, kText, "This link can only watch.");
+        return;
+    case Kind::MethodNotAllowed:
+        reply(connection, 405, kText, "Method not allowed");
+        return;
+    case Kind::NotFound:
+        reply(connection, 404, kText, "Not found");
+        return;
+    }
+}
+
+void WebServer::reply(Connection* connection, int status, const char* contentType,
+                      const std::string& body) {
+    if (connection->replied) return;
+    connection->replied = true;
+    const std::string answer = sb::httpResponse(status, contentType, body);
+    connection->socket->write(answer.data(), static_cast<qint64>(answer.size()));
+    connection->socket->disconnectFromHost();
+}
+
+QString WebServer::i18nJson() const {
+    QJsonObject texts;
+    for (const char* key : kPageKeys)
+        texts.insert(QString::fromLatin1(key), QString::fromUtf8(obs_module_text(key)));
+    for (const sb::SportPreset& sport : sb::builtInSports()) {
+        const std::string key = "Sport." + sport.id;
+        texts.insert(QString::fromStdString(key), QString::fromUtf8(obs_module_text(key.c_str())));
+    }
+    QString json = QString::fromUtf8(QJsonDocument(texts).toJson(QJsonDocument::Compact));
+    // The text sits inside a <script>: nothing in it may close the element.
+    json.replace(QLatin1Char('<'), QStringLiteral("\\u003c"));
+    return json;
+}

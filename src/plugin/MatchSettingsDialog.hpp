@@ -2,6 +2,8 @@
 #pragma once
 
 #include <QDialog>
+#include <QList>
+#include <QStringList>
 
 #include <array>
 #include <functional>
@@ -25,6 +27,7 @@ class QStackedWidget;
 class QTextBrowser;
 class FieldSinks;
 class UpdateChecker;
+class WebServer;
 
 // Everything the dock offers, in one window with a list of pages on the left: Match, Texts, Look,
 // Output, Source links, Match actions (new, resume, end, event log) and Updates. Non-modal: the
@@ -33,12 +36,15 @@ class UpdateChecker;
 class MatchSettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    enum class Page { Match, Texts, Look, Output, Links, Actions, Updates };
+    enum class Page { Match, Texts, Look, Output, Remote, Links, Actions, Updates };
 
     // What the window needs from the rest of the plugin.
     struct Services {
         FieldSinks* sinks = nullptr;
         UpdateChecker* updater = nullptr;
+        WebServer* web = nullptr;
+        // Applies the remote page choice at once (the Remote page has no OK to wait for).
+        std::function<void(sb::RemoteMode, int)> setRemote;
         std::function<void()> newMatch;
         std::function<void()> resumePrevious;
         std::function<void()> endMatch;
@@ -77,6 +83,8 @@ private:
     void buildTextsTab(QWidget* page);
     void buildLookTab(QWidget* page);
     void buildOutputTab(QWidget* page);
+    void buildRemotePage(QWidget* page);
+    void refreshRemote();
     void buildActionsPage(QWidget* page);
     void buildUpdatesPage(QWidget* page);
     void showUpdateInfo(const QString& version, const QString& url, const QString& notes);
@@ -111,6 +119,17 @@ private:
     QPushButton* updateOpen_ = nullptr;
     QCheckBox* updateAtStart_ = nullptr;
     QString updateUrl_;
+    QComboBox* remoteMode_ = nullptr;
+    QSpinBox* remotePort_ = nullptr;
+    QLabel* remoteStatus_ = nullptr;
+    QComboBox* remoteAddress_ = nullptr;
+    QLineEdit* remoteViewLink_ = nullptr;
+    QLineEdit* remoteControlLink_ = nullptr;
+    QList<QWidget*> remoteViewRow_;
+    QList<QWidget*> remoteControlRow_;
+    QStringList remoteHosts_;
+    QFormLayout* remoteForm_ = nullptr;
+    QWidget* remoteNew_ = nullptr;
 
     QComboBox* sport_ = nullptr;
     QLineEdit* home_ = nullptr;

@@ -181,6 +181,7 @@ int run(ClockDriver* driver, FieldSinks* sinks, const QString& directory) {
                 {MatchSettingsDialog::Page::Texts, "texts"},
                 {MatchSettingsDialog::Page::Look, "look"},
                 {MatchSettingsDialog::Page::Output, "output"},
+                {MatchSettingsDialog::Page::Remote, "remote"},
                 {MatchSettingsDialog::Page::Links, "links"},
                 {MatchSettingsDialog::Page::Actions, "actions"},
                 {MatchSettingsDialog::Page::Updates, "updates"}};

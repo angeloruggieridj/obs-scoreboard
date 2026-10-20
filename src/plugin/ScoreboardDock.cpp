@@ -4,6 +4,7 @@
 #include <obs-module.h>
 
 #include <QCheckBox>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -31,6 +32,7 @@
 #include "SettingsChange.hpp"
 #include "TeamPanel.hpp"
 #include "UpdateChecker.hpp"
+#include "WebServer.hpp"
 #include "plugin-support.h"
 
 namespace {
@@ -83,16 +85,6 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     dockstyle::setProp(settingsButton_, dockstyle::kRole, QStringLiteral("iconghost"));
     settingsButton_->setToolTip(text("Settings.Tooltip"));
     connect(settingsButton_, &QPushButton::clicked, this, [this]() { openSettings(); });
-
-    // OBS shows the dock title itself; the first row of the dock holds the sport, the link
-    // indicator and the settings button.
-    auto* header = new QHBoxLayout();
-    header->setSpacing(6);
-    header->addWidget(sport_, 1);
-    header->addWidget(update_);
-    header->addWidget(link_);
-    header->addWidget(settingsButton_);
-    layout->addLayout(header);
 
     clock_ = new ClockPanel(this);
     layout->addWidget(clock_);
@@ -151,6 +143,19 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
 
     layout->addStretch(1);
 
+    // The secondary information sits in a bordered footer: the sport, the source links and the
+    // settings.
+    auto* footer = new QFrame(this);
+    dockstyle::setProp(footer, dockstyle::kCard, QStringLiteral("footer"));
+    auto* footerRow = new QHBoxLayout(footer);
+    footerRow->setContentsMargins(8, 4, 4, 4);
+    footerRow->setSpacing(6);
+    footerRow->addWidget(sport_, 1);
+    footerRow->addWidget(update_);
+    footerRow->addWidget(link_);
+    footerRow->addWidget(settingsButton_);
+    layout->addWidget(footer);
+
     messageTimer_.setSingleShot(true);
     messageTimer_.setInterval(kMessageMs);
     connect(&messageTimer_, &QTimer::timeout, this, &ScoreboardDock::clearMessage);
@@ -203,6 +208,10 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
 
 TeamPanel* ScoreboardDock::panel(sb::Team team) const {
     return team == sb::Team::Home ? home_ : away_;
+}
+
+void ScoreboardDock::setWebServer(WebServer* web) {
+    web_ = web;
 }
 
 void ScoreboardDock::setUpdateChecker(UpdateChecker* checker) {
@@ -529,6 +538,12 @@ void ScoreboardDock::openSettings(std::optional<MatchSettingsDialog::Page> page)
     services.resumePrevious = [this]() { resumePrevious(); };
     services.endMatch = [this]() { endMatch(); };
     services.eventLog = [this]() { openEventLog(); };
+    services.web = web_;
+    services.setRemote = [this](sb::RemoteMode mode, int port) {
+        if (!settings_) return;
+        settings_->setRemote(mode, port);
+        if (web_) web_->apply();
+    };
     services.updateVersion = updateVersion_;
     services.updateUrl = updateUrl_;
     services.updateNotes = updateNotes_;

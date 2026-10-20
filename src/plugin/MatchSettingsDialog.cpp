@@ -23,8 +23,11 @@
 #include <QScrollArea>
 #include <QStackedWidget>
 #include <QTextBrowser>
+#include <QClipboard>
 #include <QDesktopServices>
+#include <QGuiApplication>
 #include <QUrl>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -36,6 +39,7 @@
 #include "SettingsChange.hpp"
 #include "SportCatalog.hpp"
 #include "UpdateChecker.hpp"
+#include "WebServer.hpp"
 #include "plugin-support.h"
 
 namespace {
@@ -114,18 +118,21 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
     auto* textsPage = new QWidget(pages_);
     auto* lookPage = new QWidget(pages_);
     auto* outputPage = new QWidget(pages_);
+    auto* remotePage = new QWidget(pages_);
     auto* actionsPage = new QWidget(pages_);
     auto* updatesPage = new QWidget(pages_);
     buildMatchTab(matchPage);
     buildTextsTab(textsPage);
     buildLookTab(lookPage);
     buildOutputTab(outputPage);
+    buildRemotePage(remotePage);
     buildActionsPage(actionsPage);
     buildUpdatesPage(updatesPage);
     addPage(text("Settings.Tab.Match"), matchPage, true);
     addPage(text("Settings.Tab.Texts"), textsPage, true);
     addPage(text("Settings.Tab.Look"), lookPage, true);
     addPage(text("Settings.Tab.Output"), outputPage, true);
+    addPage(text("Settings.Tab.Remote"), remotePage, true);
     addPage(text("Settings.Tab.Links"), new BindingsPage(services_.sinks, pages_), false);
     addPage(text("Settings.Tab.Actions"), actionsPage, true);
     addPage(text("Settings.Tab.Updates"), updatesPage, true);
@@ -420,6 +427,128 @@ void MatchSettingsDialog::buildOutputTab(QWidget* page) {
     refreshFileOutput();
 }
 
+void MatchSettingsDialog::buildRemotePage(QWidget* page) {
+    auto* outer = new QVBoxLayout(page);
+    auto* group = new QGroupBox(text("Settings.Group.Remote"), page);
+    QFormLayout* form = makeForm(group);
+
+    remoteMode_ = new QComboBox(group);
+    remoteMode_->addItem(text("Settings.Remote.Off"), static_cast<int>(sb::RemoteMode::Off));
+    remoteMode_->addItem(text("Settings.Remote.View"), static_cast<int>(sb::RemoteMode::View));
+    remoteMode_->addItem(text("Settings.Remote.Control"),
+                         static_cast<int>(sb::RemoteMode::Control));
+    remoteMode_->setCurrentIndex(
+        std::max(0, remoteMode_->findData(static_cast<int>(prefs_.remoteMode))));
+    form->addRow(text("Settings.Remote.Access"), remoteMode_);
+
+    remotePort_ = makeSpin(1024, 65535, group);
+    remotePort_->setValue(prefs_.remotePort);
+    form->addRow(text("Settings.Remote.Port"), remotePort_);
+
+    remoteStatus_ = new QLabel(group);
+    dockstyle::setProp(remoteStatus_, dockstyle::kText, QStringLiteral("muted"));
+    form->addRow(QString(), remoteStatus_);
+
+    remoteAddress_ = new QComboBox(group);
+    form->addRow(text("Settings.Remote.Address"), remoteAddress_);
+
+    // A read-only link and its copy button, in one row of the form.
+    const auto linkRow = [&](const char* label, QLineEdit** line, QList<QWidget*>* row) {
+        *line = new QLineEdit(group);
+        (*line)->setReadOnly(true);
+        (*line)->setMinimumWidth(320);
+        auto* copy = new QPushButton(text("Settings.Remote.Copy"), group);
+        auto* box = new QHBoxLayout();
+        box->setSpacing(8);
+        box->addWidget(*line);
+        box->addWidget(copy);
+        auto* caption = new QLabel(text(label), group);
+        form->addRow(caption, box);
+        row->append(caption);
+        row->append(*line);
+        row->append(copy);
+        QLineEdit* edit = *line;
+        connect(copy, &QPushButton::clicked, this, [copy, edit]() {
+            QGuiApplication::clipboard()->setText(edit->text());
+            copy->setText(text("Settings.Remote.Copied"));
+            QTimer::singleShot(1500, copy,
+                               [copy]() { copy->setText(text("Settings.Remote.Copy")); });
+        });
+    };
+    linkRow("Settings.Remote.ViewLink", &remoteViewLink_, &remoteViewRow_);
+    linkRow("Settings.Remote.ControlLink", &remoteControlLink_, &remoteControlRow_);
+
+    auto* fresh = new QPushButton(text("Settings.Remote.New"), group);
+    remoteNew_ = fresh;
+    fresh->setToolTip(text("Settings.Remote.NewNote"));
+    connect(fresh, &QPushButton::clicked, this, [this]() {
+        if (services_.web) services_.web->regenerateKeys();
+        refreshRemote();
+    });
+    auto* freshRow = new QHBoxLayout();
+    freshRow->addWidget(fresh);
+    freshRow->addStretch(1);
+    form->addRow(QString(), freshRow);
+    outer->addWidget(group);
+
+    auto* note = new QLabel(text("Settings.Remote.Note"), page);
+    note->setWordWrap(true);
+    dockstyle::setProp(note, dockstyle::kText, QStringLiteral("muted"));
+    outer->addWidget(note);
+    outer->addStretch(1);
+
+    const auto apply = [this]() {
+        if (!services_.setRemote) return;
+        services_.setRemote(static_cast<sb::RemoteMode>(remoteMode_->currentData().toInt()),
+                            remotePort_->value());
+        refreshRemote();
+    };
+    connect(remoteMode_, &QComboBox::currentIndexChanged, this, [apply](int) { apply(); });
+    connect(remotePort_, &QSpinBox::editingFinished, this, apply);
+    connect(remoteAddress_, &QComboBox::currentIndexChanged, this,
+            [this](int) { refreshRemote(); });
+    if (services_.web)
+        connect(services_.web, &WebServer::statusChanged, this, [this]() { refreshRemote(); });
+    remoteForm_ = form;
+    refreshRemote();
+}
+
+void MatchSettingsDialog::refreshRemote() {
+    const auto mode = static_cast<sb::RemoteMode>(remoteMode_->currentData().toInt());
+    const bool on = mode != sb::RemoteMode::Off;
+    WebServer* web = services_.web;
+    QString status;
+    if (on && web)
+        status = web->listening()
+                     ? text("Settings.Remote.Listening").arg(remotePort_->value())
+                     : text("Settings.Remote.Failed").arg(remotePort_->value()).arg(web->error());
+    if (remoteStatus_->text() != status) remoteStatus_->setText(status);
+
+    const QStringList viewLinks = on && web ? web->links(false) : QStringList();
+    const QStringList controlLinks = web ? web->links(true) : QStringList();
+    QStringList hosts;
+    for (const QString& link : viewLinks) hosts << QUrl(link).host();
+    if (hosts != remoteHosts_) {
+        remoteHosts_ = hosts;
+        const QSignalBlocker block(remoteAddress_);
+        remoteAddress_->clear();
+        remoteAddress_->addItems(hosts);
+    }
+    const bool several = hosts.size() > 1;
+    remoteAddress_->setVisible(several);
+    if (remoteForm_)
+        if (QWidget* label = remoteForm_->labelForField(remoteAddress_)) label->setVisible(several);
+    remoteStatus_->setVisible(!status.isEmpty());
+    if (remoteForm_)
+        if (QWidget* label = remoteForm_->labelForField(remoteStatus_)) label->setVisible(false);
+    const int index = std::max(0, remoteAddress_->currentIndex());
+    remoteViewLink_->setText(viewLinks.value(index));
+    remoteControlLink_->setText(controlLinks.value(index));
+    remoteNew_->setVisible(on);
+    for (QWidget* w : remoteViewRow_) w->setVisible(!viewLinks.isEmpty());
+    for (QWidget* w : remoteControlRow_) w->setVisible(!controlLinks.isEmpty());
+}
+
 // A page of buttons for what happens to the match as a whole.
 void MatchSettingsDialog::buildActionsPage(QWidget* page) {
     auto* outer = new QVBoxLayout(page);
@@ -470,6 +599,7 @@ void MatchSettingsDialog::buildUpdatesPage(QWidget* page) {
     auto* outer = new QVBoxLayout(page);
     auto* group = new QGroupBox(text("Settings.Group.Updates"), page);
     auto* layout = new QVBoxLayout(group);
+    layout->setSpacing(8);
     auto* version = new QLabel(text("Menu.Version").arg(QString::fromUtf8(PLUGIN_VERSION)), group);
     dockstyle::setProp(version, dockstyle::kText, QStringLiteral("strong"));
     layout->addWidget(version);
@@ -492,8 +622,9 @@ void MatchSettingsDialog::buildUpdatesPage(QWidget* page) {
     updateNotes_->setOpenExternalLinks(true);
     updateNotes_->setMinimumHeight(220);
     updateNotes_->hide();
-    layout->addWidget(updateNotes_, 1);
-    outer->addWidget(group, 1);
+    layout->addWidget(updateNotes_);
+    outer->addWidget(group);
+    outer->addStretch(1); // the group is as tall as its content, not as the window
 
     connect(updateOpen_, &QPushButton::clicked, this, [this]() {
         if (!updateUrl_.isEmpty()) QDesktopServices::openUrl(QUrl(updateUrl_));

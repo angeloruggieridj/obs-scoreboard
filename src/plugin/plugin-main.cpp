@@ -26,6 +26,7 @@
 #include "SportCatalog.hpp"
 #include "UpdateChecker.hpp"
 #include "VendorApi.hpp"
+#include "WebServer.hpp"
 #include "plugin-support.h"
 
 OBS_DECLARE_MODULE()
@@ -48,6 +49,7 @@ QPointer<MatchStateSaver> g_saver;
 QPointer<ScoreboardDock> g_dock;
 QPointer<Hotkeys> g_hotkeys;
 QPointer<VendorApi> g_vendorApi;
+QPointer<WebServer> g_web;
 std::unique_ptr<ObsWebSocketRegistry> g_vendorRegistry;
 GlobalSettings g_settings;
 std::unique_ptr<BindingStore> g_bindings;
@@ -70,6 +72,7 @@ void tearDown() {
     selftest::stop();              // the video callback must go before the driver and sinks
     delete g_saver.data();         // before the driver it listens to
     delete g_fileOutput.data();    // before the driver it listens to
+    delete g_web.data();           // before the api and the driver it serves
     delete g_vendorApi.data();     // calls VendorRegistry::unregisterAll()
     g_vendorRegistry.reset();
     if (g_driver) g_driver->shutdown();
@@ -200,14 +203,15 @@ MODULE_EXPORT void obs_module_post_load(void) {
         g_driver,
         [](const std::string& sportId) { return g_dock && g_dock->newMatchForSport(sportId); },
         g_vendorRegistry.get(), nullptr);
-    if (!api->start()) {
+    // The api also serves the remote page, so it stays when obs-websocket is absent.
+    if (api->start())
+        obs_log(LOG_INFO, "obs-websocket vendor obs-scoreboard registered");
+    else
         obs_log(LOG_INFO, "obs-websocket vendor unavailable (the plugin still works)");
-        delete api;
-        g_vendorRegistry.reset();
-        return;
-    }
-    obs_log(LOG_INFO, "obs-websocket vendor obs-scoreboard registered");
     g_vendorApi = api;
+    g_web = new WebServer(g_driver, api, &g_settings, nullptr);
+    g_dock->setWebServer(g_web);
+    if (!pickerSuppressed()) g_web->apply();
 }
 
 void obs_module_unload(void) {

@@ -176,6 +176,9 @@ QString styleSheet(const QPalette& pal, Density density) {
     add(QStringLiteral("QFrame[sbCard=\"team\"][sbTeam=\"away\"]{border-top-color:%1;}")
             .arg(hex(t.accentAway)));
     add(QStringLiteral(
+            "QFrame[sbCard=\"footer\"]{background:%1;border:1px solid %2;border-radius:6px;}")
+            .arg(hex(t.card), hex(t.bdr)));
+    add(QStringLiteral(
             "QFrame[sbCard=\"pen\"]{background:%1;border:1px solid %2;border-radius:4px;}")
             .arg(hex(t.inset), hex(t.bdr)));
 

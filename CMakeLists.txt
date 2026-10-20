@@ -42,8 +42,8 @@ if(ENABLE_FRONTEND_API)
 endif()
 
 if(ENABLE_QT)
-  find_package(Qt6 COMPONENTS Widgets Core Gui REQUIRED)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+  find_package(Qt6 COMPONENTS Widgets Core Gui Network REQUIRED)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network)
   target_compile_options(
     ${CMAKE_PROJECT_NAME}
     PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
@@ -139,6 +139,10 @@ target_sources(
     src/plugin/TextSourceFactory.cpp
     src/plugin/TextSourceFactory.hpp
     src/plugin/VendorApi.cpp
+    src/plugin/WebPage.cpp
+    src/plugin/WebPage.hpp
+    src/plugin/WebServer.cpp
+    src/plugin/WebServer.hpp
     src/plugin/VendorApi.hpp
     src/plugin/VendorRegistry.hpp
 )

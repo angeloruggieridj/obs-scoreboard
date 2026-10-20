@@ -76,6 +76,20 @@ void GlobalSettings::setClockColor(sb::ClockColorSettings settings) {
     save();
 }
 
+void GlobalSettings::setRemote(sb::RemoteMode mode, int port) {
+    if (port < 1024 || port > 65535) port = sb::kDefaultRemotePort;
+    if (prefs_.remoteMode == mode && prefs_.remotePort == port) return;
+    prefs_.remoteMode = mode;
+    prefs_.remotePort = port;
+    save();
+}
+
+void GlobalSettings::setRemoteKeys(std::string viewKey, std::string controlKey) {
+    prefs_.remoteViewKey = std::move(viewKey);
+    prefs_.remoteControlKey = std::move(controlKey);
+    save();
+}
+
 void GlobalSettings::setComfortableDock(bool comfortable) {
     if (prefs_.comfortableDock == comfortable) return;
     prefs_.comfortableDock = comfortable;

@@ -23,6 +23,8 @@
 #include <QThread>
 #include <QTimer>
 #include <QPushButton>
+#include <QTcpSocket>
+#include <QHostAddress>
 
 #include <nlohmann/json.hpp>
 
@@ -58,6 +60,8 @@
 #include "PluginState.hpp"
 #include "ScoreboardDock.hpp"
 #include "SelfTestVerdict.hpp"
+#include "VendorApi.hpp"
+#include "WebServer.hpp"
 #include "SportCatalog.hpp"
 #include "TextSourceFactory.hpp"
 #include "VendorApi.hpp"
@@ -225,6 +229,7 @@ private:
     void checkFoulsAndPenalties();
     void checkFileOutput();
     void checkChapters();
+    void checkWebRemote();
     void checkVendorApi();
     void checkVendorLive();
     void finish();
@@ -251,6 +256,7 @@ private:
     bool futsalFouls_ = false, basketFouls_ = false, penaltyControls_ = false;
     bool fileOutput_ = false, chapters_ = false;
     bool vendorApi_ = false;
+    bool webRemote_ = false;
     bool vendorLive_ = false;
     // Only uuid and name of the sources made by the later checks (see textByUuid).
     std::string homeUuid_, collUuid_, collName_, persistName_, collectionName_;
@@ -321,6 +327,7 @@ void Run::begin() {
     checkFoulsAndPenalties();
     checkFileOutput();
     checkChapters();
+    checkWebRemote();
     checkVendorApi();
     checkVendorLive(); // real obs-websocket in the portable profile; fails if required and absent
     driver_->apply(sb::cmd::ClockStop{});
@@ -761,6 +768,117 @@ void Run::checkChapters() {
         chapters_ = false;
         fail("chapters: the event log table does not list every event");
     }
+    driver_->replaceMatch(sb::MatchEngine(original));
+}
+
+// The remote page over a real connection on the loopback port: the page, the state, a command with
+// the control link, and every refusal (no key, a view key asking for a command, a control key while
+// only viewing). Restores the saved settings and the match at the end.
+void Run::checkWebRemote() {
+    webRemote_ = true;
+    const std::string settingsPath = moduleConfigPath("settings.json");
+    const std::optional<std::string> settingsBytes = readFile(settingsPath);
+    const sb::MatchSettings original = driver_->engine().settings();
+    driver_->replaceMatch(
+        sb::MatchEngine(sb::MatchSettings::forSport(*sb::findSport("ice_hockey"))));
+
+    GlobalSettings scratch;
+    ScoreboardDock probe(driver_, sinks_, &scratch, nullptr);
+    VendorApi api(
+        driver_, [&probe](const std::string& sportId) { return probe.newMatchForSport(sportId); },
+        nullptr, nullptr);
+    WebServer server(driver_, &api, &scratch, nullptr);
+    constexpr int kPort = 38765;
+    scratch.setRemote(sb::RemoteMode::Control, kPort);
+    server.apply();
+    const auto check = [this](bool ok, const char* what) {
+        if (ok) return;
+        webRemote_ = false;
+        fail(std::string("webRemote: ") + what);
+    };
+    check(server.listening(), "the port could not be opened");
+    if (server.listening()) {
+        const std::string view = scratch.prefs().remoteViewKey;
+        const std::string control = scratch.prefs().remoteControlKey;
+        check(view.size() == 24 && control.size() == 24 && view != control,
+              "the keys are not made");
+        check(server.links(false).size() >= 1 && server.links(true).size() >= 1,
+              "no links are offered");
+
+        // One request on its own connection; the answer is whatever the server sent before closing.
+        const auto exchange = [](const std::string& method, const std::string& target,
+                                 const std::string& body) {
+            QTcpSocket socket;
+            QEventLoop loop;
+            QTimer timeout;
+            timeout.setSingleShot(true);
+            std::string answer;
+            QObject::connect(&socket, &QTcpSocket::connected, [&]() {
+                const std::string request =
+                    method + " " + target +
+                    " HTTP/1.1\r\nHost: x\r\nContent-Length: " + std::to_string(body.size()) +
+                    "\r\n\r\n" + body;
+                socket.write(request.data(), static_cast<qint64>(request.size()));
+            });
+            QObject::connect(&socket, &QTcpSocket::readyRead, [&]() {
+                const QByteArray data = socket.readAll();
+                answer.append(data.constData(), static_cast<std::size_t>(data.size()));
+            });
+            QObject::connect(&socket, &QTcpSocket::disconnected, &loop, &QEventLoop::quit);
+            QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+            timeout.start(3000);
+            socket.connectToHost(QHostAddress::LocalHost, kPort);
+            loop.exec();
+            return answer;
+        };
+        const auto status = [](const std::string& answer) {
+            return answer.substr(0, 12); // "HTTP/1.1 200"
+        };
+        const auto has = [](const std::string& answer, const char* text) {
+            return answer.find(text) != std::string::npos;
+        };
+
+        const std::string page = exchange("GET", "/?k=" + view, "");
+        check(status(page) == "HTTP/1.1 200" && has(page, "ScoreBoard") &&
+                  has(page, "CONTROL=false"),
+              "the view page is wrong");
+        const std::string controlPage = exchange("GET", "/?k=" + control, "");
+        check(has(controlPage, "CONTROL=true"), "the control page is wrong");
+        const std::string state = exchange("GET", "/api/state?k=" + view, "");
+        check(status(state) == "HTTP/1.1 200" && has(state, "\"result\":\"ok\"") &&
+                  has(state, "\"control\":false"),
+              "the state is wrong");
+        check(status(exchange("GET", "/", "")) == "HTTP/1.1 401", "a request without a key got in");
+        check(status(exchange("GET", "/?k=wrong", "")) == "HTTP/1.1 401", "a wrong key got in");
+        const std::string toggle = "{}";
+        check(status(exchange("POST", "/api/ClockToggle?k=" + view, toggle)) == "HTTP/1.1 403" &&
+                  !driver_->engine().clock().running(),
+              "a view key was allowed to command");
+        const std::string add = "{\"team\":\"home\",\"stat\":\"score\",\"delta\":1}";
+        const std::string done = exchange("POST", "/api/AddStat?k=" + control, add);
+        check(status(done) == "HTTP/1.1 200" && has(done, "\"result\":\"ok\"") &&
+                  driver_->engine().counters().get(sb::Team::Home, sb::Stat::Score) == 1,
+              "the control link could not command");
+        check(status(exchange("POST", "/api/Nope?k=" + control, "{}")) == "HTTP/1.1 404",
+              "an unknown request was accepted");
+        check(status(exchange("BREW", "/?k=" + view, "")) == "HTTP/1.1 405", "a bad method passed");
+
+        // Only viewing: the control link stops working, the view link stays.
+        scratch.setRemote(sb::RemoteMode::View, kPort);
+        server.apply();
+        check(status(exchange("GET", "/api/state?k=" + control, "")) == "HTTP/1.1 401",
+              "the control key worked while only viewing");
+        check(status(exchange("GET", "/api/state?k=" + view, "")) == "HTTP/1.1 200",
+              "the view key stopped working");
+        // New links: the old ones are dead.
+        server.regenerateKeys();
+        check(status(exchange("GET", "/api/state?k=" + view, "")) == "HTTP/1.1 401",
+              "an old link survived new keys");
+        scratch.setRemote(sb::RemoteMode::Off, kPort);
+        server.apply();
+        check(!server.listening(), "the server kept listening after being turned off");
+    }
+    if (settingsBytes) writeFileAtomic(settingsPath, *settingsBytes, nullptr);
     driver_->replaceMatch(sb::MatchEngine(original));
 }
 
@@ -1481,8 +1599,8 @@ void Run::finish() {
     const bool pass = verdict_.pass() && rename_ && fileMode_ && delete_ && wrongType_ &&
                       multiField_ && collection_ && duplicate_ && persistSaved_ && dock14_ &&
                       sportSwitch_ && penaltyRefresh_ && hotkeySaved_ && futsalFouls_ &&
-                      basketFouls_ && penaltyControls_ && fileOutput_ && chapters_ && vendorApi_ &&
-                      vendorLive_ && bad == 0 && fpsOk && problems_.empty();
+                      basketFouls_ && penaltyControls_ && fileOutput_ && chapters_ && webRemote_ &&
+                      vendorApi_ && vendorLive_ && bad == 0 && fpsOk && problems_.empty();
 
     nlohmann::json changes = nlohmann::json::array();
     for (const sbtest::ChangeResult& c : verdict_.changes) {
@@ -1533,6 +1651,7 @@ void Run::finish() {
                                      {"penaltyControls", penaltyControls_},
                                      {"fileOutput", fileOutput_},
                                      {"chapters", chapters_},
+                                     {"webRemote", webRemote_},
                                      {"vendorApi", vendorApi_},
                                      {"vendorLive", vendorLive_}}},
                                    {"problems", problems}};

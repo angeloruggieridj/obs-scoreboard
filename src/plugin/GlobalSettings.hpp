@@ -25,6 +25,9 @@ public:
     void setPeriodBar(sb::PeriodBarMode mode, std::string color);
     // The color of the clock digits (optionally by the time left).
     void setClockColor(sb::ClockColorSettings settings);
+    // The remote page: who may open it and on which port.
+    void setRemote(sb::RemoteMode mode, int port);
+    void setRemoteKeys(std::string viewKey, std::string controlKey);
     // Remembers the optional .txt output preferences (global; never in the scene collection).
     void setFileOutput(bool enabled, std::string dir);
     void setFileOutputEnabled(bool enabled);

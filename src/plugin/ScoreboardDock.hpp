@@ -29,6 +29,7 @@ class QCheckBox;
 class QInputDialog;
 class QLabel;
 class UpdateChecker;
+class WebServer;
 class QPushButton;
 class QToolButton;
 class TeamPanel;
@@ -78,6 +79,8 @@ public:
     // The update checker lives as long as the module; the dock reports its verdicts and asks it for
     // a manual check. Safe with a null pointer.
     void setUpdateChecker(UpdateChecker* checker);
+    // The remote page; the settings window shows its links. Safe with a null pointer.
+    void setWebServer(WebServer* web);
 
     // Supplies the OBS streaming and recording start instants for the chapter export.
     void setStreamStartsProvider(std::function<StreamStarts()> provider);
@@ -120,6 +123,7 @@ private:
     QString updateVersion_;
     QString updateNotes_;
     QPointer<UpdateChecker> updater_;
+    QPointer<WebServer> web_;
     QLabel* sport_ = nullptr;
     QString shownSport_;
     QString updateUrl_;

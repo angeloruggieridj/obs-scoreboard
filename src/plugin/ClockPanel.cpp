@@ -164,16 +164,14 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     top_->setSpacing(6);
     auto* minutesColumn = new QVBoxLayout();
     minutesColumn->setSpacing(4);
+    minutesColumn->addWidget(makeArrow(QStringLiteral("+1:00"), text("Tip.MinUp"), sb::minutes(1)));
     minutesColumn->addWidget(
-        makeArrow(QStringLiteral("+1:00"), text("Hotkey.clock_min_up"), sb::minutes(1)));
-    minutesColumn->addWidget(
-        makeArrow(QStringLiteral("-1:00"), text("Hotkey.clock_min_down"), -sb::minutes(1)));
+        makeArrow(QStringLiteral("-1:00"), text("Tip.MinDown"), -sb::minutes(1)));
     auto* secondsColumn = new QVBoxLayout();
     secondsColumn->setSpacing(4);
+    secondsColumn->addWidget(makeArrow(QStringLiteral("+0:01"), text("Tip.SecUp"), sb::seconds(1)));
     secondsColumn->addWidget(
-        makeArrow(QStringLiteral("+0:01"), text("Hotkey.clock_sec_up"), sb::seconds(1)));
-    secondsColumn->addWidget(
-        makeArrow(QStringLiteral("-0:01"), text("Hotkey.clock_sec_down"), -sb::seconds(1)));
+        makeArrow(QStringLiteral("-0:01"), text("Tip.SecDown"), -sb::seconds(1)));
 
     clock_ = new QLabel(card);
     clock_->setAlignment(Qt::AlignCenter);
@@ -190,10 +188,10 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     auto* periodGroup = new QHBoxLayout();
     periodGroup->setSpacing(0);
     auto* prev = new dockstyle::IconButton(dockstyle::Icon::Prev, card);
-    prev->setToolTip(text("Hotkey.period_prev"));
+    prev->setToolTip(text("Tip.PeriodPrev"));
     setSeg(prev, "first");
     auto* next = new dockstyle::IconButton(dockstyle::Icon::Next, card);
-    next->setToolTip(text("Hotkey.period_next"));
+    next->setToolTip(text("Tip.PeriodNext"));
     setSeg(next, "last");
     connect(prev, &QPushButton::clicked, this, [this]() { emit periodStepRequested(-1); });
     connect(next, &QPushButton::clicked, this, [this]() { emit periodStepRequested(1); });
