@@ -144,3 +144,27 @@ would apply it twice. (`GetState`/`GetFields` only read, so retrying those is ha
 The native clients built on this protocol live in [`streamdeck/`](../streamdeck) (Elgato Stream
 Deck plugin) and [`companion/`](../companion) (Bitfocus Companion module). Both talk to the plugin
 through this vendor only; no extra protocol is added to the plugin.
+
+## Web page
+
+Besides obs-websocket, the plugin can serve a page to a browser on the same network. It is **off by default**
+(**⚙ → Remote**), listens on the chosen port (default `8765`) of every network interface, and speaks plain HTTP.
+
+| Mode | Links | What a browser may do |
+|---|---|---|
+| Off | none | nothing (the port is closed) |
+| View only | view link | read the match |
+| View and control | view link, control link | read; with the control link also the commands below |
+
+Each link carries its own random key (`?k=...`, 24 hex digits). A request without a valid key gets `401`; a view key that
+asks for a command gets `403`. *New links* makes both keys again, so every link given out before stops working. The keys
+are stored in `settings.json`.
+
+| Request | Access | Answer |
+|---|---|---|
+| `GET /` | view | the page (the language of OBS) |
+| `GET /api/state` | view | the vendor `GetState` object plus `layout` (which counters the sport has, the score buttons) and `control` |
+| `POST /api/<Name>` | control | the vendor response envelope; `<Name>` is any request of the table above except `GetState` and `GetFields` |
+
+The commands go through the same code as the dock and obs-websocket, so a rejection (`rejected`, `confirmation`) is the same
+envelope. Requests are limited to 16 KB, a connection lives at most 8 seconds, and at most 32 are open at once.

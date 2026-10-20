@@ -7,27 +7,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Changed
-
-- A new look for the dock and every window: one button style with a single height, segmented `[ -1 | 2 | +1 ]` counters with a larger score button, the clock in a framed display with the period and stoppage steppers under it, a card per team with its own accent color, icons drawn by the plugin (menu, plus, pencil, cross, play/pause, reset) instead of text glyphs, and a thin bar of the time left under each running penalty. Colors now come from the OBS theme, so the dock and the windows follow the dark and light themes (and the others OBS ships); only start green, stop red and the score and foul colors stay fixed.
-- Match settings, Penalty and Source links windows share the same look (tabs with an underline, a highlighted OK, colored swatches that show the color in use).
-
-- The ⋮ menu is replaced by a gear icon that opens the settings window, now with a vertical list of pages: Match, Texts, Look, Output, Source links, Match control (new, resume, end, event log) and Updates. Fields keep the size of their content. The About window is gone: the version is on the Updates page.
-- The sport is shown as plain text at the top left of the dock.
-
-### Fixed
-
-- The goal, shots and fouls cells line up with their buttons and have the same width; the Stop button is no longer cut at the bottom; the Reset icon is drawn properly.
-
 ### Added
 
+- **Remote web page** (⚙ → Remote): off by default; *View only* or *View and control* from a phone, tablet or another computer on the same network. Two random links (view, control), *New links* to replace them. Covers the clock, periods, scores, shots, fouls and penalty cancellation.
 - *Check for updates now* (Settings → Updates), with a message for "up to date" and for "could not check". A newer release shows its changelog, taken from GitHub, and an "Update" button in the dock.
-- The sport of the match is shown in the dock header.
+- The sport of the match is always shown in the dock.
 - Custom accent color for each team card (*Match settings → Look*).
 - A progress border around the clock: it shrinks with the time left of the period (or fills with the time played). On by default; mode and color in *Match settings → Look*, or off.
 - Clock color: off by default; one color, or steps by time left (for example amber at 1:00 and red at 0:30, up to four), optionally blended.
 - Penalty types in the add-penalty window are chips instead of a drop-down.
 - *Match settings → Look → Dock density*: Compact (as before) or Comfortable (taller buttons and fields).
+
+### Changed
+
+- A new look for the dock and every window: one button style with a single height, segmented `[ -1 | 2 | +1 ]` counters with a larger score button, the clock in a framed display with the period and stoppage steppers under it, a card per team with its own accent color, icons drawn by the plugin (menu, plus, pencil, cross, play/pause, reset) instead of text glyphs, and a thin bar of the time left under each running penalty. Colors now come from the OBS theme, so the dock and the windows follow the dark and light themes (and the others OBS ships); only start green, stop red and the score and foul colors stay fixed.
+- Match settings, Penalty and Source links windows share the same look (tabs with an underline, a highlighted OK, colored swatches that show the color in use).
+- The ⋮ menu is replaced by a gear icon that opens the settings window, now with a vertical list of pages: Match, Texts, Look, Output, Remote, Source links, Match control (new, resume, end, event log) and Updates. Fields keep the size of their content. The About window is gone: the version is on the Updates page.
+- The sport, the source-link indicator and the settings button sit in a bordered footer at the bottom of the dock.
+- Tooltips and descriptions are shorter, and the Italian ones are written in Italian rather than translated word for word.
+
+### Fixed
+
+- The goal, shots and fouls cells line up with their buttons and have the same width; the Stop button is no longer cut at the bottom; the Reset icon is drawn properly.
 
 ## [1.0.0] - 2026-10-19
 

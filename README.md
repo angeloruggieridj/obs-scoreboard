@@ -48,7 +48,7 @@ so every change shows on the next frame. Your font, colors and position stay you
 | **Penalties** | Up to 8 per team, 2 running; compound (2+2); edit or cancel each one; strength text (`5-4`). |
 | **Dock** | Compact, no scrolling; custom score and foul colors; match autosaved and resumable. |
 | **Hotkeys** | 40, stored in the scene collection. |
-| **Remote control** | obs-websocket vendor, Stream Deck plugin, Bitfocus Companion module. |
+| **Remote control** | obs-websocket vendor, Stream Deck plugin, Bitfocus Companion module, web page for watching or commanding from a browser. |
 | **Extras** | Optional `.txt` output, event log with YouTube chapters export, update notice. |
 
 ### Sports
@@ -99,8 +99,13 @@ checksums and a build attestation: `gh attestation verify <file> --repo angeloru
 | obs-websocket | Vendor `obs-scoreboard`: 20 requests, 4 events; optional at run time. [docs/remote-control.md](docs/remote-control.md) |
 | Stream Deck | One action per command, live key feedback. [streamdeck/](streamdeck/) |
 | Bitfocus Companion | Actions, feedbacks, variables, presets. [companion/](companion/) |
+| Web page | Watch or command from a phone, tablet or another computer on the same network. See below. |
 
 Enable the server under **Tools → WebSocket Server Settings**. The Stream Deck plugin stores the password in plain text.
+
+#### Web page
+
+Off by default. Turn it on in **⚙ → Remote**: *View only* gives one link that can only watch; *View and control* adds a second link that also runs the clock, scores, periods and penalty cancellations. Open a link in any browser on your network, or copy it to a phone. The links carry a random key; *New links* replaces both. The connection is plain HTTP, so use it on a network you trust. Details in [docs/remote-control.md](docs/remote-control.md).
 
 ### Files and YouTube chapters
 
@@ -208,8 +213,13 @@ SHA-256 e un'attestazione della build: `gh attestation verify <file> --repo ange
 | obs-websocket | Vendor `obs-scoreboard`: 20 richieste, 4 eventi; facoltativo a runtime. [docs/remote-control.md](docs/remote-control.md) |
 | Stream Deck | Un'azione per comando, feedback in tempo reale sui tasti. [streamdeck/](streamdeck/) |
 | Bitfocus Companion | Azioni, feedback, variabili, preset. [companion/](companion/) |
+| Pagina web | Guarda o comanda da smartphone, tablet o un altro computer sulla stessa rete. Vedi sotto. |
 
 Attiva il server da **Strumenti → Impostazioni server WebSocket**. Il plugin Stream Deck salva la password in chiaro.
+
+#### Pagina web
+
+Spenta di default. Si attiva da **⚙ → Remoto**: *Solo visione* dà un link che può solo guardare; *Visione e controllo* aggiunge un secondo link che comanda anche cronometro, punteggi, periodi e annullamento delle penalità. Apri il link in un browser sulla tua rete, oppure copialo sul telefono. I link contengono una chiave casuale; *Nuovi link* le sostituisce entrambe. La connessione è HTTP semplice: usala su una rete di cui ti fidi. Dettagli in [docs/remote-control.md](docs/remote-control.md).
 
 ### File e capitoli YouTube
 
