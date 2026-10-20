@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "ClockColor.hpp"
 #include "Fields.hpp"
 #include "MatchEngine.hpp"
 
@@ -20,6 +21,9 @@ struct FieldBinding {
     std::string uuid;
     std::string name;
 };
+
+// The border of the clock card as a progress bar of the period.
+enum class PeriodBarMode { Off, Remaining, Consumed };
 
 struct GlobalPrefs {
     std::string lastSport = "futsal";
@@ -40,6 +44,15 @@ struct GlobalPrefs {
     bool updateCheck = true;
     // Taller buttons and a little more air in the dock and the windows (DockStyle density).
     bool comfortableDock = false;
+    // Accent color of each team's card ("#RRGGBB" or empty = the default blue / orange).
+    std::string homeColor;
+    std::string awayColor;
+    // The border of the clock card fills as the period goes (on by default, in the theme's
+    // highlight color unless a color is set).
+    PeriodBarMode periodBar = PeriodBarMode::Remaining;
+    std::string periodBarColor;
+    // The color of the clock digits, optionally by the time left. Off by default.
+    ClockColorSettings clockColor;
 };
 
 constexpr int kBindingsJsonVersion = 1;

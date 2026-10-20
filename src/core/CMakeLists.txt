@@ -17,6 +17,7 @@ add_library(
   MatchJson.cpp
   PluginState.cpp
   PanelLayout.cpp
+  ClockColor.cpp
   PanelModel.cpp
   SettingsChange.cpp
   HotkeyCatalog.cpp

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "PenaltyBox.hpp"
+#include "Types.hpp"
 
 namespace sb {
 
@@ -21,6 +22,12 @@ std::optional<std::uint32_t> parseColor(std::string_view text);
 std::string formatColor(std::uint32_t rgb);
 // True when dark text reads better than light text on this background.
 bool darkTextOn(std::uint32_t rgb);
+
+// Time left in a period, in tenths: the value of a count-down, the length minus the value of a
+// count-up (never negative). -1 when the period has no length.
+Tenths timeLeft(Tenths value, Tenths duration, Direction direction);
+// The share of the period still to play, 0.0 .. 1.0; -1.0 when the period has no length.
+double shareLeft(Tenths value, Tenths duration, Direction direction);
 
 std::optional<std::vector<int>> parseScoreValues(std::string_view text);
 std::string formatScoreValues(const std::vector<int>& values);

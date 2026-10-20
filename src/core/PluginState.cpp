@@ -39,6 +39,67 @@ std::string colorOf(const json& object, const char* key) {
     return rgb ? formatColor(*rgb) : std::string();
 }
 
+const char* modeKey(ClockColorMode mode) {
+    switch (mode) {
+    case ClockColorMode::Single:
+        return "single";
+    case ClockColorMode::ByTime:
+        return "byTime";
+    case ClockColorMode::Theme:
+        break;
+    }
+    return "theme";
+}
+
+const char* barKey(PeriodBarMode mode) {
+    switch (mode) {
+    case PeriodBarMode::Off:
+        return "off";
+    case PeriodBarMode::Consumed:
+        return "consumed";
+    case PeriodBarMode::Remaining:
+        break;
+    }
+    return "remaining";
+}
+
+json clockColorToJson(const ClockColorSettings& settings) {
+    json rules = json::array();
+    for (const ClockColorRule& rule : settings.rules)
+        rules.push_back({{"secondsLeft", rule.secondsLeft}, {"color", rule.color}});
+    return json{{"mode", modeKey(settings.mode)},
+                {"base", settings.base},
+                {"blend", settings.blend},
+                {"rules", rules}};
+}
+
+ClockColorSettings clockColorFromJson(const json& object) {
+    ClockColorSettings settings;
+    if (!object.is_object()) return settings;
+    const auto mode = object.find("mode");
+    if (mode != object.end() && mode->is_string()) {
+        if (mode->get<std::string>() == "single") settings.mode = ClockColorMode::Single;
+        if (mode->get<std::string>() == "byTime") settings.mode = ClockColorMode::ByTime;
+    }
+    settings.base = colorOf(object, "base");
+    const auto blend = object.find("blend");
+    settings.blend = blend != object.end() && blend->is_boolean() && blend->get<bool>();
+    const auto rules = object.find("rules");
+    if (rules != object.end() && rules->is_array()) {
+        for (const json& entry : *rules) {
+            if (settings.rules.size() >= kMaxClockColorRules) break;
+            if (!entry.is_object()) continue;
+            const auto seconds = entry.find("secondsLeft");
+            if (seconds == entry.end() || !seconds->is_number_integer()) continue;
+            const long long value = seconds->get<long long>();
+            const std::string color = colorOf(entry, "color");
+            if (value < 0 || value > kMaxRuleSeconds || color.empty()) continue;
+            settings.rules.push_back({static_cast<int>(value), color});
+        }
+    }
+    return settings;
+}
+
 } // namespace
 
 std::string bindingsToJson(const std::vector<FieldBinding>& bindings) {
@@ -92,6 +153,11 @@ std::string prefsToJson(const GlobalPrefs& prefs) {
                 {"fileOutputDir", prefs.fileOutputDir},
                 {"updateCheck", prefs.updateCheck},
                 {"comfortableDock", prefs.comfortableDock},
+                {"homeColor", prefs.homeColor},
+                {"awayColor", prefs.awayColor},
+                {"periodBar", barKey(prefs.periodBar)},
+                {"periodBarColor", prefs.periodBarColor},
+                {"clockColor", clockColorToJson(prefs.clockColor)},
                 {"sportSettings", stored}}
         .dump(2, ' ', false, json::error_handler_t::replace);
 }
@@ -121,6 +187,16 @@ std::optional<GlobalPrefs> prefsFromJson(std::string_view text, std::string* err
     const auto comfortable = j->find("comfortableDock");
     prefs.comfortableDock =
         comfortable != j->end() && comfortable->is_boolean() && comfortable->get<bool>();
+    prefs.homeColor = colorOf(*j, "homeColor");
+    prefs.awayColor = colorOf(*j, "awayColor");
+    prefs.periodBarColor = colorOf(*j, "periodBarColor");
+    const auto bar = j->find("periodBar");
+    if (bar != j->end() && bar->is_string()) {
+        if (bar->get<std::string>() == "off") prefs.periodBar = PeriodBarMode::Off;
+        if (bar->get<std::string>() == "consumed") prefs.periodBar = PeriodBarMode::Consumed;
+    }
+    const auto clockColor = j->find("clockColor");
+    if (clockColor != j->end()) prefs.clockColor = clockColorFromJson(*clockColor);
     const auto stored = j->find("sportSettings");
     if (stored != j->end() && stored->is_object()) {
         for (auto it = stored->begin(); it != stored->end(); ++it) {

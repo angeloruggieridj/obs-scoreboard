@@ -51,6 +51,18 @@ bool darkTextOn(std::uint32_t rgb) {
     return 0.299 * r + 0.587 * g + 0.114 * b > 140.0;
 }
 
+Tenths timeLeft(Tenths value, Tenths duration, Direction direction) {
+    if (duration <= 0) return -1;
+    const Tenths left = direction == Direction::Down ? value : duration - value;
+    return std::clamp<Tenths>(left, 0, duration);
+}
+
+double shareLeft(Tenths value, Tenths duration, Direction direction) {
+    if (duration <= 0) return -1.0;
+    return static_cast<double>(timeLeft(value, duration, direction)) /
+           static_cast<double>(duration);
+}
+
 std::optional<std::vector<int>> parseScoreValues(std::string_view text) {
     std::vector<int> out;
     std::size_t i = 0;
