@@ -151,6 +151,14 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     footerRow->setContentsMargins(8, 4, 4, 4);
     footerRow->setSpacing(6);
     footerRow->addWidget(sport_, 1);
+    // Shown while a remote page is open: how many devices, and which of them can command.
+    remote_ = new QPushButton(this);
+    dockstyle::setProp(remote_, dockstyle::kText, QStringLiteral("pill"));
+    dockstyle::setProp(remote_, dockstyle::kLink, QStringLiteral("ok"));
+    remote_->hide();
+    connect(remote_, &QPushButton::clicked, this,
+            [this]() { openSettings(MatchSettingsDialog::Page::Remote); });
+    footerRow->addWidget(remote_);
     footerRow->addWidget(update_);
     footerRow->addWidget(link_);
     footerRow->addWidget(settingsButton_);
@@ -212,6 +220,22 @@ TeamPanel* ScoreboardDock::panel(sb::Team team) const {
 
 void ScoreboardDock::setWebServer(WebServer* web) {
     web_ = web;
+    if (!web_) return;
+    connect(web_, &WebServer::clientsChanged, this, [this]() { showRemoteClients(); });
+    showRemoteClients();
+}
+
+void ScoreboardDock::showRemoteClients() {
+    const int controllers = web_ ? web_->controllers() : 0;
+    const int viewers = web_ ? web_->viewers() : 0;
+    const int total = controllers + viewers;
+    remote_->setVisible(total > 0);
+    if (total == 0) return;
+    remote_->setText(text("Panel.Remote").arg(total));
+    remote_->setToolTip(text("Panel.Remote.Tip").arg(controllers).arg(viewers));
+    // Green while someone can command, gray when everyone only watches.
+    dockstyle::setProp(remote_, dockstyle::kLink,
+                       controllers > 0 ? QStringLiteral("ok") : QStringLiteral("none"));
 }
 
 void ScoreboardDock::setUpdateChecker(UpdateChecker* checker) {

@@ -105,6 +105,7 @@ private:
     // answered NO to the "new match?" question.
     bool applySettings(const sb::MatchSettings& next);
     void showLinkState();
+    void showRemoteClients();
     void newMatch();
     void endMatch();
 
@@ -120,6 +121,7 @@ private:
     QPushButton* link_ = nullptr;
     QPushButton* settingsButton_ = nullptr;
     QPushButton* update_ = nullptr;
+    QPushButton* remote_ = nullptr; // footer badge: a remote page is open
     QString updateVersion_;
     QString updateNotes_;
     QPointer<UpdateChecker> updater_;

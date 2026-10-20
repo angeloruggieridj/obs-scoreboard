@@ -171,3 +171,15 @@ must differ). A request without a valid key gets `401`; a view key that asks for
 The commands go through the same code as the dock and obs-websocket, so a rejection (`rejected`, `confirmation`) is the same
 envelope. On a phone the page can vibrate when a button is pressed (`navigator.vibrate` on Android; Safari on iPhone has no such call, so on iPhone every control is a label with a native switch laid over it: the finger lands on the switch, the system gives a haptic tick and the same tap runs the action. It is a trick Apple can change, so it is not guaranteed); the viewer switches it on or
 off in the footer of the page, and the choice stays in that browser. Requests are limited to 16 KB, a request connection lives at most 8 seconds (an event stream stays open until the browser leaves or a key or the access changes), and at most 32 are open at once.
+
+### Outside the local network
+
+The server speaks plain HTTP and only on your network. To reach it from elsewhere without port forwarding, put a tunnel in front of port 8765 (or the one you chose); the link is then the tunnel's address plus `/?k=<key>`.
+
+| Service | Free | Notes |
+|---|---|---|
+| Tailscale | Personal plan | The phone and the computer join one private network (app on both); the link is `http://<computer>.<tailnet>.ts.net:8765/`. Encrypted end to end, nothing is public, same latency as a direct connection. *Funnel* can make it public over HTTPS but has fixed bandwidth limits. |
+| Cloudflare Tunnel | yes | A tunnel with a free account and your own domain gives an HTTPS link and supports the event stream. The no-account *quick tunnel* (`trycloudflare.com`) does **not** support server-sent events (the page then polls every 350 ms), changes its address on every start and has no uptime guarantee. |
+| ngrok | yes, limited | HTTPS link with one automatic domain, 20,000 requests a month, and a warning page before the first visit from a browser. A polling page uses the monthly requests quickly. |
+
+Everything that passes through a public tunnel can be read by the tunnel provider, so use a typed key you do not use elsewhere, and turn the page off when you do not need it.

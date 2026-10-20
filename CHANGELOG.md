@@ -20,6 +20,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- A badge in the footer of the dock shows how many remote devices have the page open ("Remote 2"), green while one of them can command; its tooltip says how many command and how many only watch. Clicking it opens the Remote page of the settings.
 - A new look for the dock and every window: one button style with a single height, segmented `[ -1 | 2 | +1 ]` counters with a larger score button, the clock in a framed display with the period and stoppage steppers under it, a card per team with its own accent color, icons drawn by the plugin (menu, plus, pencil, cross, play/pause, reset) instead of text glyphs, and a thin bar of the time left under each running penalty. Colors now come from the OBS theme, so the dock and the windows follow the dark and light themes (and the others OBS ships); only start green, stop red and the score and foul colors stay fixed.
 - Match settings, Penalty and Source links windows share the same look (tabs with an underline, a highlighted OK, colored swatches that show the color in use).
 - The ⋮ menu is replaced by a gear icon that opens the settings window, now with a vertical list of pages: Match, Texts, Look, Output, Remote, Source links, Match control (new, resume, end, event log) and Updates. Fields keep the size of their content. The About window is gone: the version is on the Updates page.

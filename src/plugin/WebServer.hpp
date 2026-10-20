@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QPointer>
@@ -36,6 +37,11 @@ public:
 
     QString viewKey() const;
     QString controlKey() const;
+    // The devices that opened the page in the last few seconds (an open event stream counts as
+    // long as it stays open). A device is counted once, as a controller if it has the control
+    // link.
+    int controllers() const { return controllers_; }
+    int viewers() const { return viewers_; }
     bool listening() const { return server_.isListening(); }
     // Why the port could not be opened ("" when it could, or when the server is off).
     QString error() const { return error_; }
@@ -49,6 +55,7 @@ public:
 
 signals:
     void statusChanged();
+    void clientsChanged(); // controllers() or viewers() changed
 
 private:
     struct Connection;
@@ -57,6 +64,8 @@ private:
     void scheduleBroadcast();
     void broadcast();
     void closeStreams();
+    void note(Connection* connection, bool control);
+    void refreshClients();
     void serve(Connection* connection);
     void handle(const sb::HttpRequest& request, Connection* connection);
     void reply(Connection* connection, int status, const char* contentType,
@@ -71,6 +80,14 @@ private:
     QTimer broadcastTimer_;
     QTimer keepAliveTimer_;
     QList<Connection*> streams_; // open event streams
-    QByteArray fontBytes_;       // the clock font, read on first use
+    struct Seen {
+        qint64 at = 0; // QDateTime::currentMSecsSinceEpoch()
+        bool control = false;
+    };
+    QHash<QString, Seen> seen_; // by address of the device
+    QTimer clientsTimer_;
+    int controllers_ = 0;
+    int viewers_ = 0;
+    QByteArray fontBytes_; // the clock font, read on first use
     int open_ = 0;
 };

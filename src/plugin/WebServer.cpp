@@ -3,6 +3,7 @@
 
 #include <obs-module.h>
 
+#include <QDateTime>
 #include <QFile>
 #include <QHostAddress>
 #include <QJsonDocument>
@@ -83,6 +84,7 @@ struct WebServer::Connection {
     std::string buffer;
     bool replied = false;
     bool streaming = false;
+    QString peer;         // address of the device
     bool control = false; // for a stream: which state it is sent
 };
 
@@ -99,6 +101,9 @@ WebServer::WebServer(ClockDriver* driver, VendorApi* api, GlobalSettings* settin
         for (Connection* stream : streams_) stream->socket->write(": ping\n\n");
     });
     keepAliveTimer_.start();
+    clientsTimer_.setInterval(1000);
+    connect(&clientsTimer_, &QTimer::timeout, this, &WebServer::refreshClients);
+    clientsTimer_.start();
     if (driver_) {
         connect(driver_, &ClockDriver::fieldsChanged, this,
                 [this](const sb::FieldValues&) { scheduleBroadcast(); });
@@ -111,6 +116,38 @@ WebServer::WebServer(ClockDriver* driver, VendorApi* api, GlobalSettings* settin
 WebServer::~WebServer() {
     closeStreams();
     server_.close();
+}
+
+// A device counts while it has a stream open or asked for something in the last 8 seconds.
+void WebServer::note(Connection* connection, bool control) {
+    Seen& seen = seen_[connection->peer];
+    seen.at = QDateTime::currentMSecsSinceEpoch();
+    seen.control = seen.control || control;
+    if (connection->streaming) connection->control = control;
+}
+
+void WebServer::refreshClients() {
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    QHash<QString, bool> devices; // address -> controls
+    for (auto it = seen_.begin(); it != seen_.end();) {
+        if (now - it->at > 8000) {
+            it = seen_.erase(it);
+            continue;
+        }
+        devices[it.key()] = it->control;
+        ++it;
+    }
+    for (Connection* stream : streams_)
+        devices[stream->peer] = devices.value(stream->peer, false) || stream->control;
+    int controllers = 0;
+    int viewers = 0;
+    for (auto it = devices.begin(); it != devices.end(); ++it)
+        (it.value() ? controllers : viewers)++;
+    if (!server_.isListening()) controllers = viewers = 0;
+    if (controllers == controllers_ && viewers == viewers_) return;
+    controllers_ = controllers;
+    viewers_ = viewers;
+    emit clientsChanged();
 }
 
 void WebServer::scheduleBroadcast() {
@@ -145,6 +182,7 @@ void WebServer::startStream(Connection* connection, bool canControl) {
     connection->socket->write(head.data(), static_cast<qint64>(head.size()));
     connection->socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
     streams_.append(connection);
+    refreshClients();
     const std::string first =
         "data: " + sb::webStateJson(driver_->engine(), canControl, settings_->prefs()) + "\n\n";
     connection->socket->write(first.data(), static_cast<qint64>(first.size()));
@@ -154,6 +192,8 @@ void WebServer::startStream(Connection* connection, bool canControl) {
 void WebServer::closeStreams() {
     const QList<Connection*> open = streams_;
     for (Connection* stream : open) stream->socket->disconnectFromHost();
+    seen_.clear();
+    refreshClients();
 }
 
 void WebServer::apply() {
@@ -258,6 +298,11 @@ void WebServer::onNewConnection() {
         ++open_;
         auto* connection = new Connection();
         connection->socket = socket;
+        {
+            QString peer = socket->peerAddress().toString();
+            if (peer.startsWith(QLatin1String("::ffff:"))) peer = peer.mid(7);
+            connection->peer = peer;
+        }
         connection->timeout = new QTimer(socket);
         connection->timeout->setSingleShot(true);
         connect(connection->timeout, &QTimer::timeout, this, [this, connection]() {
@@ -277,6 +322,7 @@ void WebServer::onNewConnection() {
         connect(socket, &QTcpSocket::disconnected, this, [this, connection]() {
             --open_;
             streams_.removeOne(connection);
+            QTimer::singleShot(0, this, &WebServer::refreshClients);
             connection->timeout->stop();
             connection->socket->deleteLater();
             delete connection;
@@ -313,6 +359,11 @@ void WebServer::handle(const sb::HttpRequest& request, Connection* connection) {
     const sb::WebAccess access =
         sb::authorizeKey(prefs.remoteMode, prefs.remoteViewKey, prefs.remoteControlKey, provided);
     const sb::WebRoute route = sb::routeWebRequest(request, access);
+    if (access != sb::WebAccess::None && route.kind != sb::WebRoute::Kind::Font &&
+        route.kind != sb::WebRoute::Kind::Favicon) {
+        note(connection, access == sb::WebAccess::Control);
+        if (route.kind == sb::WebRoute::Kind::Page) refreshClients();
+    }
     using Kind = sb::WebRoute::Kind;
     switch (route.kind) {
     case Kind::Page:

@@ -941,6 +941,10 @@ void Run::checkWebRemote() {
         }
         check(status(exchange("GET", "/api/events", "")) == "HTTP/1.1 401",
               "the event stream opened without a key");
+        // The badge of the dock: this one device (the keys were just renewed, and the stream used
+        // the view key) is counted once, as a viewer.
+        check(server.controllers() == 0 && server.viewers() == 1,
+              "the connected device was not counted once as a viewer");
 
         // Only viewing: the control link stops working, the view link stays.
         scratch.setRemote(sb::RemoteMode::View, kPort);
@@ -957,6 +961,8 @@ void Run::checkWebRemote() {
         scratch.setRemote(sb::RemoteMode::Off, kPort);
         server.apply();
         check(!server.listening(), "the server kept listening after being turned off");
+        check(server.controllers() == 0 && server.viewers() == 0,
+              "devices are still counted after the server was turned off");
     }
     if (settingsBytes) writeFileAtomic(settingsPath, *settingsBytes, nullptr);
     driver_->replaceMatch(sb::MatchEngine(original));
