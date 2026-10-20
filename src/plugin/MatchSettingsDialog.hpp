@@ -129,7 +129,8 @@ private:
     QList<QWidget*> remoteControlRow_;
     QStringList remoteHosts_;
     QFormLayout* remoteForm_ = nullptr;
-    QWidget* remoteNew_ = nullptr;
+    QLineEdit* remoteViewKey_ = nullptr;
+    QLineEdit* remoteControlKey_ = nullptr;
 
     QComboBox* sport_ = nullptr;
     QLineEdit* home_ = nullptr;

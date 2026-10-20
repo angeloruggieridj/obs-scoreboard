@@ -863,16 +863,52 @@ void Run::checkWebRemote() {
               "an unknown request was accepted");
         check(status(exchange("BREW", "/?k=" + view, "")) == "HTTP/1.1 405", "a bad method passed");
 
+        // The dock's look travels with the state, and the clock font is served.
+        check(has(state, "\"look\"") && has(state, "\"periodBar\""),
+              "the look is missing from the state");
+        const std::string font = exchange("GET", "/font?k=" + view, "");
+        check(status(font) == "HTTP/1.1 200" && has(font, "font/ttf"),
+              "the clock font is not served");
+        check(status(exchange("GET", "/font", "")) == "HTTP/1.1 401",
+              "the font is served without a key");
+
+        // The user's own keys: they work, the old ones stop, invalid ones change nothing.
+        QString problem;
+        check(server.setKeys(QStringLiteral("my-view-key"), QStringLiteral("my-control-key"),
+                             &problem),
+              "own keys were refused");
+        check(status(exchange("GET", "/api/state?k=my-view-key", "")) == "HTTP/1.1 200",
+              "the typed view key does not work");
+        check(status(exchange("GET", "/api/state?k=" + view, "")) == "HTTP/1.1 401",
+              "the old view key still works");
+        check(status(exchange("POST", "/api/ClockStop?k=my-control-key", "{}")) == "HTTP/1.1 200",
+              "the typed control key does not command");
+        check(
+            !server.setKeys(QStringLiteral("short"), QStringLiteral("my-control-key"), &problem) &&
+                problem == QLatin1String("invalid"),
+            "a too short key was accepted");
+        check(
+            !server.setKeys(QStringLiteral("same-key-1"), QStringLiteral("same-key-1"), &problem) &&
+                problem == QLatin1String("same"),
+            "two equal keys were accepted");
+        check(status(exchange("GET", "/api/state?k=my-view-key", "")) == "HTTP/1.1 200",
+              "a refused change altered the keys");
+        check(server.setKeys(QString(), QString(), &problem) &&
+                  status(exchange("GET", "/api/state?k=my-view-key", "")) == "HTTP/1.1 401",
+              "empty keys did not ask for random ones");
+        const std::string view2 = scratch.prefs().remoteViewKey;
+
         // Only viewing: the control link stops working, the view link stays.
         scratch.setRemote(sb::RemoteMode::View, kPort);
         server.apply();
-        check(status(exchange("GET", "/api/state?k=" + control, "")) == "HTTP/1.1 401",
+        check(status(exchange("GET", "/api/state?k=" + scratch.prefs().remoteControlKey, "")) ==
+                  "HTTP/1.1 401",
               "the control key worked while only viewing");
-        check(status(exchange("GET", "/api/state?k=" + view, "")) == "HTTP/1.1 200",
+        check(status(exchange("GET", "/api/state?k=" + view2, "")) == "HTTP/1.1 200",
               "the view key stopped working");
         // New links: the old ones are dead.
         server.regenerateKeys();
-        check(status(exchange("GET", "/api/state?k=" + view, "")) == "HTTP/1.1 401",
+        check(status(exchange("GET", "/api/state?k=" + view2, "")) == "HTTP/1.1 401",
               "an old link survived new keys");
         scratch.setRemote(sb::RemoteMode::Off, kPort);
         server.apply();

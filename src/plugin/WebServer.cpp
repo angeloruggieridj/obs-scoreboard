@@ -3,6 +3,7 @@
 
 #include <obs-module.h>
 
+#include <QFile>
 #include <QHostAddress>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -19,6 +20,7 @@
 #include "SportCatalog.hpp"
 #include "VendorApi.hpp"
 #include "WebPage.hpp"
+#include "WebState.hpp"
 #include "plugin-support.h"
 
 namespace {
@@ -27,7 +29,7 @@ constexpr int kMaxOpenConnections = 32;
 constexpr int kRequestTimeoutMs = 8000;
 
 // The texts the page shows, by locale key.
-constexpr std::array<const char*, 33> kPageKeys = {
+constexpr std::array<const char*, 36> kPageKeys = {
     "Dock.Start",
     "Dock.Stop",
     "Dock.Reset",
@@ -61,6 +63,9 @@ constexpr std::array<const char*, 33> kPageKeys = {
     "Web.Lost",
     "Web.ViewOnly",
     "Web.Control",
+    "Web.Vibration",
+    "Web.On",
+    "Web.Off",
 };
 
 std::string newKey() {
@@ -116,6 +121,33 @@ void WebServer::apply() {
                 qPrintable(error_));
     }
     emit statusChanged();
+}
+
+bool WebServer::setKeys(const QString& viewKey, const QString& controlKey, QString* error) {
+    if (!settings_) return false;
+    const std::string view =
+        viewKey.trimmed().isEmpty() ? newKey() : viewKey.trimmed().toStdString();
+    const std::string control =
+        controlKey.trimmed().isEmpty() ? newKey() : controlKey.trimmed().toStdString();
+    if (!sb::validKey(view) || !sb::validKey(control)) {
+        if (error) *error = QStringLiteral("invalid");
+        return false;
+    }
+    if (view == control) {
+        if (error) *error = QStringLiteral("same");
+        return false;
+    }
+    settings_->setRemoteKeys(view, control);
+    emit statusChanged();
+    return true;
+}
+
+QString WebServer::viewKey() const {
+    return settings_ ? QString::fromStdString(settings_->prefs().remoteViewKey) : QString();
+}
+
+QString WebServer::controlKey() const {
+    return settings_ ? QString::fromStdString(settings_->prefs().remoteControlKey) : QString();
 }
 
 void WebServer::regenerateKeys() {
@@ -216,7 +248,7 @@ void WebServer::handle(const sb::HttpRequest& request, Connection* connection) {
               webPageHtml(route.canControl, i18nJson().toStdString()));
         return;
     case Kind::State:
-        reply(connection, 200, kJson, sb::webStateJson(driver_->engine(), route.canControl));
+        reply(connection, 200, kJson, sb::webStateJson(driver_->engine(), route.canControl, prefs));
         return;
     case Kind::Command: {
         if (!api_) {
@@ -227,6 +259,26 @@ void WebServer::handle(const sb::HttpRequest& request, Connection* connection) {
             request.body.empty() ? QStringLiteral("{}") : QString::fromStdString(request.body);
         const QString answer = api_->handleRequest(QString::fromStdString(route.requestType), body);
         reply(connection, 200, kJson, answer.toStdString());
+        return;
+    }
+    case Kind::Font: {
+        if (access == sb::WebAccess::None) {
+            reply(connection, 401, kText, "This link is not valid.");
+            return;
+        }
+        if (fontBytes_.isNull()) {
+            char* path = obs_module_file("fonts/DSEG7Classic-Bold.ttf");
+            if (path) {
+                QFile file(QString::fromUtf8(path));
+                if (file.open(QIODevice::ReadOnly)) fontBytes_ = file.readAll();
+                bfree(path);
+            }
+        }
+        if (fontBytes_.isEmpty())
+            reply(connection, 404, kText, "Not found");
+        else
+            reply(connection, 200, "font/ttf",
+                  std::string(fontBytes_.constData(), static_cast<std::size_t>(fontBytes_.size())));
         return;
     }
     case Kind::Favicon:

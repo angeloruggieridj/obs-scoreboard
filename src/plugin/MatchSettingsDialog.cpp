@@ -449,6 +449,37 @@ void MatchSettingsDialog::buildRemotePage(QWidget* page) {
     dockstyle::setProp(remoteStatus_, dockstyle::kText, QStringLiteral("muted"));
     form->addRow(QString(), remoteStatus_);
 
+    // The keys of the two links: typed by the user, or made at random.
+    const auto keyRow = [&](const char* label, QLineEdit** edit, bool control) {
+        *edit = new QLineEdit(group);
+        (*edit)->setMinimumWidth(240);
+        (*edit)->setMaxLength(64);
+        auto* random = new QPushButton(text("Settings.Remote.Random"), group);
+        auto* box = new QHBoxLayout();
+        box->setSpacing(8);
+        box->addWidget(*edit);
+        box->addWidget(random);
+        form->addRow(text(label), box);
+        QLineEdit* field = *edit;
+        const auto commit = [this, control](const QString& value) {
+            if (!services_.web) return;
+            QString view = remoteViewKey_->text();
+            QString controlKey = remoteControlKey_->text();
+            (control ? controlKey : view) = value;
+            QString error;
+            if (!services_.web->setKeys(view, controlKey, &error))
+                remoteStatus_->setText(error == QLatin1String("same")
+                                           ? text("Settings.Remote.KeySame")
+                                           : text("Settings.Remote.KeyInvalid"));
+            refreshRemote();
+        };
+        connect(field, &QLineEdit::editingFinished, this,
+                [field, commit]() { commit(field->text()); });
+        connect(random, &QPushButton::clicked, this, [commit]() { commit(QString()); });
+    };
+    keyRow("Settings.Remote.ViewKey", &remoteViewKey_, false);
+    keyRow("Settings.Remote.ControlKey", &remoteControlKey_, true);
+
     remoteAddress_ = new QComboBox(group);
     form->addRow(text("Settings.Remote.Address"), remoteAddress_);
 
@@ -478,17 +509,6 @@ void MatchSettingsDialog::buildRemotePage(QWidget* page) {
     linkRow("Settings.Remote.ViewLink", &remoteViewLink_, &remoteViewRow_);
     linkRow("Settings.Remote.ControlLink", &remoteControlLink_, &remoteControlRow_);
 
-    auto* fresh = new QPushButton(text("Settings.Remote.New"), group);
-    remoteNew_ = fresh;
-    fresh->setToolTip(text("Settings.Remote.NewNote"));
-    connect(fresh, &QPushButton::clicked, this, [this]() {
-        if (services_.web) services_.web->regenerateKeys();
-        refreshRemote();
-    });
-    auto* freshRow = new QHBoxLayout();
-    freshRow->addWidget(fresh);
-    freshRow->addStretch(1);
-    form->addRow(QString(), freshRow);
     outer->addWidget(group);
 
     auto* note = new QLabel(text("Settings.Remote.Note"), page);
@@ -544,7 +564,14 @@ void MatchSettingsDialog::refreshRemote() {
     const int index = std::max(0, remoteAddress_->currentIndex());
     remoteViewLink_->setText(viewLinks.value(index));
     remoteControlLink_->setText(controlLinks.value(index));
-    remoteNew_->setVisible(on);
+    if (web) {
+        const QString view = web->viewKey();
+        const QString control = web->controlKey();
+        if (!remoteViewKey_->hasFocus() && remoteViewKey_->text() != view)
+            remoteViewKey_->setText(view);
+        if (!remoteControlKey_->hasFocus() && remoteControlKey_->text() != control)
+            remoteControlKey_->setText(control);
+    }
     for (QWidget* w : remoteViewRow_) w->setVisible(!viewLinks.isEmpty());
     for (QWidget* w : remoteControlRow_) w->setVisible(!controlLinks.isEmpty());
 }

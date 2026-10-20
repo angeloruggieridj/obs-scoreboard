@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include <QByteArray>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -31,6 +32,8 @@ public:
     // first use.
     void apply();
 
+    QString viewKey() const;
+    QString controlKey() const;
     bool listening() const { return server_.isListening(); }
     // Why the port could not be opened ("" when it could, or when the server is off).
     QString error() const { return error_; }
@@ -38,6 +41,9 @@ public:
     QStringList links(bool control) const;
     // New random keys: every link given out before stops working.
     void regenerateKeys();
+    // The user's own keys (see sb::validKey). False, with `*error` set, when they are not valid or
+    // are the same; nothing changes then. An empty key asks for a random one.
+    bool setKeys(const QString& viewKey, const QString& controlKey, QString* error = nullptr);
 
 signals:
     void statusChanged();
@@ -56,5 +62,6 @@ private:
     GlobalSettings* settings_ = nullptr; // lives for the whole module
     QTcpServer server_;
     QString error_;
+    QByteArray fontBytes_; // the clock font, read on first use
     int open_ = 0;
 };
