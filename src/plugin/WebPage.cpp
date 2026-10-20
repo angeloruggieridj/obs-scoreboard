@@ -27,40 +27,40 @@ padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bott
 -webkit-text-size-adjust:100%;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 main{max-width:520px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:6px;flex:1}
 [hidden]{display:none!important}
-button{font:inherit;font-weight:600;color:var(--txt);background:var(--btn);border:1px solid var(--btn);border-radius:4px;
+.bt{font:inherit;font-weight:600;color:var(--txt);background:var(--btn);border:1px solid var(--btn);border-radius:4px;
 height:var(--h);padding:0 10px;touch-action:manipulation;cursor:pointer;display:inline-flex;align-items:center;
 justify-content:center;gap:6px;min-width:0}
-button:active{filter:brightness(.85)}button:disabled{opacity:.45;cursor:default}
-@media(hover:hover){button:hover{background:var(--btn-hi)}.ghost:hover{background:var(--btn)}.go:hover{background:#2cb53a;border-color:#2cb53a}.stop:hover{background:#d8294a;border-color:#d8294a}}
-button svg{width:14px;height:14px;flex:none}
+.bt:active{filter:brightness(.85)}.bt:disabled,.bt.dis{opacity:.45;cursor:default}
+@media(hover:hover){.bt:hover{background:var(--btn-hi)}.ghost:hover{background:var(--btn)}.go:hover{background:#2cb53a;border-color:#2cb53a}.stop:hover{background:#d8294a;border-color:#d8294a}}
+.bt svg,.bt .bc svg{width:14px;height:14px;flex:none}
 .ghost{background:transparent;border-color:var(--bdr);font-weight:500}
 .go,.stop{height:calc(var(--h) + 6px);font-size:1.08em;color:#fff}
 .go{background:var(--go);border-color:var(--go)}.stop{background:var(--stop);border-color:var(--stop)}
 .big{height:calc(var(--h) + 6px)}
 .seg{display:flex}.seg>*{border-radius:0;border-left-width:0}
 .seg>*:first-child{border-left-width:1px;border-radius:4px 0 0 4px}.seg>*:last-child{border-radius:0 4px 4px 0}
-.seg>button{flex:0 0 calc(var(--h) + 8px);padding:0}
-.seg.sm>button{flex-basis:var(--h)}
+.seg>.bt{flex:0 0 calc(var(--h) + 8px);padding:0}
+.seg.sm>.bt{flex-basis:var(--h)}
 .val{flex:1;display:flex;align-items:center;justify-content:center;background:var(--inset);border:1px solid var(--bdr);
 border-left-width:0;font-weight:700;height:var(--h);min-width:34px;padding:0 6px}
 .seg>.val:first-child{border-left-width:1px}
-.seg.large .val{height:calc(var(--h) + 6px);font-size:1.7em}.seg.large>button{height:calc(var(--h) + 6px)}
-.seg2{display:flex;margin-top:2px}.seg2>button{flex:1;border-radius:0;border-left-width:0;height:var(--h)}
-.seg2>button:first-child{border-left-width:1px;border-radius:4px 0 0 4px}.seg2>button:last-child{border-radius:0 4px 4px 0}
-.seg2>button:only-child{border-radius:4px}
+.seg.large .val{height:calc(var(--h) + 6px);font-size:1.7em}.seg.large>.bt{height:calc(var(--h) + 6px)}
+.seg2{display:flex;margin-top:2px}.seg2>.bt{flex:1;border-radius:0;border-left-width:0;height:var(--h)}
+.seg2>.bt:first-child{border-left-width:1px;border-radius:4px 0 0 4px}.seg2>.bt:last-child{border-radius:0 4px 4px 0}
+.seg2>.bt:only-child{border-radius:4px}
 .clockcard{position:relative;background:var(--inset);border:1px solid var(--bdr);border-radius:6px;padding:10px 8px 8px}
 .clockcard svg.prog{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 .cl{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:stretch}
-.cl .col{display:grid;gap:4px;align-content:center}.cl .col button{height:auto;min-height:var(--h);min-width:calc(var(--h) + 22px)}
+.cl .col{display:grid;gap:4px;align-content:center}.cl .col .bt{height:auto;min-height:var(--h);min-width:calc(var(--h) + 22px)}
 #clock{grid-column:2;min-width:0;overflow:hidden;text-align:center;align-self:center;color:var(--txt)}
 #clk{display:inline-block;font-family:DSEG7,ui-monospace,Consolas,monospace;font-weight:700;font-size:64px;line-height:1.15;
 white-space:nowrap;font-variant-numeric:tabular-nums}
 .sub{display:grid;grid-template-columns:var(--sw) minmax(calc(var(--h) + 6px),auto) var(--sw) auto;justify-content:center;
 align-items:center;margin-top:6px;color:var(--mut);--sw:calc(var(--h) + 2px)}
-.sub>button{width:var(--sw);padding:0;border-radius:4px 0 0 4px}.sub>button.pr{border-radius:0 4px 4px 0;border-left-width:0}
+.sub>.bt{width:var(--sw);padding:0;border-radius:4px 0 0 4px}.sub>.bt.pr{border-radius:0 4px 4px 0;border-left-width:0}
 .sub>.val{border-radius:0;border-left-width:0}
 #of,#stopcap{margin-left:10px;white-space:nowrap}
-.sub:not(:has(button:not([hidden]))){grid-template-columns:minmax(calc(var(--h) + 6px),auto) auto}
+.sub:not(:has(.bt:not([hidden]))){grid-template-columns:minmax(calc(var(--h) + 6px),auto) auto}
 .row{display:flex;gap:6px}.row>.go,.row>.stop{flex:1}
 .teams{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
 .team{background:var(--card);border:1px solid var(--bdr);border-top:3px solid var(--home);border-radius:6px;padding:8px;min-width:0}
@@ -74,41 +74,44 @@ border:1px solid var(--bdr);border-radius:4px;height:calc(var(--h) - 2px);paddin
 border-radius:4px;padding:2px 2px 5px 8px;margin-top:4px;font-weight:700;overflow:hidden}
 .pen span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pen.q span{color:var(--mut);font-weight:400}
-.pen button{height:var(--hs);width:var(--hs);padding:0;flex:none}
+.pen .bt{height:var(--hs);width:var(--hs);padding:0;flex:none}
 .pen i{position:absolute;left:0;bottom:0;height:3px;background:var(--pen)}
 .pill{align-self:center;border:1px solid var(--bdr);border-radius:10px;padding:1px 10px;background:var(--card);font-size:.92em;color:var(--txt2)}
 .foot{margin-top:auto;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--bdr);border-radius:6px;padding:4px 4px 4px 8px}
 .foot b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .badge{border:1px solid var(--bdr);border-radius:10px;padding:1px 9px;color:var(--mut);font-size:.9em}
 .badge.live{color:#3fb950;border-color:#3fb950}.badge.lost{color:var(--stop);border-color:var(--stop)}
-.foot button{height:var(--hs);font-size:.9em;padding:0 9px}
+.foot .bt{height:var(--hs);font-size:.9em;padding:0 9px}
 .msg{text-align:center;color:var(--stop);min-height:1.4em}
+.hb{position:relative;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.hb>input{position:absolute;left:0;top:0;width:100%;height:100%;margin:0;opacity:.011;border-radius:0;-webkit-appearance:none}
+.hb .bc{display:inline-flex;align-items:center;justify-content:center;gap:6px;pointer-events:none}
 </style></head><body><main>
 <section class="clockcard" id="card">
  <svg class="prog" id="prog" aria-hidden="true"><path id="bar" fill="none" stroke-width="3"></path></svg>
  <div class="cl">
-  <div class="col ctl" hidden><button data-c="ClockAdjust" data-a='{"deltaTenths":600}'>+1:00</button>
-   <button data-c="ClockAdjust" data-a='{"deltaTenths":-600}'>-1:00</button></div>
+  <div class="col ctl" hidden><button class="bt" data-c="ClockAdjust" data-a='{"deltaTenths":600}'>+1:00</button>
+   <button class="bt" data-c="ClockAdjust" data-a='{"deltaTenths":-600}'>-1:00</button></div>
   <div id="clock"><span id="clk">--:--</span></div>
-  <div class="col ctl" hidden><button data-c="ClockAdjust" data-a='{"deltaTenths":10}'>+0:01</button>
-   <button data-c="ClockAdjust" data-a='{"deltaTenths":-10}'>-0:01</button></div>
+  <div class="col ctl" hidden><button class="bt" data-c="ClockAdjust" data-a='{"deltaTenths":10}'>+0:01</button>
+   <button class="bt" data-c="ClockAdjust" data-a='{"deltaTenths":-10}'>-0:01</button></div>
  </div>
  <div class="sub">
-  <button class="ctl pl" id="prev" data-c="PeriodPrev" hidden></button><div class="val pm" id="period"></div>
-  <button class="ctl pr" id="next" data-c="PeriodNext" hidden></button><span id="of"></span>
+  <button class="bt ctl pl" id="prev" data-c="PeriodPrev" hidden></button><div class="val pm" id="period"></div>
+  <button class="bt ctl pr" id="next" data-c="PeriodNext" hidden></button><span id="of"></span>
  </div>
  <div class="sub" id="stoppage" hidden>
-  <button class="ctl pl" data-c="StoppageAdd" data-a='{"minutes":-1}' hidden>&minus;</button><div class="val pm" id="stopval"></div>
-  <button class="ctl pr" data-c="StoppageAdd" data-a='{"minutes":1}' hidden>+</button><span id="stopcap"></span>
+  <button class="bt ctl pl" data-c="StoppageAdd" data-a='{"minutes":-1}' hidden>&minus;</button><div class="val pm" id="stopval"></div>
+  <button class="bt ctl pr" data-c="StoppageAdd" data-a='{"minutes":1}' hidden>+</button><span id="stopcap"></span>
  </div>
 </section>
-<div class="row ctl" hidden><button class="go" id="toggle" data-c="ClockToggle"></button>
- <button class="ghost big" id="reset" data-c="ClockReset"></button></div>
+<div class="row ctl" hidden><button class="bt go" id="toggle" data-c="ClockToggle"></button>
+ <button class="bt ghost big" id="reset" data-c="ClockReset"></button></div>
 <div class="teams"><section class="team" id="home"></section><section class="team away" id="away"></section></div>
 <div id="strength" class="pill" hidden></div>
 <div id="msg" class="msg"></div>
 <footer class="foot"><b id="sport"></b><span id="badge" class="badge"></span>
- <button class="ghost" id="vib" hidden></button></footer>
+ <button class="bt ghost" id="vib" hidden></button></footer>
 </main>
 )HTML";
 
@@ -125,39 +128,34 @@ var ICON={
  cross:'<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'};
 var last={}, lost=0, msgTimer=0, timer=0, vibOn=false, canVib=("vibrate" in navigator);
 /* iOS has no vibrate(), and since iOS 26.5 a script can no longer toggle a native switch to get its haptic tick.
-   What still works is a real touch on the switch itself: one invisible switch covers the controls, the touch
-   toggles it (the system gives the tick) and the click is passed on to the button under the finger. */
+   What still works is a real touch on the switch itself, so on iOS every control is a label with a native switch
+   laid over it: the finger lands on the switch (the system gives the tick) and the same tap runs the action. */
 var IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
-var cover=null, tapX=-1, tapY=-1, tapAt=0;
-function buildCover(){
+var HAP=!canVib&&IOS&&CONTROL, HB=[];
+if(HAP)canVib=true;
+function hapticize(b){
+  if(!HAP)return b;
   var lab=document.createElement("label");
-  lab.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;z-index:50;margin:0;opacity:0.011;touch-action:manipulation";
-  lab.setAttribute("aria-hidden","true");
+  lab.className=b.className+" hb";lab.id=b.id;b.id="";lab.title=b.title||"";lab.hidden=b.hidden;
+  Object.keys(b.dataset).forEach(function(k){lab.dataset[k]=b.dataset[k]});
+  var c=document.createElement("span");c.className="bc";c.innerHTML=b.innerHTML;lab.appendChild(c);
   var sw=document.createElement("input");sw.type="checkbox";sw.setAttribute("switch","");sw.tabIndex=-1;
-  sw.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;margin:0;border-radius:0";
-  var remember=function(e){
-    var t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;
-    if(t&&t.clientX!==undefined){tapX=t.clientX;tapY=t.clientY}};
-  lab.addEventListener("touchstart",remember,{passive:true,capture:true});
-  lab.addEventListener("pointerdown",remember,{capture:true});
-  lab.addEventListener("mousedown",remember,{capture:true});
-  sw.addEventListener("click",function(ev){
-    var now=Date.now();if(now-tapAt<250)return;tapAt=now;      /* the label and the switch both report one tap */
-    var x=ev.clientX>0||ev.clientY>0?ev.clientX:tapX,y=ev.clientX>0||ev.clientY>0?ev.clientY:tapY;
-    if(!(x>=0&&y>=0))return;
-    try{
-      lab.style.display="none";                               /* so the point is looked up on the page under it */
-      var under=document.elementFromPoint(x,y);
-      lab.style.display="";
-      var hit=under&&under.closest&&under.closest("button,input,a");
-      if(!hit)return;
-      if(hit.tagName==="INPUT"){hit.focus()}else if(!hit.disabled){hit.click()}
-    }catch(e){lab.style.display=""}});
-  lab.appendChild(sw);document.body.appendChild(lab);return lab}
-if(!canVib&&IOS&&CONTROL){canVib=true;cover=buildCover()}
+  lab.appendChild(sw);HB.push(sw);
+  var off=false;
+  Object.defineProperty(lab,"disabled",{get:function(){return off},set:function(v){off=!!v;sw.disabled=off;lab.classList.toggle("dis",off)}});
+  lab.press=null;
+  lab.addEventListener("click",function(ev){
+    /* a tap lands on the switch; a click on the label itself (switch hidden) runs it too, but never twice */
+    if(ev.target===lab&&sw.style.display!=="none")return;
+    if(!off&&lab.press)lab.press()});
+  if(b.parentNode)b.parentNode.replaceChild(lab,b);
+  return lab}
+function setContent(e,html){(e.querySelector(".bc")||e).innerHTML=html}
+function onpress(e,fn){if(e.press===undefined)e.onclick=fn;else e.press=fn;return e}
+function setHaptic(on){HB.forEach(function(sw){sw.style.display=on?"":"none"})}
 try{vibOn=localStorage.getItem("sbVib")!=="0"}catch(e){vibOn=true}
 function buzz(p){
-  if(!CONTROL||!canVib||!vibOn||cover)return; // with the cover the touch itself gives the tick
+  if(!CONTROL||!canVib||!vibOn||HAP)return; // on iOS the touch itself gives the tick
   try{navigator.vibrate(p)}catch(e){}}
 function say(text){$("msg").textContent=text||"";clearTimeout(msgTimer);if(text)msgTimer=setTimeout(function(){say("")},4000)}
 function api(path,body){
@@ -172,7 +170,7 @@ function send(name,args){
     else if(r.result==="error"){say(r.error);buzz([40,40,40])}
     if(!live)poll()}).catch(function(){say(t("Web.Lost"))})}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
-function btn(html,cls,name,args){var b=el("button",cls||"");b.innerHTML=html;b.onclick=function(){send(name,args)};return b}
+function btn(html,cls,name,args){var b=el("button","bt "+(cls||""));b.innerHTML=html;b=hapticize(b);onpress(b,function(){send(name,args)});return b}
 function lum(hex){var m=/^#?([0-9a-f]{6})$/i.exec(hex||"");if(!m)return 0;var n=parseInt(m[1],16);
   return (0.299*(n>>16)+0.587*((n>>8)&255)+0.114*(n&255))/255}
 function tint(e,hex){e.style.background=hex;e.style.color=lum(hex)>0.6?"#111":"#fff"}
@@ -289,9 +287,9 @@ function render(s){
   $("stoppage").hidden=!L.stoppage;$("stopval").textContent=String(s.stoppageAnnouncedMinutes);$("stopcap").textContent="min";
   var st=$("strength");st.hidden=!(L.strength&&s.strength);st.textContent=s.strength;
   if(CONTROL){
-    var tg=$("toggle");tg.className=s.clockRunning?"stop":"go";
+    var tg=$("toggle");tg.classList.toggle("stop",s.clockRunning);tg.classList.toggle("go",!s.clockRunning);
     var label=s.clockRunning?t("Dock.Stop"):t("Dock.Start");
-    if(tg.dataset.l!==label+s.clockRunning){tg.dataset.l=label+s.clockRunning;tg.innerHTML=(s.clockRunning?ICON.pause:ICON.play)+label}
+    if(tg.dataset.l!==label+s.clockRunning){tg.dataset.l=label+s.clockRunning;setContent(tg,(s.clockRunning?ICON.pause:ICON.play)+label)}
     $("reset").disabled=s.clockRunning;
     $("prev").disabled=$("next").disabled=s.clockRunning}
   paintTeam("home",s);paintTeam("away",s);paintBar(K)}
@@ -319,11 +317,12 @@ Array.prototype.forEach.call(document.querySelectorAll(".ctl"),function(e){e.hid
 $("reset").innerHTML=ICON.reset+t("Dock.Reset");
 $("prev").innerHTML=ICON.prev;$("next").innerHTML=ICON.next;
 if(CONTROL)Array.prototype.forEach.call(document.querySelectorAll("[data-c]"),function(b){
-  b.onclick=function(){send(b.dataset.c,b.dataset.a?JSON.parse(b.dataset.a):{})}});
+  var h=hapticize(b);
+  onpress(h,function(){send(h.dataset.c,h.dataset.a?JSON.parse(h.dataset.a):{})})});
 if(CONTROL&&canVib){var v=$("vib");v.hidden=false;
-  if(cover)cover.style.display=vibOn?"":"none";
+  setHaptic(vibOn);
   var paintVib=function(){v.textContent=t("Web.Vibration")+": "+(vibOn?t("Web.On"):t("Web.Off"))};
-  paintVib();v.onclick=function(){vibOn=!vibOn;if(cover)cover.style.display=vibOn?"":"none";try{localStorage.setItem("sbVib",vibOn?"1":"0")}catch(e){}paintVib();buzz(20)}}
+  paintVib();v.onclick=function(){vibOn=!vibOn;setHaptic(vibOn);try{localStorage.setItem("sbVib",vibOn?"1":"0")}catch(e){}paintVib();buzz(20)}}
 TEAM.home=makeTeam("home");TEAM.away=makeTeam("away");
 window.addEventListener("resize",function(){fitClock();if(last.look)paintBar(last.look)});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitClock);
