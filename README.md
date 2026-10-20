@@ -105,7 +105,9 @@ Enable the server under **Tools → WebSocket Server Settings**. The Stream Deck
 
 #### Web page
 
-Off by default. Turn it on in **⚙ → Remote**: *View only* gives one link that can only watch; *View and control* adds a second link that also runs the clock, scores, periods and penalty cancellations. Open a link in any browser on your network, or copy it to a phone. The links carry a random key; *New links* replaces both. The connection is plain HTTP, so use it on a network you trust. Details in [docs/remote-control.md](docs/remote-control.md).
+<img src="docs/images/web-remote.png" width="340" alt="The remote page in a browser: the same layout as the dock">
+
+Off by default. Turn it on in **⚙ → Remote**: *View only* gives one link that can only watch; *View and control* adds a second link that also runs the clock, scores, periods and penalty cancellations. Open a link in any browser on your network, or copy it to a phone. The page looks like the dock (same colors, same arrangement of the buttons, the progress border and the clock color you chose). The keys of the two links are random, or you type your own (6–64 letters, digits, `-`, `_`). On a phone the page can vibrate when you press a button; a switch in its footer turns that on or off (Android browsers). The connection is plain HTTP, so use it on a network you trust. Details in [docs/remote-control.md](docs/remote-control.md).
 
 ### Files and YouTube chapters
 
@@ -219,7 +221,9 @@ Attiva il server da **Strumenti → Impostazioni server WebSocket**. Il plugin S
 
 #### Pagina web
 
-Spenta di default. Si attiva da **⚙ → Remoto**: *Solo visione* dà un link che può solo guardare; *Visione e controllo* aggiunge un secondo link che comanda anche cronometro, punteggi, periodi e annullamento delle penalità. Apri il link in un browser sulla tua rete, oppure copialo sul telefono. I link contengono una chiave casuale; *Nuovi link* le sostituisce entrambe. La connessione è HTTP semplice: usala su una rete di cui ti fidi. Dettagli in [docs/remote-control.md](docs/remote-control.md).
+<img src="docs/images/web-remote.png" width="340" alt="La pagina remota in un browser: lo stesso aspetto del pannello">
+
+Spenta di default. Si attiva da **⚙ → Remoto**: *Solo visione* dà un link che può solo guardare; *Visione e controllo* aggiunge un secondo link che comanda anche cronometro, punteggi, periodi e annullamento delle penalità. Apri il link in un browser sulla tua rete, oppure copialo sul telefono. La pagina ha l'aspetto del pannello (stessi colori, stessa disposizione dei tasti, bordo di avanzamento e colore del cronometro che hai scelto). Le chiavi dei due link sono casuali oppure le scrivi tu (da 6 a 64 lettere, cifre, `-`, `_`). Sul telefono la pagina può vibrare alla pressione dei tasti; un interruttore nel piè di pagina lo attiva o disattiva (browser Android). La connessione è HTTP semplice: usala su una rete di cui ti fidi. Dettagli in [docs/remote-control.md](docs/remote-control.md).
 
 ### File e capitoli YouTube
 

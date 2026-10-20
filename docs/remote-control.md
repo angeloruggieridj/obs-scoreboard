@@ -156,15 +156,17 @@ Besides obs-websocket, the plugin can serve a page to a browser on the same netw
 | View only | view link | read the match |
 | View and control | view link, control link | read; with the control link also the commands below |
 
-Each link carries its own random key (`?k=...`, 24 hex digits). A request without a valid key gets `401`; a view key that
-asks for a command gets `403`. *New links* makes both keys again, so every link given out before stops working. The keys
-are stored in `settings.json`.
+Each link carries its own key (`?k=...`): random (24 hex digits) or typed by the user (6–64 letters, digits, `-`, `_`; the two
+must differ). A request without a valid key gets `401`; a view key that asks for a command gets `403`. Changing a key
+(*Random*, or typing another) stops every link given out with the old one. The keys are stored in `settings.json`.
 
 | Request | Access | Answer |
 |---|---|---|
 | `GET /` | view | the page (the language of OBS) |
-| `GET /api/state` | view | the vendor `GetState` object plus `layout` (which counters the sport has, the score buttons) and `control` |
+| `GET /api/state` | view | the vendor `GetState` object plus `layout` (which counters the sport has, the score buttons), `look` (the colors, the progress border and the clock color of the dock) and `control`; each penalty also carries `percent` |
+| `GET /font` | view | the clock font of the dock (DSEG7 Classic Bold) |
 | `POST /api/<Name>` | control | the vendor response envelope; `<Name>` is any request of the table above except `GetState` and `GetFields` |
 
 The commands go through the same code as the dock and obs-websocket, so a rejection (`rejected`, `confirmation`) is the same
-envelope. Requests are limited to 16 KB, a connection lives at most 8 seconds, and at most 32 are open at once.
+envelope. On a phone the page can vibrate when a button is pressed (`navigator.vibrate`, Android browsers); the viewer switches it on or
+off in the footer of the page, and the choice stays in that browser. Requests are limited to 16 KB, a connection lives at most 8 seconds, and at most 32 are open at once.
