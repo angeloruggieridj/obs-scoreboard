@@ -59,6 +59,7 @@ struct WebRoute {
     enum class Kind {
         Page,         // GET /
         State,        // GET /api/state
+        Events,       // GET /api/events (server-sent events: the state, pushed on every change)
         Command,      // POST /api/<requestType>
         Favicon,      // GET /favicon.ico (answered empty)
         Font,         // GET /font (the clock digits of the dock)
@@ -73,6 +74,10 @@ struct WebRoute {
 };
 
 WebRoute routeWebRequest(const HttpRequest& request, WebAccess access);
+
+// The head of a server-sent-events answer: the connection stays open and every message is
+// "data: <json>\n\n". Ends at the blank line; the caller writes the messages.
+std::string httpStreamHead();
 
 // A complete HTTP/1.1 answer that closes the connection.
 std::string httpResponse(int status, std::string_view contentType, std::string_view body);

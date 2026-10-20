@@ -898,6 +898,50 @@ void Run::checkWebRemote() {
               "empty keys did not ask for random ones");
         const std::string view2 = scratch.prefs().remoteViewKey;
 
+        // The event stream: an answer that stays open, a first state at once and a new one when the
+        // match changes, with no request in between.
+        {
+            QTcpSocket socket;
+            QEventLoop loop;
+            QTimer timeout;
+            timeout.setSingleShot(true);
+            std::string got;
+            bool pushed = false;
+            const auto count = [&got]() {
+                std::size_t n = 0;
+                for (std::size_t at = got.find("data: "); at != std::string::npos;
+                     at = got.find("data: ", at + 1))
+                    ++n;
+                return n;
+            };
+            QObject::connect(&socket, &QTcpSocket::connected, [&]() {
+                const std::string request = "GET /api/events?k=" + scratch.prefs().remoteViewKey +
+                                            " HTTP/1.1\r\nHost: x\r\n\r\n";
+                socket.write(request.data(), static_cast<qint64>(request.size()));
+            });
+            QObject::connect(&socket, &QTcpSocket::readyRead, [&]() {
+                const QByteArray data = socket.readAll();
+                got.append(data.constData(), static_cast<std::size_t>(data.size()));
+                if (count() >= 1 && !pushed) {
+                    pushed = true;
+                    QTimer::singleShot(0, [this]() {
+                        driver_->apply(sb::cmd::AddStat{sb::Team::Away, sb::Stat::Score, 1});
+                    });
+                }
+                if (count() >= 2 && got.find("\"awayScore\":1") != std::string::npos) loop.quit();
+            });
+            QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+            timeout.start(3000);
+            socket.connectToHost(QHostAddress::LocalHost, kPort);
+            loop.exec();
+            check(has(got, "text/event-stream") && count() >= 2 &&
+                      got.find("\"awayScore\":1") != std::string::npos,
+                  "the event stream did not push the change");
+            socket.disconnectFromHost();
+        }
+        check(status(exchange("GET", "/api/events", "")) == "HTTP/1.1 401",
+              "the event stream opened without a key");
+
         // Only viewing: the control link stops working, the view link stays.
         scratch.setRemote(sb::RemoteMode::View, kPort);
         server.apply();

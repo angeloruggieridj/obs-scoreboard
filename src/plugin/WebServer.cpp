@@ -82,15 +82,78 @@ struct WebServer::Connection {
     QTimer* timeout = nullptr;
     std::string buffer;
     bool replied = false;
+    bool streaming = false;
+    bool control = false; // for a stream: which state it is sent
 };
 
 WebServer::WebServer(ClockDriver* driver, VendorApi* api, GlobalSettings* settings, QObject* parent)
     : QObject(parent), driver_(driver), api_(api), settings_(settings), server_(this) {
     connect(&server_, &QTcpServer::newConnection, this, &WebServer::onNewConnection);
+    // The page is told about every change at once instead of asking again and again. A short
+    // delay groups the several signals one command makes into one push.
+    broadcastTimer_.setSingleShot(true);
+    broadcastTimer_.setInterval(25);
+    connect(&broadcastTimer_, &QTimer::timeout, this, &WebServer::broadcast);
+    keepAliveTimer_.setInterval(15000);
+    connect(&keepAliveTimer_, &QTimer::timeout, this, [this]() {
+        for (Connection* stream : streams_) stream->socket->write(": ping\n\n");
+    });
+    keepAliveTimer_.start();
+    if (driver_) {
+        connect(driver_, &ClockDriver::fieldsChanged, this,
+                [this](const sb::FieldValues&) { scheduleBroadcast(); });
+        connect(driver_, &ClockDriver::runningChanged, this, [this](bool) { scheduleBroadcast(); });
+        connect(driver_, &ClockDriver::commandApplied, this, [this]() { scheduleBroadcast(); });
+        connect(driver_, &ClockDriver::matchReplaced, this, [this]() { scheduleBroadcast(); });
+    }
 }
 
 WebServer::~WebServer() {
+    closeStreams();
     server_.close();
+}
+
+void WebServer::scheduleBroadcast() {
+    if (!streams_.isEmpty() && !broadcastTimer_.isActive()) broadcastTimer_.start();
+}
+
+// Sends the current state to every open stream (the view state and the control state are each
+// built once).
+void WebServer::broadcast() {
+    if (streams_.isEmpty() || !driver_ || !settings_ || driver_->isShutDown()) return;
+    const sb::GlobalPrefs& prefs = settings_->prefs();
+    std::string json[2];
+    for (Connection* stream : streams_) {
+        std::string& text = json[stream->control ? 1 : 0];
+        if (text.empty())
+            text = "data: " + sb::webStateJson(driver_->engine(), stream->control, prefs) + "\n\n";
+        // A phone that stopped reading must not make the plugin hold more and more bytes.
+        if (stream->socket->bytesToWrite() > 256 * 1024) {
+            stream->socket->disconnectFromHost();
+            continue;
+        }
+        stream->socket->write(text.data(), static_cast<qint64>(text.size()));
+    }
+}
+
+void WebServer::startStream(Connection* connection, bool canControl) {
+    connection->replied = true; // nothing else will be answered on this connection
+    connection->streaming = true;
+    connection->control = canControl;
+    connection->timeout->stop();
+    const std::string head = sb::httpStreamHead();
+    connection->socket->write(head.data(), static_cast<qint64>(head.size()));
+    connection->socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
+    streams_.append(connection);
+    const std::string first =
+        "data: " + sb::webStateJson(driver_->engine(), canControl, settings_->prefs()) + "\n\n";
+    connection->socket->write(first.data(), static_cast<qint64>(first.size()));
+}
+
+// Streams are closed whenever who may watch changes: a closed key must not keep a window open.
+void WebServer::closeStreams() {
+    const QList<Connection*> open = streams_;
+    for (Connection* stream : open) stream->socket->disconnectFromHost();
 }
 
 void WebServer::apply() {
@@ -98,6 +161,7 @@ void WebServer::apply() {
     const sb::GlobalPrefs& prefs = settings_->prefs();
     if (prefs.remoteMode == sb::RemoteMode::Off) {
         const bool was = server_.isListening();
+        closeStreams();
         server_.close();
         error_.clear();
         if (was) obs_log(LOG_INFO, "remote page stopped");
@@ -108,9 +172,11 @@ void WebServer::apply() {
         settings_->setRemoteKeys(newKey(), newKey());
     const int port = settings_->prefs().remotePort;
     if (server_.isListening() && server_.serverPort() == port) {
-        emit statusChanged(); // only the mode (or nothing) changed
+        closeStreams(); // the mode may have gone from control to view
+        emit statusChanged();
         return;
     }
+    closeStreams();
     server_.close();
     if (server_.listen(QHostAddress::Any, static_cast<quint16>(port))) {
         error_.clear();
@@ -138,6 +204,7 @@ bool WebServer::setKeys(const QString& viewKey, const QString& controlKey, QStri
         return false;
     }
     settings_->setRemoteKeys(view, control);
+    closeStreams();
     emit statusChanged();
     return true;
 }
@@ -153,6 +220,7 @@ QString WebServer::controlKey() const {
 void WebServer::regenerateKeys() {
     if (!settings_) return;
     settings_->setRemoteKeys(newKey(), newKey());
+    closeStreams();
     emit statusChanged();
 }
 
@@ -198,13 +266,17 @@ void WebServer::onNewConnection() {
         });
         connection->timeout->start(kRequestTimeoutMs);
         connect(socket, &QTcpSocket::readyRead, this, [this, connection]() {
-            if (connection->replied) return;
+            if (connection->replied) {
+                connection->socket->readAll(); // a stream has nothing more to read
+                return;
+            }
             const QByteArray data = connection->socket->readAll();
             connection->buffer.append(data.constData(), static_cast<std::size_t>(data.size()));
             serve(connection);
         });
         connect(socket, &QTcpSocket::disconnected, this, [this, connection]() {
             --open_;
+            streams_.removeOne(connection);
             connection->timeout->stop();
             connection->socket->deleteLater();
             delete connection;
@@ -249,6 +321,9 @@ void WebServer::handle(const sb::HttpRequest& request, Connection* connection) {
         return;
     case Kind::State:
         reply(connection, 200, kJson, sb::webStateJson(driver_->engine(), route.canControl, prefs));
+        return;
+    case Kind::Events:
+        startStream(connection, route.canControl);
         return;
     case Kind::Command: {
         if (!api_) {

@@ -164,9 +164,10 @@ must differ). A request without a valid key gets `401`; a view key that asks for
 |---|---|---|
 | `GET /` | view | the page (the language of OBS) |
 | `GET /api/state` | view | the vendor `GetState` object plus `layout` (which counters the sport has, the score buttons), `look` (the colors, the progress border and the clock color of the dock), `clockModel` (what the page needs to run the clock between two answers, so the tenths of the last minute are smooth) and `control`; each penalty also carries `percent` |
+| `GET /api/events` | view | a server-sent-events stream: the same object as `/api/state`, sent at once and again after every change (the page polls only every 3 s as a safety net; without `EventSource` it polls every 350 ms) |
 | `GET /font` | view | the clock font of the dock (DSEG7 Classic Bold) |
 | `POST /api/<Name>` | control | the vendor response envelope; `<Name>` is any request of the table above except `GetState` and `GetFields` |
 
 The commands go through the same code as the dock and obs-websocket, so a rejection (`rejected`, `confirmation`) is the same
 envelope. On a phone the page can vibrate when a button is pressed (`navigator.vibrate` on Android; Safari on iPhone has no such call, so the page covers the controls with an invisible native switch and the system gives a haptic tick when it is touched, which is a trick Apple can change: it is not guaranteed); the viewer switches it on or
-off in the footer of the page, and the choice stays in that browser. Requests are limited to 16 KB, a connection lives at most 8 seconds, and at most 32 are open at once.
+off in the footer of the page, and the choice stays in that browser. Requests are limited to 16 KB, a request connection lives at most 8 seconds (an event stream stays open until the browser leaves or a key or the access changes), and at most 32 are open at once.

@@ -212,6 +212,11 @@ WebRoute routeWebRequest(const HttpRequest& request, WebAccess access) {
         route.kind = get ? Kind::Font : Kind::MethodNotAllowed;
         return route;
     }
+    if (request.path == "/api/events") {
+        route.kind = get ? Kind::Events : Kind::MethodNotAllowed;
+        route.canControl = access == WebAccess::Control;
+        return route;
+    }
     if (request.path == "/" || request.path == "/api/state") {
         if (!get) {
             route.kind = Kind::MethodNotAllowed;
@@ -243,6 +248,16 @@ WebRoute routeWebRequest(const HttpRequest& request, WebAccess access) {
     }
     route.kind = Kind::NotFound;
     return route;
+}
+
+std::string httpStreamHead() {
+    return "HTTP/1.1 200 OK\r\n"
+           "Content-Type: text/event-stream\r\n"
+           "Cache-Control: no-store\r\n"
+           "X-Accel-Buffering: no\r\n"
+           "X-Content-Type-Options: nosniff\r\n"
+           "Referrer-Policy: no-referrer\r\n"
+           "Connection: keep-alive\r\n\r\n";
 }
 
 std::string httpResponse(int status, std::string_view contentType, std::string_view body) {

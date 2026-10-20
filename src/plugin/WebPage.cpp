@@ -55,8 +55,12 @@ border-left-width:0;font-weight:700;height:var(--h);min-width:34px;padding:0 6px
 #clock{grid-column:2;min-width:0;overflow:hidden;text-align:center;align-self:center;color:var(--txt)}
 #clk{display:inline-block;font-family:DSEG7,ui-monospace,Consolas,monospace;font-weight:700;font-size:64px;line-height:1.15;
 white-space:nowrap;font-variant-numeric:tabular-nums}
-.sub{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 10px;margin-top:6px;color:var(--mut)}
-.sub .seg{flex:none}.sub .val{flex:1 1 auto;min-width:calc(var(--h) + 6px)}#of{flex:none;white-space:nowrap}
+.sub{display:grid;grid-template-columns:var(--sw) minmax(calc(var(--h) + 6px),auto) var(--sw) auto;justify-content:center;
+align-items:center;margin-top:6px;color:var(--mut);--sw:calc(var(--h) + 2px)}
+.sub>button{width:var(--sw);padding:0;border-radius:4px 0 0 4px}.sub>button.pr{border-radius:0 4px 4px 0;border-left-width:0}
+.sub>.val{border-radius:0;border-left-width:0}
+#of,#stopcap{margin-left:10px;white-space:nowrap}
+.sub:not(:has(button:not([hidden]))){grid-template-columns:minmax(calc(var(--h) + 6px),auto) auto}
 .row{display:flex;gap:6px}.row>.go,.row>.stop{flex:1}
 .teams{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
 .team{background:var(--card);border:1px solid var(--bdr);border-top:3px solid var(--home);border-radius:6px;padding:8px;min-width:0}
@@ -90,11 +94,12 @@ border-radius:4px;padding:2px 2px 5px 8px;margin-top:4px;font-weight:700;overflo
    <button data-c="ClockAdjust" data-a='{"deltaTenths":-10}'>-0:01</button></div>
  </div>
  <div class="sub">
-  <div class="seg sm"><button class="ctl" id="prev" data-c="PeriodPrev" hidden></button><div class="val" id="period"></div>
-   <button class="ctl" id="next" data-c="PeriodNext" hidden></button></div>
-  <span id="of"></span>
-  <div class="seg sm" id="stoppage" hidden><button class="ctl" data-c="StoppageAdd" data-a='{"minutes":-1}' hidden>&minus;</button>
-   <div class="val" id="stopval"></div><button class="ctl" data-c="StoppageAdd" data-a='{"minutes":1}' hidden>+</button></div>
+  <button class="ctl pl" id="prev" data-c="PeriodPrev" hidden></button><div class="val pm" id="period"></div>
+  <button class="ctl pr" id="next" data-c="PeriodNext" hidden></button><span id="of"></span>
+ </div>
+ <div class="sub" id="stoppage" hidden>
+  <button class="ctl pl" data-c="StoppageAdd" data-a='{"minutes":-1}' hidden>&minus;</button><div class="val pm" id="stopval"></div>
+  <button class="ctl pr" data-c="StoppageAdd" data-a='{"minutes":1}' hidden>+</button><span id="stopcap"></span>
  </div>
 </section>
 <div class="row ctl" hidden><button class="go" id="toggle" data-c="ClockToggle"></button>
@@ -123,20 +128,31 @@ var last={}, lost=0, msgTimer=0, timer=0, vibOn=false, canVib=("vibrate" in navi
    What still works is a real touch on the switch itself: one invisible switch covers the controls, the touch
    toggles it (the system gives the tick) and the click is passed on to the button under the finger. */
 var IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
-var cover=null;
+var cover=null, tapX=-1, tapY=-1, tapAt=0;
 function buildCover(){
   var lab=document.createElement("label");
-  lab.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;z-index:50;margin:0;opacity:0.011";
+  lab.style.cssText="position:fixed;left:0;top:0;right:0;bottom:0;z-index:50;margin:0;opacity:0.011;touch-action:manipulation";
   lab.setAttribute("aria-hidden","true");
   var sw=document.createElement("input");sw.type="checkbox";sw.setAttribute("switch","");sw.tabIndex=-1;
   sw.style.cssText="position:absolute;left:0;top:0;width:100%;height:100%;margin:0;border-radius:0";
+  var remember=function(e){
+    var t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;
+    if(t&&t.clientX!==undefined){tapX=t.clientX;tapY=t.clientY}};
+  lab.addEventListener("touchstart",remember,{passive:true,capture:true});
+  lab.addEventListener("pointerdown",remember,{capture:true});
+  lab.addEventListener("mousedown",remember,{capture:true});
   sw.addEventListener("click",function(ev){
-    lab.style.pointerEvents="none";
-    var under=document.elementFromPoint(ev.clientX,ev.clientY);
-    lab.style.pointerEvents="";
-    var hit=under&&under.closest&&under.closest("button,input,a");
-    if(!hit)return;
-    if(hit.tagName==="INPUT"){hit.focus()}else if(!hit.disabled){hit.click()}});
+    var now=Date.now();if(now-tapAt<250)return;tapAt=now;      /* the label and the switch both report one tap */
+    var x=ev.clientX>0||ev.clientY>0?ev.clientX:tapX,y=ev.clientX>0||ev.clientY>0?ev.clientY:tapY;
+    if(!(x>=0&&y>=0))return;
+    try{
+      lab.style.display="none";                               /* so the point is looked up on the page under it */
+      var under=document.elementFromPoint(x,y);
+      lab.style.display="";
+      var hit=under&&under.closest&&under.closest("button,input,a");
+      if(!hit)return;
+      if(hit.tagName==="INPUT"){hit.focus()}else if(!hit.disabled){hit.click()}
+    }catch(e){lab.style.display=""}});
   lab.appendChild(sw);document.body.appendChild(lab);return lab}
 if(!canVib&&IOS&&CONTROL){canVib=true;cover=buildCover()}
 try{vibOn=localStorage.getItem("sbVib")!=="0"}catch(e){vibOn=true}
@@ -154,7 +170,7 @@ function send(name,args){
       if(confirm(t("Reason."+r.reason))){return send(name,Object.assign({},args,{confirmed:true}))}
     }else if(r.result==="rejected"){say(t("Reason."+r.reason));buzz([40,40,40])}
     else if(r.result==="error"){say(r.error);buzz([40,40,40])}
-    poll()}).catch(function(){say(t("Web.Lost"))})}
+    if(!live)poll()}).catch(function(){say(t("Web.Lost"))})}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 function btn(html,cls,name,args){var b=el("button",cls||"");b.innerHTML=html;b.onclick=function(){send(name,args)};return b}
 function lum(hex){var m=/^#?([0-9a-f]{6})$/i.exec(hex||"");if(!m)return 0;var n=parseInt(m[1],16);
@@ -270,7 +286,7 @@ function render(s){
   var c=$("clock");takeModel(s.clockModel);paintClock();c.style.color=K.clockColor||"";
   $("period").textContent=s.periodLabel;
   $("of").textContent=t("Panel.Of").replace("%1",s.regulationPeriods);
-  $("stoppage").hidden=!L.stoppage;$("stopval").textContent=String(s.stoppageAnnouncedMinutes);
+  $("stoppage").hidden=!L.stoppage;$("stopval").textContent=String(s.stoppageAnnouncedMinutes);$("stopcap").textContent="min";
   var st=$("strength");st.hidden=!(L.strength&&s.strength);st.textContent=s.strength;
   if(CONTROL){
     var tg=$("toggle");tg.className=s.clockRunning?"stop":"go";
@@ -283,11 +299,17 @@ function render(s){
 function badge(){var b=$("badge");
   b.className="badge"+(lost>2?" lost":(CONTROL?" live":""));
   b.textContent=lost>2?t("Web.Lost"):(CONTROL?t("Web.Control"):t("Web.ViewOnly"))}
+var stream=null, live=false;
 function poll(){
   clearTimeout(timer);
   api("/api/state").then(function(r){lost=0;if(r.state)render(r.state);badge()})
    .catch(function(){lost++;badge()})
-   .then(function(){timer=setTimeout(poll,350)})}
+   .then(function(){timer=setTimeout(poll,live?3000:350)})}
+function openStream(){
+  if(!window.EventSource)return;
+  stream=new EventSource("/api/events?k="+encodeURIComponent(KEY));
+  stream.onmessage=function(e){try{var r=JSON.parse(e.data);if(r.state){lost=0;live=true;render(r.state);badge()}}catch(x){}};
+  stream.onerror=function(){live=false}}
 
 /* ---- start ---- */
 var face=document.createElement("style");
@@ -305,7 +327,7 @@ if(CONTROL&&canVib){var v=$("vib");v.hidden=false;
 TEAM.home=makeTeam("home");TEAM.away=makeTeam("away");
 window.addEventListener("resize",function(){fitClock();if(last.look)paintBar(last.look)});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitClock);
-document.title="ScoreBoard";badge();poll();requestAnimationFrame(frame);
+document.title="ScoreBoard";badge();openStream();poll();requestAnimationFrame(frame);
 </script></body></html>
 )HTML";
 

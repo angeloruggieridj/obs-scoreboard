@@ -2,11 +2,13 @@
 #pragma once
 
 #include <QByteArray>
+#include <QList>
 #include <QObject>
 #include <QPointer>
 #include <QString>
 #include <QStringList>
 #include <QTcpServer>
+#include <QTimer>
 
 #include "WebRemote.hpp"
 
@@ -51,6 +53,10 @@ signals:
 private:
     struct Connection;
     void onNewConnection();
+    void startStream(Connection* connection, bool canControl);
+    void scheduleBroadcast();
+    void broadcast();
+    void closeStreams();
     void serve(Connection* connection);
     void handle(const sb::HttpRequest& request, Connection* connection);
     void reply(Connection* connection, int status, const char* contentType,
@@ -62,6 +68,9 @@ private:
     GlobalSettings* settings_ = nullptr; // lives for the whole module
     QTcpServer server_;
     QString error_;
-    QByteArray fontBytes_; // the clock font, read on first use
+    QTimer broadcastTimer_;
+    QTimer keepAliveTimer_;
+    QList<Connection*> streams_; // open event streams
+    QByteArray fontBytes_;       // the clock font, read on first use
     int open_ = 0;
 };

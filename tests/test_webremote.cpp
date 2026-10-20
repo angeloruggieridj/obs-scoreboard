@@ -121,6 +121,24 @@ TEST_CASE("routes follow the access of the key") {
     CHECK(route("GET", "/other", WebAccess::Control).kind == Kind::NotFound);
 }
 
+TEST_CASE("the event stream is for anyone with a key") {
+    using Kind = WebRoute::Kind;
+    HttpRequest request;
+    request.method = "GET";
+    request.path = "/api/events";
+    CHECK(routeWebRequest(request, WebAccess::None).kind == Kind::Unauthorized);
+    CHECK(routeWebRequest(request, WebAccess::View).kind == Kind::Events);
+    CHECK_FALSE(routeWebRequest(request, WebAccess::View).canControl);
+    CHECK(routeWebRequest(request, WebAccess::Control).canControl);
+    request.method = "POST";
+    CHECK(routeWebRequest(request, WebAccess::View).kind == Kind::MethodNotAllowed);
+    const std::string head = httpStreamHead();
+    CHECK(head.find("text/event-stream") != std::string::npos);
+    CHECK(head.find("Content-Length") == std::string::npos);
+    CHECK(head.size() >= 4);
+    CHECK(head.substr(head.size() - 4) == "\r\n\r\n");
+}
+
 TEST_CASE("every change of the match can be asked for, and nothing else") {
     for (const char* name : {"ClockToggle", "ClockStart", "ClockStop", "ClockReset", "ClockAdjust",
                              "ClockSet", "PeriodNext", "PeriodPrev", "AddStat", "SetTeamName",

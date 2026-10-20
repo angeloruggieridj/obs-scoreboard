@@ -28,6 +28,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- The remote page is told about every change at once (server-sent events) instead of asking every 350 ms, so what happens in the plugin shows up on the phone, and a press on the phone shows up in the plugin, with almost no delay.
+- On iPhone the controls work again with the haptic cover (the tap is passed on to the button under the finger).
+- The period selector and its "of N" label are laid out in a grid and cannot overlap.
 - On a touch screen the Start button no longer turns grey after a tap in the remote page, "of 3" next to the period no longer hides under the arrow, and the footer of the page sits at the very bottom.
 - The goal, shots and fouls cells line up with their buttons and have the same width; the Stop button is no longer cut at the bottom; the Reset icon is drawn properly.
 
