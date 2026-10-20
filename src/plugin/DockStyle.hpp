@@ -48,6 +48,10 @@ void install(QWidget* root, bool dialog = false);
 // Colors with a meaning; `dark` is whether the theme is a dark one.
 QColor goColor(const QPalette& palette);
 QColor stopColor(const QPalette& palette);
+// The theme's highlight, darkened where needed so white text stays readable on it.
+QColor accentColor(const QPalette& palette);
+// The default accent of the away team's card.
+QColor accentAwayColor();
 bool isDark(const QPalette& palette);
 
 // Gives a window of the plugin the same look as the dock: the shared sheet (with the tab bar), a

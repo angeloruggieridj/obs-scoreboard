@@ -93,6 +93,14 @@ QColor goColor(const QPalette& pal) {
     return isDark(pal) ? QColor(QStringLiteral("#25A231")) : QColor(QStringLiteral("#2E9D3A"));
 }
 
+QColor accentAwayColor() {
+    return QColor(QStringLiteral("#EF7D57"));
+}
+
+QColor accentColor(const QPalette& pal) {
+    return withContrast(pal.color(QPalette::Highlight));
+}
+
 QColor stopColor(const QPalette& pal) {
     return isDark(pal) ? QColor(QStringLiteral("#C01C37")) : QColor(QStringLiteral("#CF2B45"));
 }
@@ -141,26 +149,33 @@ QString styleSheet(const QPalette& pal, Density density) {
                        "min-width:%1px;max-width:%1px;font-size:11px;}")
             .arg(s));
     // Segmented controls: [ -1 | value | +1 ] is one rounded group with thin separators.
-    add(QStringLiteral("QPushButton[sbRole=\"seg\"]{border-radius:0;border:1px solid %1;"
-                       "border-left-width:0;padding:0;min-width:26px;}")
-            .arg(hex(t.bdr)));
+    add(QStringLiteral(
+            "QPushButton[sbRole=\"seg\"]{border-radius:0;border:1px solid %1;"
+            "border-left-width:0;padding:0;min-width:26px;min-height:%2px;max-height:%2px;}")
+            .arg(hex(t.bdr))
+            .arg(h));
     add(QStringLiteral("QPushButton[sbRole=\"seg\"][sbPos=\"first\"]{border-left-width:1px;"
                        "border-top-left-radius:4px;border-bottom-left-radius:4px;}"));
     add(QStringLiteral("QPushButton[sbRole=\"seg\"][sbPos=\"last\"]{border-top-right-radius:4px;"
                        "border-bottom-right-radius:4px;}"));
-    add(QStringLiteral("QLabel[sbRole=\"segval\"]{background:%1;color:%2;border:1px solid %3;"
-                       "border-left-width:0;font-weight:700;padding:0 6px;min-height:%4px;}")
+    add(QStringLiteral(
+            "QLabel[sbRole=\"segval\"]{background:%1;color:%2;border:1px solid %3;"
+            "border-left-width:0;font-weight:700;padding:0 6px;min-height:%4px;max-height:%4px;}")
             .arg(hex(t.inset), hex(t.txt), hex(t.bdr))
-            .arg(h - 2));
+            .arg(h));
     add(QStringLiteral(
         "QPushButton[sbRole=\"seg\"][sbPos=\"only\"]{border-left-width:1px;border-radius:4px;}"));
     // The score counter is the most used control of a match: a little larger than the rest.
     add(QStringLiteral(
-        "QPushButton[sbRole=\"seg\"][sbSize=\"large\"]{min-width:38px;font-size:13px;}"));
-    add(QStringLiteral(
-            "QLabel[sbRole=\"segval\"][sbSize=\"large\"]{font-size:20px;min-height:%1px;}")
-            .arg(h + 2));
+            "QPushButton[sbRole=\"seg\"][sbSize=\"large\"]{min-width:38px;font-size:13px;"
+            "min-height:%1px;max-height:%1px;}")
+            .arg(h + 6));
+    add(QStringLiteral("QLabel[sbRole=\"segval\"][sbSize=\"large\"]{font-size:20px;min-height:%1px;"
+                       "max-height:%1px;}")
+            .arg(h + 6));
     // Penalty type chips (add window).
+    add(QStringLiteral(
+        "QPushButton[sbRole=\"chip\"],QPushButton[sbRole=\"chipOn\"]{min-width:44px;}"));
     add(QStringLiteral(
             "QPushButton[sbRole=\"chipOn\"]{background:%1;border-color:%1;color:#FFFFFF;}")
             .arg(hex(t.prim)));

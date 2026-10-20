@@ -19,6 +19,12 @@ public:
     void setColors(std::string scoreColor, std::string foulColor);
     void setUpdateCheck(bool enabled);
     void setComfortableDock(bool comfortable);
+    // Accent colors of the two team cards ("" = the default blue / orange).
+    void setTeamColors(std::string home, std::string away);
+    // The border of the clock card as a progress bar of the period.
+    void setPeriodBar(sb::PeriodBarMode mode, std::string color);
+    // The color of the clock digits (optionally by the time left).
+    void setClockColor(sb::ClockColorSettings settings);
     // Remembers the optional .txt output preferences (global; never in the scene collection).
     void setFileOutput(bool enabled, std::string dir);
     void setFileOutputEnabled(bool enabled);

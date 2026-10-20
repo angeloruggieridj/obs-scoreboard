@@ -53,23 +53,30 @@ UpdateChecker::~UpdateChecker() {
     if (thread_.joinable()) thread_.join();
 }
 
-void UpdateChecker::start(const std::string& currentVersion) {
-    if (started_) return;
-    started_ = true;
-    thread_ = std::thread([this, currentVersion]() { run(currentVersion); });
+void UpdateChecker::start(const std::string& currentVersion, bool manual) {
+    if (running_.exchange(true)) return;    // one check at a time
+    if (thread_.joinable()) thread_.join(); // the previous one has finished
+    thread_ = std::thread([this, currentVersion, manual]() {
+        run(currentVersion, manual);
+        running_ = false;
+    });
 }
 
-void UpdateChecker::run(std::string currentVersion) {
+void UpdateChecker::run(std::string currentVersion, bool manual) {
     const std::optional<sb::Version> current = sb::parseVersion(currentVersion);
     if (!current) {
         obs_log(LOG_INFO, "update check skipped: '%s' is not a release version",
                 currentVersion.c_str());
+        if (manual) emit failed();
         return;
     }
 
     ensureCurl();
     CURL* curl = curl_easy_init();
-    if (!curl) return;
+    if (!curl) {
+        if (manual) emit failed();
+        return;
+    }
 
     Transfer transfer;
     transfer.abort = &abort_;
@@ -105,6 +112,7 @@ void UpdateChecker::run(std::string currentVersion) {
     if (result != CURLE_OK || status != 200) {
         obs_log(LOG_INFO, "update check failed (curl %d, HTTP %ld)", static_cast<int>(result),
                 status);
+        if (manual) emit failed();
         return;
     }
 
@@ -113,6 +121,7 @@ void UpdateChecker::run(std::string currentVersion) {
         sb::newestRelease(transfer.body, *current, !current->pre.empty());
     if (!release) {
         obs_log(LOG_INFO, "update check: %s is the newest release", currentVersion.c_str());
+        if (manual) emit noUpdate();
         return;
     }
     obs_log(LOG_INFO, "update check: %s is available", release->version.c_str());

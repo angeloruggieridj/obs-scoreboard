@@ -25,6 +25,8 @@ public:
 
     // Which side this column is: sets the color of the bar on top of the card.
     void setSide(bool away);
+    // A custom accent color for the bar on top ("#RRGGBB"); empty = the side's default.
+    void setAccent(const QString& hex);
 
     void applyLayout(const sb::PanelLayout& layout);
     void setName(const QString& name);
@@ -63,5 +65,6 @@ private:
     QPushButton* penaltiesAdd_ = nullptr;
     PenaltyList* penalties_ = nullptr;
     bool penaltiesShown_ = false;
+    QString accent_;
     std::optional<sb::PanelLayout> applied_;
 };

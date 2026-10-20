@@ -56,6 +56,26 @@ void GlobalSettings::setColors(std::string scoreColor, std::string foulColor) {
     save();
 }
 
+void GlobalSettings::setTeamColors(std::string home, std::string away) {
+    if (prefs_.homeColor == home && prefs_.awayColor == away) return;
+    prefs_.homeColor = std::move(home);
+    prefs_.awayColor = std::move(away);
+    save();
+}
+
+void GlobalSettings::setPeriodBar(sb::PeriodBarMode mode, std::string color) {
+    if (prefs_.periodBar == mode && prefs_.periodBarColor == color) return;
+    prefs_.periodBar = mode;
+    prefs_.periodBarColor = std::move(color);
+    save();
+}
+
+void GlobalSettings::setClockColor(sb::ClockColorSettings settings) {
+    if (prefs_.clockColor == settings) return;
+    prefs_.clockColor = std::move(settings);
+    save();
+}
+
 void GlobalSettings::setComfortableDock(bool comfortable) {
     if (prefs_.comfortableDock == comfortable) return;
     prefs_.comfortableDock = comfortable;

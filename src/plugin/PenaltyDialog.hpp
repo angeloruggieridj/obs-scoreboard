@@ -9,7 +9,7 @@
 
 #include "SportCatalog.hpp"
 
-class QComboBox;
+class QPushButton;
 class QLabel;
 class QLineEdit;
 class QSpinBox;
@@ -29,6 +29,10 @@ public:
                   const std::string& labelFormat, QWidget* parent = nullptr);
 
     void accept() override;
+    // The chip selected in the add window (-1 in the edit window), and a way to pick one.
+    int optionIndex() const;
+    void selectOption(int index);
+    int optionCount() const { return static_cast<int>(options_.size()); }
     // Whether the add window has a player number (the selftest checks it without a QMessageBox).
     bool validPlayer() const;
 
@@ -52,7 +56,7 @@ private:
     std::string labelFormat_;
     std::vector<sb::PenaltyOption> options_;
 
-    QComboBox* option_ = nullptr;
+    std::vector<QPushButton*> chips_;
     QLineEdit* player_ = nullptr;
     QLabel* playerShown_ = nullptr;
     QSpinBox* minutes_ = nullptr;

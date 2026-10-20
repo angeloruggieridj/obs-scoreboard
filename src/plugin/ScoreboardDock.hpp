@@ -29,6 +29,7 @@ class QAction;
 class QCheckBox;
 class QInputDialog;
 class QLabel;
+class UpdateChecker;
 class QPushButton;
 class QToolButton;
 class TeamPanel;
@@ -75,6 +76,10 @@ public:
     // A release newer than this build exists: shows it in the menu and the status line.
     void showUpdate(const QString& version, const QString& url);
 
+    // The update checker lives as long as the module; the dock reports its verdicts and asks it for
+    // a manual check. Safe with a null pointer.
+    void setUpdateChecker(UpdateChecker* checker);
+
     // Supplies the OBS streaming and recording start instants for the chapter export.
     void setStreamStartsProvider(std::function<StreamStarts()> provider);
 
@@ -100,7 +105,8 @@ private:
     void showLinkState();
     void newMatch();
     void endMatch();
-    void about();
+    void checkForUpdates();
+    void buildMenu();
 
     QPointer<ClockDriver> driver_;
     QPointer<FieldSinks> sinks_;
@@ -116,6 +122,9 @@ private:
     QPushButton* menu_ = nullptr;
     QAction* fileOutputAction_ = nullptr;
     QAction* updateAction_ = nullptr;
+    QPointer<UpdateChecker> updater_;
+    QLabel* sport_ = nullptr;
+    QString shownSport_;
     QString updateUrl_;
     ClockPanel* clock_ = nullptr;
     TeamPanel* home_ = nullptr;

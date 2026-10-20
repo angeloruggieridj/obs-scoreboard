@@ -7,9 +7,11 @@
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QApplication>
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -51,6 +53,10 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
     setAttribute(Qt::WA_DeleteOnClose);
     scoreColor_ = prefs_.scoreColor;
     foulColor_ = prefs_.foulColor;
+    homeColor_ = prefs_.homeColor;
+    awayColor_ = prefs_.awayColor;
+    barColor_ = prefs_.periodBarColor;
+    clockBase_ = prefs_.clockColor.base;
 
     auto* outer = new QVBoxLayout(this);
     tabs_ = new QTabWidget(this);
@@ -186,43 +192,129 @@ void MatchSettingsDialog::buildTextsTab(QWidget* page) {
     form->addRow(text("Settings.PlayTime"), playTime_);
 }
 
+QPushButton* MatchSettingsDialog::addColorRow(QFormLayout* form, const QString& label,
+                                              std::string* target, const std::string& fallback) {
+    auto* swatch = new QPushButton(this);
+    swatchDefaults_.emplace_back(swatch, fallback);
+    connect(swatch, &QPushButton::clicked, this,
+            [this, target, swatch]() { pickColor(*target, swatch); });
+    if (form) { // a row of the form has a "default" button; the interval rows lay out their own
+        auto* reset = new QPushButton(text("Settings.Default"), this);
+        auto* row = new QHBoxLayout();
+        row->addWidget(swatch, 1);
+        row->addWidget(reset);
+        connect(reset, &QPushButton::clicked, this, [this, target, swatch]() {
+            target->clear();
+            showColor(swatch, *target);
+        });
+        form->addRow(label, row);
+    }
+    showColor(swatch, *target);
+    return swatch;
+}
+
 void MatchSettingsDialog::buildLookTab(QWidget* page) {
-    auto* form = new QFormLayout(page);
+    auto* outer = new QVBoxLayout(page);
 
-    scoreSwatch_ = new QPushButton(page);
-    auto* scoreDefault = new QPushButton(text("Settings.Default"), page);
-    auto* scoreRow = new QHBoxLayout();
-    scoreRow->addWidget(scoreSwatch_, 1);
-    scoreRow->addWidget(scoreDefault);
-    connect(scoreSwatch_, &QPushButton::clicked, this,
-            [this]() { pickColor(scoreColor_, scoreSwatch_); });
-    connect(scoreDefault, &QPushButton::clicked, this, [this]() {
-        scoreColor_.clear();
-        showColor(scoreSwatch_, scoreColor_);
-    });
-    form->addRow(text("Settings.ScoreColor"), scoreRow);
-    showColor(scoreSwatch_, scoreColor_);
-
-    foulSwatch_ = new QPushButton(page);
-    auto* foulDefault = new QPushButton(text("Settings.Default"), page);
-    auto* foulRow = new QHBoxLayout();
-    foulRow->addWidget(foulSwatch_, 1);
-    foulRow->addWidget(foulDefault);
-    connect(foulSwatch_, &QPushButton::clicked, this,
-            [this]() { pickColor(foulColor_, foulSwatch_); });
-    connect(foulDefault, &QPushButton::clicked, this, [this]() {
-        foulColor_.clear();
-        showColor(foulSwatch_, foulColor_);
-    });
-    form->addRow(text("Settings.FoulColor"), foulRow);
-    showColor(foulSwatch_, foulColor_);
-
+    // --- Colors of the dock -----------------------------------------------------------------
+    auto* colors = new QGroupBox(text("Settings.Group.Colors"), page);
+    auto* colorsForm = new QFormLayout(colors);
+    scoreSwatch_ = addColorRow(colorsForm, text("Settings.ScoreColor"), &scoreColor_,
+                               std::string(sb::kDefaultScoreColor));
+    foulSwatch_ = addColorRow(colorsForm, text("Settings.FoulColor"), &foulColor_,
+                              std::string(sb::kDefaultFoulColor));
+    addColorRow(colorsForm, text("Settings.HomeColor"), &homeColor_,
+                dockstyle::accentColor(QApplication::palette()).name().toUpper().toStdString());
+    addColorRow(colorsForm, text("Settings.AwayColor"), &awayColor_,
+                dockstyle::accentAwayColor().name().toUpper().toStdString());
     // Taller buttons and more air, for a mouse that is not as precise as the match is fast.
-    density_ = new QComboBox(page);
+    density_ = new QComboBox(colors);
     density_->addItem(text("Settings.Density.Compact"), 0);
     density_->addItem(text("Settings.Density.Comfortable"), 1);
     density_->setCurrentIndex(prefs_.comfortableDock ? 1 : 0);
-    form->addRow(text("Settings.Density"), density_);
+    colorsForm->addRow(text("Settings.Density"), density_);
+    outer->addWidget(colors);
+
+    // --- Period progress on the border of the clock frame -----------------------------------
+    auto* frame = new QGroupBox(text("Settings.Group.Frame"), page);
+    auto* frameForm = new QFormLayout(frame);
+    periodBar_ = new QComboBox(frame);
+    periodBar_->addItem(text("Settings.PeriodBar.Off"), static_cast<int>(sb::PeriodBarMode::Off));
+    periodBar_->addItem(text("Settings.PeriodBar.Remaining"),
+                        static_cast<int>(sb::PeriodBarMode::Remaining));
+    periodBar_->addItem(text("Settings.PeriodBar.Consumed"),
+                        static_cast<int>(sb::PeriodBarMode::Consumed));
+    const int barIndex = periodBar_->findData(static_cast<int>(prefs_.periodBar));
+    periodBar_->setCurrentIndex(barIndex < 0 ? 1 : barIndex);
+    frameForm->addRow(text("Settings.PeriodBar"), periodBar_);
+    QPushButton* barSwatch =
+        addColorRow(frameForm, text("Settings.PeriodBarColor"), &barColor_,
+                    dockstyle::accentColor(QApplication::palette()).name().toUpper().toStdString());
+    connect(periodBar_, &QComboBox::currentIndexChanged, this, [this, barSwatch](int) {
+        barSwatch->setEnabled(periodBar_->currentData().toInt() !=
+                              static_cast<int>(sb::PeriodBarMode::Off));
+    });
+    barSwatch->setEnabled(prefs_.periodBar != sb::PeriodBarMode::Off);
+    outer->addWidget(frame);
+
+    // --- Color of the clock digits ------------------------------------------------------------
+    auto* digits = new QGroupBox(text("Settings.Group.Digits"), page);
+    auto* digitsForm = new QFormLayout(digits);
+    clockMode_ = new QComboBox(digits);
+    clockMode_->addItem(text("Settings.ClockColor.Theme"),
+                        static_cast<int>(sb::ClockColorMode::Theme));
+    clockMode_->addItem(text("Settings.ClockColor.Single"),
+                        static_cast<int>(sb::ClockColorMode::Single));
+    clockMode_->addItem(text("Settings.ClockColor.ByTime"),
+                        static_cast<int>(sb::ClockColorMode::ByTime));
+    clockMode_->setCurrentIndex(
+        std::max(0, clockMode_->findData(static_cast<int>(prefs_.clockColor.mode))));
+    digitsForm->addRow(text("Settings.ClockColor"), clockMode_);
+    clockBaseSwatch_ = addColorRow(
+        digitsForm, text("Settings.ClockBase"), &clockBase_,
+        QApplication::palette().color(QPalette::WindowText).name().toUpper().toStdString());
+
+    static const std::pair<int, const char*> kRuleDefaults[sb::kMaxClockColorRules] = {
+        {60, "#F2C94C"}, {30, "#E5484D"}, {10, "#E5484D"}, {5, "#E5484D"}};
+    for (std::size_t i = 0; i < rules_.size(); ++i) {
+        RuleRow& row = rules_[i];
+        const bool saved = i < prefs_.clockColor.rules.size();
+        row.on = new QCheckBox(text("Settings.ClockRule"), digits);
+        row.seconds = makeSpin(0, sb::kMaxRuleSeconds, digits);
+        row.seconds->setSuffix(text("Settings.ClockRuleSuffix"));
+        row.seconds->setValue(saved ? prefs_.clockColor.rules[i].secondsLeft
+                                    : kRuleDefaults[i].first);
+        row.color = saved ? prefs_.clockColor.rules[i].color : std::string(kRuleDefaults[i].second);
+        // With no saved rules the first two are on, as a starting point for "turn red at the end".
+        row.on->setChecked(saved || (prefs_.clockColor.rules.empty() && i < 2));
+        auto* line = new QHBoxLayout();
+        line->addWidget(row.on);
+        line->addWidget(row.seconds);
+        row.swatch = addColorRow(nullptr, QString(), &row.color, kRuleDefaults[i].second);
+        line->addWidget(row.swatch, 1);
+        digitsForm->addRow(line);
+        connect(row.on, &QCheckBox::toggled, this, [this](bool) { updateClockColorEnabled(); });
+    }
+    clockBlend_ = new QCheckBox(text("Settings.ClockBlend"), digits);
+    clockBlend_->setChecked(prefs_.clockColor.blend);
+    digitsForm->addRow(clockBlend_);
+    connect(clockMode_, &QComboBox::currentIndexChanged, this,
+            [this](int) { updateClockColorEnabled(); });
+    updateClockColorEnabled();
+    outer->addWidget(digits);
+    outer->addStretch(1);
+}
+
+void MatchSettingsDialog::updateClockColorEnabled() {
+    const auto mode = static_cast<sb::ClockColorMode>(clockMode_->currentData().toInt());
+    clockBaseSwatch_->setEnabled(mode != sb::ClockColorMode::Theme);
+    const bool byTime = mode == sb::ClockColorMode::ByTime;
+    clockBlend_->setEnabled(byTime);
+    for (RuleRow& row : rules_) {
+        row.on->setEnabled(byTime);
+        row.seconds->setEnabled(byTime && row.on->isChecked());
+        row.swatch->setEnabled(byTime && row.on->isChecked());
+    }
 }
 
 void MatchSettingsDialog::buildOutputTab(QWidget* page) {
@@ -338,10 +430,10 @@ void MatchSettingsDialog::updatePreview() {
 void MatchSettingsDialog::showColor(QPushButton* swatch, const std::string& hex) {
     // The swatch always shows the color in use: the default one, marked as such, when none was
     // picked.
-    const std::string effective =
-        !hex.empty()
-            ? hex
-            : std::string(swatch == scoreSwatch_ ? sb::kDefaultScoreColor : sb::kDefaultFoulColor);
+    std::string fallback;
+    for (const auto& entry : swatchDefaults_)
+        if (entry.first == swatch) fallback = entry.second;
+    const std::string effective = !hex.empty() ? hex : fallback;
     const QString label =
         hex.empty() ? QStringLiteral("%1  (%2)")
                           .arg(QString::fromStdString(effective), text("Settings.ColorDefault"))
@@ -406,6 +498,26 @@ bool MatchSettingsDialog::collect(Result& out, QString* problem) const {
     out.scoreColor = scoreColor_;
     out.foulColor = foulColor_;
     out.comfortableDock = density_ && density_->currentData().toInt() == 1;
+    out.homeColor = homeColor_;
+    out.awayColor = awayColor_;
+    out.periodBar = static_cast<sb::PeriodBarMode>(periodBar_->currentData().toInt());
+    out.periodBarColor = barColor_;
+    sb::ClockColorSettings clock;
+    clock.mode = static_cast<sb::ClockColorMode>(clockMode_->currentData().toInt());
+    clock.blend = clockBlend_->isChecked();
+    // While the base is "default" the theme's text color is the base the rules start from.
+    for (const auto& entry : swatchDefaults_)
+        if (entry.first == clockBaseSwatch_)
+            clock.base = clockBase_.empty() ? entry.second : clockBase_;
+    for (const RuleRow& row : rules_) {
+        if (!row.on->isChecked()) continue;
+        std::string color = row.color;
+        if (color.empty()) // "default" on a rule row: the color its swatch shows
+            for (const auto& entry : swatchDefaults_)
+                if (entry.first == row.swatch) color = entry.second;
+        clock.rules.push_back({row.seconds->value(), color});
+    }
+    out.clockColor = std::move(clock);
     if (fileOutput_->isChecked() && fileOutputDir_.empty()) {
         *problem = text("Settings.FileOutputNeedsFolder");
         return false;

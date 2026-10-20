@@ -95,6 +95,15 @@ void TeamPanel::setSide(bool away) {
                        away ? QStringLiteral("away") : QStringLiteral("home"));
 }
 
+void TeamPanel::setAccent(const QString& hex) {
+    if (accent_ == hex) return;
+    accent_ = hex;
+    // The rule is scoped to the card, so the penalty cards inside keep their own look.
+    setStyleSheet(hex.isEmpty()
+                      ? QString()
+                      : QStringLiteral("QFrame[sbCard=\"team\"]{border-top-color:%1;}").arg(hex));
+}
+
 TeamPanel::Row TeamPanel::makeRow(int stat) {
     Row row;
     row.caption = makeCaption(this);

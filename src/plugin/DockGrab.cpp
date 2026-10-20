@@ -155,6 +155,33 @@ int run(ClockDriver* driver, FieldSinks* sinks, const QString& directory) {
             if (saveWindow(&bindings, file(QStringLiteral("win-bindings")))) ++written;
         }
     }
+    // The optional looks, switched on: team colors, a consumed-time border and a clock that turns
+    // amber, then red as the period runs out.
+    {
+        scratch.setTeamColors("#2E9E6B", "#B04BD6");
+        scratch.setPeriodBar(sb::PeriodBarMode::Consumed, "#F2C94C");
+        sb::ClockColorSettings clockColor;
+        clockColor.mode = sb::ClockColorMode::ByTime;
+        clockColor.base = "#FFFFFF";
+        clockColor.rules = {{60, "#F2C94C"}, {30, "#E5484D"}};
+        clockColor.blend = true;
+        scratch.setClockColor(clockColor);
+        const sb::SportPreset* hockey = sb::findSport("ice_hockey");
+        ScoreboardDock colored(driver, sinks, &scratch, nullptr);
+        stage(driver, *hockey);
+        driver->apply(sb::cmd::ClockSet{sb::seconds(22)});
+        QApplication::processEvents();
+        if (save(&colored, 360,
+                 QDir(directory).filePath(QStringLiteral("dock-custom-%1.png").arg(theme))))
+            ++written;
+        MatchSettingsDialog settings(driver->engine().settings(), scratch.prefs(),
+                                     [](const MatchSettingsDialog::Result&) { return true; });
+        if (auto* tabs = settings.findChild<QTabWidget*>()) tabs->setCurrentIndex(2);
+        if (saveWindow(&settings,
+                       QDir(directory).filePath(
+                           QStringLiteral("win-settings-look-custom-%1.png").arg(theme))))
+            ++written;
+    }
     QFile done(QDir(directory).filePath(QStringLiteral("grab.done")));
     if (done.open(QIODevice::WriteOnly)) done.write(QByteArray::number(written));
     return written;

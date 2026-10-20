@@ -3,14 +3,18 @@
 
 #include <QDialog>
 
+#include <array>
 #include <functional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "MatchEngine.hpp"
 #include "PluginState.hpp"
 
 class QCheckBox;
 class QComboBox;
+class QFormLayout;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -32,6 +36,11 @@ public:
         bool fileOutputEnabled = false;
         std::string fileOutputDir;
         bool comfortableDock = false;
+        std::string homeColor; // "#RRGGBB" or empty = the side's default
+        std::string awayColor;
+        sb::PeriodBarMode periodBar = sb::PeriodBarMode::Remaining;
+        std::string periodBarColor; // empty = the theme's accent
+        sb::ClockColorSettings clockColor;
     };
     using Applier = std::function<bool(const Result&)>;
 
@@ -52,6 +61,11 @@ private:
     void updatePreview();
     void pickColor(std::string& target, QPushButton* swatch);
     void showColor(QPushButton* swatch, const std::string& hex);
+    // One labelled color row: a swatch that opens the color dialog and a "default" button that
+    // clears `target`. `fallback` is the color shown (and used) while `target` is empty.
+    QPushButton* addColorRow(QFormLayout* form, const QString& label, std::string* target,
+                             const std::string& fallback);
+    void updateClockColorEnabled();
     void sportActivated();
     void resetToSportDefaults();
     std::string currentSportId() const;
@@ -92,6 +106,23 @@ private:
     std::string scoreColor_;
     std::string foulColor_;
     QComboBox* density_ = nullptr;
+    std::string homeColor_;
+    std::string awayColor_;
+    std::string barColor_;
+    std::string clockBase_;
+    QComboBox* periodBar_ = nullptr;
+    QComboBox* clockMode_ = nullptr;
+    QCheckBox* clockBlend_ = nullptr;
+    QPushButton* clockBaseSwatch_ = nullptr;
+    struct RuleRow {
+        QCheckBox* on = nullptr;
+        QSpinBox* seconds = nullptr;
+        QPushButton* swatch = nullptr;
+        std::string color;
+    };
+    std::array<RuleRow, sb::kMaxClockColorRules> rules_;
+    // The color each swatch shows while its value is empty.
+    std::vector<std::pair<QPushButton*, std::string>> swatchDefaults_;
     QCheckBox* fileOutput_ = nullptr;
     QLabel* fileOutputDirLabel_ = nullptr;
     QPushButton* fileOutputChoose_ = nullptr;

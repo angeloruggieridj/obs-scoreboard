@@ -35,6 +35,7 @@
 #include "PenaltyDialog.hpp"
 #include "SettingsChange.hpp"
 #include "TeamPanel.hpp"
+#include "UpdateChecker.hpp"
 #include "plugin-support.h"
 
 namespace {
@@ -71,59 +72,17 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
     menu_ = new dockstyle::IconButton(dockstyle::Icon::Menu, this);
     dockstyle::setProp(menu_, dockstyle::kRole, QStringLiteral("iconghost"));
     menu_->setToolTip(text("Menu.Tooltip"));
-    auto* menu = new QMenu(menu_);
-    connect(menu->addAction(text("Menu.Settings")), &QAction::triggered, this,
-            &ScoreboardDock::openSettings);
-    connect(menu->addAction(text("Dock.Bindings")), &QAction::triggered, this,
-            &ScoreboardDock::openBindings);
-    connect(menu->addAction(text("Menu.NewMatch")), &QAction::triggered, this,
-            &ScoreboardDock::newMatch);
-    connect(menu->addAction(text("Dock.Resume")), &QAction::triggered, this,
-            &ScoreboardDock::resumePrevious);
-    connect(menu->addAction(text("Menu.EndMatch")), &QAction::triggered, this,
-            &ScoreboardDock::endMatch);
-    connect(menu->addAction(text("Menu.EventLog")), &QAction::triggered, this,
-            &ScoreboardDock::openEventLog);
-    menu->addSeparator();
-    fileOutputAction_ = menu->addAction(text("Menu.FileOutput"));
-    fileOutputAction_->setCheckable(true);
-    fileOutputAction_->setChecked(settings_ && settings_->prefs().fileOutputEnabled);
-    connect(fileOutputAction_, &QAction::toggled, this, [this](bool on) {
-        if (!settings_ || settings_->prefs().fileOutputEnabled == on) return;
-        if (on && settings_->prefs().fileOutputDir.empty()) {
-            showMessage(text("Output.NoFolder"));
-            openSettings();
-            refresh(); // the entry goes back to unchecked: nothing was enabled
-            return;
-        }
-        settings_->setFileOutputEnabled(on);
-        if (output_) {
-            output_->apply(settings_->prefs());
-            if (driver_) output_->publish(driver_->fields());
-        }
-        showMessage(on ? text("Output.Enabled") : text("Output.Disabled"));
-    });
-    menu->addSeparator();
-    // Hidden until the update check finds a newer release (showUpdate).
-    updateAction_ = menu->addAction(QString());
-    updateAction_->setVisible(false);
-    connect(updateAction_, &QAction::triggered, this, [this]() {
-        if (!updateUrl_.isEmpty()) QDesktopServices::openUrl(QUrl(updateUrl_));
-    });
-    QAction* updateCheck = menu->addAction(text("Menu.UpdateCheck"));
-    updateCheck->setCheckable(true);
-    updateCheck->setChecked(settings_ && settings_->prefs().updateCheck);
-    connect(updateCheck, &QAction::toggled, this, [this](bool on) {
-        if (settings_) settings_->setUpdateCheck(on);
-    });
-    connect(menu->addAction(text("Menu.About")), &QAction::triggered, this, &ScoreboardDock::about);
-    menu_->setMenu(menu);
+    buildMenu();
 
     // OBS shows the dock title itself; the first row of the dock holds the link indicator and the
     // menu.
     auto* header = new QHBoxLayout();
     header->setSpacing(6);
     header->addWidget(link_);
+    sport_ = new QLabel(this);
+    dockstyle::setProp(sport_, dockstyle::kText, QStringLiteral("pillLabel"));
+    sport_->setToolTip(text("Panel.Sport.Tooltip"));
+    header->addWidget(sport_);
     header->addStretch(1);
     header->addWidget(menu_);
     layout->addLayout(header);
@@ -239,6 +198,96 @@ TeamPanel* ScoreboardDock::panel(sb::Team team) const {
     return team == sb::Team::Home ? home_ : away_;
 }
 
+namespace {
+
+// A non-clickable title for a group of menu entries. Plain disabled actions look the same in every
+// style, unlike QMenu::addSection, which some styles draw without its text.
+void addHeading(QMenu* menu, const QString& title) {
+    if (!menu->isEmpty()) menu->addSeparator();
+    QAction* heading = menu->addAction(title);
+    heading->setEnabled(false);
+}
+
+} // namespace
+
+void ScoreboardDock::buildMenu() {
+    auto* menu = new QMenu(menu_);
+
+    addHeading(menu, text("Menu.Section.Match"));
+    connect(menu->addAction(text("Menu.NewMatch")), &QAction::triggered, this,
+            &ScoreboardDock::newMatch);
+    connect(menu->addAction(text("Dock.Resume")), &QAction::triggered, this,
+            &ScoreboardDock::resumePrevious);
+    connect(menu->addAction(text("Menu.EndMatch")), &QAction::triggered, this,
+            &ScoreboardDock::endMatch);
+    connect(menu->addAction(text("Menu.EventLog")), &QAction::triggered, this,
+            &ScoreboardDock::openEventLog);
+
+    addHeading(menu, text("Menu.Section.Settings"));
+    connect(menu->addAction(text("Menu.Settings")), &QAction::triggered, this,
+            &ScoreboardDock::openSettings);
+    connect(menu->addAction(text("Dock.Bindings")), &QAction::triggered, this,
+            &ScoreboardDock::openBindings);
+
+    addHeading(menu, text("Menu.Section.Output"));
+    fileOutputAction_ = menu->addAction(text("Menu.FileOutput"));
+    fileOutputAction_->setCheckable(true);
+    fileOutputAction_->setChecked(settings_ && settings_->prefs().fileOutputEnabled);
+    connect(fileOutputAction_, &QAction::toggled, this, [this](bool on) {
+        if (!settings_ || settings_->prefs().fileOutputEnabled == on) return;
+        if (on && settings_->prefs().fileOutputDir.empty()) {
+            showMessage(text("Output.NoFolder"));
+            openSettings();
+            refresh(); // the entry goes back to unchecked: nothing was enabled
+            return;
+        }
+        settings_->setFileOutputEnabled(on);
+        if (output_) {
+            output_->apply(settings_->prefs());
+            if (driver_) output_->publish(driver_->fields());
+        }
+        showMessage(on ? text("Output.Enabled") : text("Output.Disabled"));
+    });
+
+    addHeading(menu, text("Menu.Section.Updates"));
+    connect(menu->addAction(text("Menu.UpdateNow")), &QAction::triggered, this,
+            &ScoreboardDock::checkForUpdates);
+    // Hidden until a check finds a newer release (showUpdate).
+    updateAction_ = menu->addAction(QString());
+    updateAction_->setVisible(false);
+    connect(updateAction_, &QAction::triggered, this, [this]() {
+        if (!updateUrl_.isEmpty()) QDesktopServices::openUrl(QUrl(updateUrl_));
+    });
+    QAction* updateCheck = menu->addAction(text("Menu.UpdateCheck"));
+    updateCheck->setCheckable(true);
+    updateCheck->setChecked(settings_ && settings_->prefs().updateCheck);
+    connect(updateCheck, &QAction::toggled, this, [this](bool on) {
+        if (settings_) settings_->setUpdateCheck(on);
+    });
+    menu->addAction(text("Menu.Version").arg(QString::fromUtf8(PLUGIN_VERSION)))->setEnabled(false);
+
+    menu_->setMenu(menu);
+}
+
+void ScoreboardDock::checkForUpdates() {
+    if (!updater_) {
+        showMessage(text("Update.Failed"));
+        return;
+    }
+    showMessage(text("Update.Checking"));
+    updater_->start(PLUGIN_VERSION, true);
+}
+
+void ScoreboardDock::setUpdateChecker(UpdateChecker* checker) {
+    updater_ = checker;
+    if (!updater_) return;
+    connect(updater_, &UpdateChecker::updateAvailable, this, &ScoreboardDock::showUpdate);
+    connect(updater_, &UpdateChecker::noUpdate, this,
+            [this]() { showMessage(text("Update.None").arg(QString::fromUtf8(PLUGIN_VERSION))); });
+    connect(updater_, &UpdateChecker::failed, this,
+            [this]() { showMessage(text("Update.Failed")); });
+}
+
 void ScoreboardDock::connectTeam(sb::Team team) {
     TeamPanel* p = panel(team);
     connect(p, &TeamPanel::statDelta, this, [this, team](int stat, int delta) {
@@ -314,6 +363,9 @@ void ScoreboardDock::applyColors() {
         prefs.foulColor.empty() ? std::string(sb::kDefaultFoulColor) : prefs.foulColor);
     home_->setColors(score, foul);
     away_->setColors(score, foul);
+    home_->setAccent(QString::fromStdString(prefs.homeColor));
+    away_->setAccent(QString::fromStdString(prefs.awayColor));
+    clock_->setPeriodBar(prefs.periodBar, QString::fromStdString(prefs.periodBarColor));
 }
 
 void ScoreboardDock::showLinkState() {
@@ -346,6 +398,20 @@ void ScoreboardDock::refresh() {
     clock_->setClock(field(values, sb::FieldId::Clock));
     clock_->setPeriod(field(values, sb::FieldId::Period), engine.settings().sport.periods);
     clock_->setStoppage(layout_ && layout_->stoppage, engine.stoppageAnnounced());
+    {
+        const sb::Clock& c = engine.clock();
+        const sb::Direction dir = engine.settings().sport.direction;
+        clock_->setPeriodProgress(sb::shareLeft(c.value(), c.duration(), dir));
+        const sb::GlobalPrefs none;
+        const sb::GlobalPrefs& prefs = settings_ ? settings_->prefs() : none;
+        clock_->setDigitColor(QString::fromStdString(
+            sb::clockColorAt(prefs.clockColor, sb::timeLeft(c.value(), c.duration(), dir))));
+        const QString sportName = text(("Sport." + engine.settings().sport.id).c_str());
+        if (shownSport_ != sportName) {
+            shownSport_ = sportName;
+            sport_->setText(sportName);
+        }
+    }
     clock_->setRunning(engine.clock().running());
     clock_->setResetEnabled(!engine.clock().running());
     for (sb::Team team : {sb::Team::Home, sb::Team::Away}) {
@@ -563,6 +629,9 @@ bool ScoreboardDock::applyDialogResult(const MatchSettingsDialog::Result& r) {
     if (!applySettings(next)) return false; // NO to "start a new match": nothing is saved
     if (settings_) {
         settings_->setColors(r.scoreColor, r.foulColor);
+        settings_->setTeamColors(r.homeColor, r.awayColor);
+        settings_->setPeriodBar(r.periodBar, r.periodBarColor);
+        settings_->setClockColor(r.clockColor);
         settings_->setComfortableDock(r.comfortableDock);
         dockstyle::setDensity(r.comfortableDock ? dockstyle::Density::Comfortable
                                                 : dockstyle::Density::Compact);
@@ -687,9 +756,4 @@ void ScoreboardDock::endMatch() {
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) return;
     dispatch(sb::cmd::EndMatch{}); // dispatch() rechecks driver_ and reports a rejection
-}
-
-void ScoreboardDock::about() {
-    QMessageBox::about(this, text("Menu.About"),
-                       text("About.Text").arg(QString::fromUtf8(PLUGIN_VERSION)));
 }

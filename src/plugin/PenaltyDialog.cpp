@@ -4,13 +4,15 @@
 
 #include <obs-module.h>
 
-#include <QComboBox>
+#include <QButtonGroup>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
 
@@ -35,12 +37,28 @@ PenaltyDialog::PenaltyDialog(const std::vector<sb::PenaltyOption>& options,
 
     auto* outer = new QVBoxLayout(this);
     auto* form = new QFormLayout();
-    option_ = new QComboBox(this);
-    option_->setObjectName(QStringLiteral("penaltyOption"));
-    for (const sb::PenaltyOption& o : options_) option_->addItem(QString::fromStdString(o.label));
-    connect(option_, qOverload<int>(&QComboBox::currentIndexChanged), this,
-            [this](int) { updatePreview(); });
-    form->addRow(text("Penalty.Option"), option_);
+    // The type of penalty as a row of chips (one selected at a time), wrapped four to a row.
+    auto* chipBox = new QWidget(this);
+    auto* chipGrid = new QGridLayout(chipBox);
+    chipGrid->setContentsMargins(0, 0, 0, 0);
+    chipGrid->setSpacing(6);
+    auto* group = new QButtonGroup(this);
+    group->setExclusive(true);
+    for (std::size_t i = 0; i < options_.size(); ++i) {
+        auto* chip = new QPushButton(QString::fromStdString(options_[i].label), chipBox);
+        chip->setCheckable(true);
+        chip->setObjectName(QStringLiteral("penaltyChip%1").arg(i));
+        dockstyle::setProp(chip, dockstyle::kRole, QStringLiteral("chip"));
+        group->addButton(chip, static_cast<int>(i));
+        chipGrid->addWidget(chip, static_cast<int>(i / 4), static_cast<int>(i % 4));
+        connect(chip, &QPushButton::toggled, this, [this, chip](bool on) {
+            dockstyle::setProp(chip, dockstyle::kRole,
+                               on ? QStringLiteral("chipOn") : QStringLiteral("chip"));
+            if (on) updatePreview();
+        });
+        chips_.push_back(chip);
+    }
+    form->addRow(text("Penalty.Option"), chipBox);
 
     player_ = new QLineEdit(this);
     player_->setObjectName(QStringLiteral("penaltyPlayer"));
@@ -49,6 +67,8 @@ PenaltyDialog::PenaltyDialog(const std::vector<sb::PenaltyOption>& options,
     form->addRow(text("Penalty.Player"), player_);
     outer->addLayout(form);
     finishLayout(outer);
+    // Last: checking a chip updates the preview, which needs the player field and the label.
+    if (!chips_.empty()) chips_.front()->setChecked(true);
     updatePreview();
 }
 
@@ -118,14 +138,14 @@ QString PenaltyDialog::playerText() const {
 
 sb::Tenths PenaltyDialog::timeTenths() const {
     if (editMode_) return sb::minutes(minutes_->value()) + sb::seconds(seconds_->value());
-    const int index = option_->currentIndex();
+    const int index = optionIndex();
     if (index < 0 || static_cast<std::size_t>(index) >= options_.size()) return 0;
     return options_[static_cast<std::size_t>(index)].phases.front().duration;
 }
 
 sb::Tenths PenaltyDialog::phase2Tenths() const {
     if (editMode_) return fixedPhase2_;
-    const int index = option_->currentIndex();
+    const int index = optionIndex();
     if (index < 0 || static_cast<std::size_t>(index) >= options_.size()) return 0;
     const std::vector<sb::PenaltyPhase>& phases = options_[static_cast<std::size_t>(index)].phases;
     return phases.size() > 1 ? phases[1].duration : 0;
@@ -162,6 +182,17 @@ void PenaltyDialog::accept() {
         QMessageBox::warning(this, windowTitle(), text("Penalty.BadPlayer"));
         return;
     }
-    emit addRequested(option_->currentIndex(), player_->text().trimmed());
+    emit addRequested(optionIndex(), player_->text().trimmed());
     QDialog::accept();
+}
+
+int PenaltyDialog::optionIndex() const {
+    for (std::size_t i = 0; i < chips_.size(); ++i)
+        if (chips_[i]->isChecked()) return static_cast<int>(i);
+    return -1;
+}
+
+void PenaltyDialog::selectOption(int index) {
+    if (index < 0 || static_cast<std::size_t>(index) >= chips_.size()) return;
+    chips_[static_cast<std::size_t>(index)]->setChecked(true);
 }

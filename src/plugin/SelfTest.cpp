@@ -525,9 +525,9 @@ void Run::checkFoulsAndPenalties() {
     {
         const sb::SportPreset& hockey = *sb::findSport("ice_hockey");
         auto* add = new PenaltyDialog(hockey.penaltyOptions, "{player} {time} {phase2}", &probe);
-        auto* combo = add->findChild<QComboBox*>(QStringLiteral("penaltyOption"));
+        const int chipCount = add->optionCount();
         auto* player = add->findChild<QLineEdit*>(QStringLiteral("penaltyPlayer"));
-        if (!combo || !player) {
+        if (chipCount < 1 || !player) {
             penaltyControls_ = false;
             fail("penaltyControls: the add window widgets are missing");
         } else {
@@ -541,7 +541,7 @@ void Run::checkFoulsAndPenalties() {
                     compound = i;
                     break;
                 }
-            combo->setCurrentIndex(compound);
+            add->selectOption(compound);
             player->setText(QStringLiteral("24"));
             int seenIndex = -1;
             QString seenPlayer;

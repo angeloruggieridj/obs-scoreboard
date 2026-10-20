@@ -8,9 +8,9 @@
 #include <string>
 #include <thread>
 
-// Asks GitHub, once per OBS start, whether a release newer than the running build exists, and says
-// so with updateAvailable(). It only ever TELLS: nothing is downloaded or installed, so the plugin
-// is never replaced under a running OBS.
+// Asks GitHub, once per OBS start and whenever the user asks, whether a release newer than the
+// running build exists, and says so with updateAvailable(). It only ever TELLS: nothing is
+// downloaded or installed, so the plugin is never replaced under a running OBS.
 //
 // The request runs on a thread of its own (libcurl, which obs-deps ships and OBS itself loads:
 // Qt Network would need a TLS backend this OBS does not have) and nothing on the UI thread waits
@@ -23,17 +23,21 @@ public:
     explicit UpdateChecker(QObject* parent = nullptr);
     ~UpdateChecker() override;
 
-    // Starts the check unless one already ran or runs. Returns at once.
-    void start(const std::string& currentVersion);
+    // Starts a check unless one is running. Returns at once. A `manual` check also reports when
+    // there is nothing newer (noUpdate) or the question could not be asked (failed); an automatic
+    // one only ever speaks up about a newer release.
+    void start(const std::string& currentVersion, bool manual = false);
 
 signals:
-    // Emitted at most once, from the worker thread (delivered queued on the UI thread).
+    // Emitted from the worker thread (delivered queued on the UI thread).
     void updateAvailable(QString version, QString url);
+    void noUpdate();
+    void failed();
 
 private:
-    void run(std::string currentVersion);
+    void run(std::string currentVersion, bool manual);
 
     std::thread thread_;
     std::atomic<bool> abort_{false};
-    bool started_ = false;
+    std::atomic<bool> running_{false};
 };

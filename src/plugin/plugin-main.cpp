@@ -181,12 +181,12 @@ bool obs_module_load(void) {
     obs_frontend_add_event_callback(onFrontendEvent, nullptr);
     // One check per OBS start, off the UI thread, and never during the automated runs (no network
     // from the selftest or the load check).
-    if (g_settings.prefs().updateCheck && !pickerSuppressed()) {
-        g_updateChecker = new UpdateChecker();
-        QObject::connect(g_updateChecker, &UpdateChecker::updateAvailable, dock,
-                         &ScoreboardDock::showUpdate);
+    // The checker always exists (the menu can ask for a manual check); only the automatic one
+    // is optional.
+    g_updateChecker = new UpdateChecker();
+    dock->setUpdateChecker(g_updateChecker);
+    if (g_settings.prefs().updateCheck && !pickerSuppressed())
         g_updateChecker->start(PLUGIN_VERSION);
-    }
     obs_log(LOG_INFO, "loaded (version %s)", PLUGIN_VERSION);
     return true;
 }

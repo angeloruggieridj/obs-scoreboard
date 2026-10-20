@@ -11,6 +11,9 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPen>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QVBoxLayout>
@@ -68,6 +71,65 @@ void setSeg(QWidget* w, const char* pos) {
 
 } // namespace
 
+// The framed clock display. Its border doubles as a progress bar of the period: a stroke that runs
+// clockwise around the frame from the top middle, over the thin border drawn by the style sheet.
+class ClockCard : public QFrame {
+public:
+    explicit ClockCard(QWidget* parent) : QFrame(parent) {}
+
+    void setShare(double shareLeft) {
+        const int steps = shareLeft < 0.0 ? -1 : static_cast<int>(shareLeft * 1000.0 + 0.5);
+        if (steps == shownSteps_) return;
+        shownSteps_ = steps;
+        update();
+    }
+    void setMode(sb::PeriodBarMode mode, const QColor& color) {
+        if (mode_ == mode && color_ == color) return;
+        mode_ = mode;
+        color_ = color;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        QFrame::paintEvent(event); // the background and the thin border (style sheet)
+        if (mode_ == sb::PeriodBarMode::Off || shownSteps_ < 0) return;
+        const double done = mode_ == sb::PeriodBarMode::Remaining ? shownSteps_ / 1000.0
+                                                                  : 1.0 - shownSteps_ / 1000.0;
+        if (done <= 0.0) return;
+        constexpr double kWidth = 3.0;
+        constexpr double kRadius = 5.0;
+        const QRectF r = QRectF(rect()).adjusted(kWidth / 2, kWidth / 2, -kWidth / 2, -kWidth / 2);
+        const double d = 2 * kRadius;
+        QPainterPath path;
+        path.moveTo(r.center().x(), r.top());
+        path.lineTo(r.right() - kRadius, r.top());
+        path.arcTo(QRectF(r.right() - d, r.top(), d, d), 90, -90);
+        path.lineTo(r.right(), r.bottom() - kRadius);
+        path.arcTo(QRectF(r.right() - d, r.bottom() - d, d, d), 0, -90);
+        path.lineTo(r.left() + kRadius, r.bottom());
+        path.arcTo(QRectF(r.left(), r.bottom() - d, d, d), 270, -90);
+        path.lineTo(r.left(), r.top() + kRadius);
+        path.arcTo(QRectF(r.left(), r.top(), d, d), 180, -90);
+        path.lineTo(r.center().x(), r.top());
+        const double length = path.length();
+        QPen pen(color_.isValid() ? color_ : dockstyle::accentColor(palette()), kWidth);
+        pen.setCapStyle(Qt::FlatCap);
+        // A dash as long as the done share, then a gap longer than the rest (dash lengths are in
+        // units of the pen width).
+        pen.setDashPattern({length * done / kWidth, length / kWidth + 2.0});
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setPen(pen);
+        p.drawPath(path);
+    }
+
+private:
+    int shownSteps_ = -1;
+    sb::PeriodBarMode mode_ = sb::PeriodBarMode::Off;
+    QColor color_;
+};
+
 QPushButton* ClockPanel::makeArrow(const QString& label, const QString& tooltip,
                                    qint64 deltaTenths) {
     auto* button = new QPushButton(label, this);
@@ -90,7 +152,8 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
 
     // The clock "display": a framed card with the digits between the minute and second arrows, and
     // the period and stoppage steppers under them.
-    auto* card = new QFrame(this);
+    card_ = new ClockCard(this);
+    auto* card = card_;
     dockstyle::setProp(card, dockstyle::kCard, QStringLiteral("clock"));
     auto* cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(8, 8, 8, 8);
@@ -223,6 +286,20 @@ void ClockPanel::setRunning(bool running) {
         ->setIconKind(running ? dockstyle::Icon::Pause : dockstyle::Icon::Play);
 }
 
+void ClockPanel::setPeriodProgress(double shareLeft) {
+    card_->setShare(shareLeft);
+}
+
+void ClockPanel::setPeriodBar(sb::PeriodBarMode mode, const QString& color) {
+    card_->setMode(mode, color.isEmpty() ? QColor() : QColor(color));
+}
+
+void ClockPanel::setDigitColor(const QString& hex) {
+    if (digitColor_ == hex) return;
+    digitColor_ = hex;
+    updateClockFont(); // the rule of the label carries the color
+}
+
 void ClockPanel::setResetEnabled(bool enabled) {
     if (reset_->isEnabled() != enabled) reset_->setEnabled(enabled);
 }
@@ -262,10 +339,11 @@ void ClockPanel::updateClockFont() {
     const int textWidth = QFontMetrics(font).horizontalAdvance(clock_->text());
     const int pixels = std::clamp(
         textWidth > 0 ? static_cast<int>(kReference * available / textWidth) : kReference, 22, 72);
-    if (pixels == shownPixelSize_) return;
-    shownPixelSize_ = pixels;
-    font.setPixelSize(pixels);
-    clock_->setFont(font);
+    if (pixels != shownPixelSize_) {
+        shownPixelSize_ = pixels;
+        font.setPixelSize(pixels);
+        clock_->setFont(font);
+    }
     // Under a style sheet the label's font is resolved by the sheet machinery and a plain setFont()
     // can lose: say the same thing in a rule of the label's own.
     // The text color is part of the rule too: a label with a sheet of its own keeps the color it
@@ -274,6 +352,7 @@ void ClockPanel::updateClockFont() {
         QStringLiteral("QLabel{font-family:\"%1\";font-size:%2px;font-weight:700;color:%3;}")
             .arg(font.family())
             .arg(pixels)
-            .arg(clock_->palette().color(QPalette::WindowText).name());
+            .arg(digitColor_.isEmpty() ? clock_->palette().color(QPalette::WindowText).name()
+                                       : digitColor_);
     if (clock_->styleSheet() != css) clock_->setStyleSheet(css); // (a style change re-enters here)
 }

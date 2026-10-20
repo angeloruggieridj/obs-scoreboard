@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include <QColor>
 #include <QString>
 #include <QWidget>
+
+#include "PluginState.hpp"
 
 class QHBoxLayout;
 class QEvent;
 class QLabel;
 class QPushButton;
+class ClockCard;
 
 // The clock block of the dock: big clock with minute arrows on its left and second arrows on its
 // right, period stepper, stoppage stepper, start/pause and reset. Presentation only.
@@ -21,6 +25,14 @@ public:
     void setStoppage(bool visible, int minutes);
     void setRunning(bool running);
     void setResetEnabled(bool enabled);
+
+    // The border of the clock card as a progress bar. `shareLeft` is the share of the period still
+    // to play (0..1; negative = the period has no length: nothing is drawn). `color` empty = the
+    // theme's accent.
+    void setPeriodProgress(double shareLeft);
+    void setPeriodBar(sb::PeriodBarMode mode, const QString& color);
+    // The color of the clock digits ("#RRGGBB"); empty = the theme's text color.
+    void setDigitColor(const QString& hex);
 
 signals:
     void arrowRequested(qint64 deltaTenths);
@@ -47,6 +59,8 @@ private:
     QLabel* stoppage_ = nullptr;
     QPushButton* startStop_ = nullptr;
     QPushButton* reset_ = nullptr;
+    ClockCard* card_ = nullptr;
+    QString digitColor_;
     int shownPixelSize_ = 0;
     bool stoppageShown_ = false;
     int shownRunning_ = -1; // -1 unknown, 0 stopped, 1 running
