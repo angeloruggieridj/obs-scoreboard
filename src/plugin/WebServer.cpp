@@ -368,7 +368,7 @@ void WebServer::handle(const sb::HttpRequest& request, Connection* connection) {
     switch (route.kind) {
     case Kind::Page:
         reply(connection, 200, "text/html; charset=utf-8",
-              webPageHtml(route.canControl, i18nJson().toStdString()));
+              webPageHtml(route.canControl, pageTexts().toStdString()));
         return;
     case Kind::State:
         reply(connection, 200, kJson, sb::webStateJson(driver_->engine(), route.canControl, prefs));
@@ -434,7 +434,7 @@ void WebServer::reply(Connection* connection, int status, const char* contentTyp
     connection->socket->disconnectFromHost();
 }
 
-QString WebServer::i18nJson() const {
+QString WebServer::pageTexts() {
     QJsonObject texts;
     for (const char* key : kPageKeys)
         texts.insert(QString::fromLatin1(key), QString::fromUtf8(obs_module_text(key)));

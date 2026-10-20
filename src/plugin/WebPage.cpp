@@ -218,7 +218,7 @@ function paintTeam(side,s){
   T0.fouls2.box.hidden=!L.fouls2;
   if(L.fouls2)fillCounter(T0.fouls2,t("Panel.Fouls2."+L.fouls2Label),s[side+"Fouls2"],null,K.foulColor);
   var rows=L.penalties?(s.penalties[side]||[]):[];
-  T0.penHead.hidden=!L.penalties;T0.penCap.textContent=t("Panel.Penalties");
+  T0.penHead.hidden=!L.penalties||(!CONTROL&&!rows.length);T0.penCap.textContent=t("Panel.Penalties");
   var key=CONTROL+JSON.stringify(rows.map(function(p){return [p.id,p.player,p.time,p.phase2,p.queued]}));
   if(key!==T0.penKey){T0.penKey=key;T0.penList.innerHTML="";
     rows.forEach(function(p){

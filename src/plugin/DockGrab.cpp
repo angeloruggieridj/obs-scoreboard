@@ -15,6 +15,9 @@
 #include "MatchSettingsDialog.hpp"
 #include "PenaltyDialog.hpp"
 #include "ScoreboardDock.hpp"
+#include "WebPage.hpp"
+#include "WebServer.hpp"
+#include "WebState.hpp"
 #include "SportCatalog.hpp"
 #include <obs-module.h>
 
@@ -25,8 +28,8 @@ namespace {
 // A match in progress, so the pictures show what the dock looks like in use.
 void stage(ClockDriver* driver, const sb::SportPreset& sport) {
     driver->replaceMatch(sb::MatchEngine(sb::MatchSettings::forSport(sport)));
-    driver->apply(sb::cmd::SetTeamName{sb::Team::Home, "Roseville"});
-    driver->apply(sb::cmd::SetTeamName{sb::Team::Away, "Stillwater"});
+    driver->apply(sb::cmd::SetTeamName{sb::Team::Home, "HOME"});
+    driver->apply(sb::cmd::SetTeamName{sb::Team::Away, "AWAY"});
     const auto add = [driver](sb::Team team, sb::Stat stat, int n) {
         for (int i = 0; i < n; ++i) driver->apply(sb::cmd::AddStat{team, stat, 1});
     };
@@ -193,6 +196,24 @@ int run(ClockDriver* driver, FieldSinks* sinks, const QString& directory) {
             }
         }
     }
+    // The remote page exactly as the server would send it, with the state of a staged match (the
+    // README pictures are made from these in a browser).
+    const auto writeText = [&](const QString& name, const std::string& text) {
+        QFile out(QDir(directory).filePath(name));
+        if (out.open(QIODevice::WriteOnly)) {
+            out.write(text.data(), static_cast<qint64>(text.size()));
+            ++written;
+        }
+    };
+    {
+        stage(driver, *sb::findSport("ice_hockey"));
+        writeText(QStringLiteral("web-page-control.html"),
+                  webPageHtml(true, WebServer::pageTexts().toStdString()));
+        writeText(QStringLiteral("web-page-view.html"),
+                  webPageHtml(false, WebServer::pageTexts().toStdString()));
+        writeText(QStringLiteral("web-state-control.json"),
+                  sb::webStateJson(driver->engine(), true, scratch.prefs()));
+    }
     // The optional looks, switched on: team colors, a consumed-time border and a clock that turns
     // amber, then red as the period runs out.
     {
@@ -208,7 +229,16 @@ int run(ClockDriver* driver, FieldSinks* sinks, const QString& directory) {
         ScoreboardDock colored(driver, sinks, &scratch, nullptr);
         stage(driver, *hockey);
         driver->apply(sb::cmd::ClockSet{sb::seconds(22)});
+        {
+            // After the clock was moved, so the penalties are still there (moving it runs them
+            // down).
+            const auto& phases = hockey->penaltyOptions.front().phases;
+            driver->apply(sb::cmd::PenaltyAdd{sb::Team::Home, "24", phases});
+            driver->apply(sb::cmd::PenaltyAdd{sb::Team::Away, "11", phases});
+        }
         QApplication::processEvents();
+        writeText(QStringLiteral("web-state-view-custom.json"),
+                  sb::webStateJson(driver->engine(), false, scratch.prefs()));
         if (save(&colored, 360,
                  QDir(directory).filePath(QStringLiteral("dock-custom-%1.png").arg(theme))))
             ++written;

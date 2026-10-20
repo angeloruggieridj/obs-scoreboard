@@ -7,33 +7,37 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-21
+
+The dock and every window have a new look, the settings are in one window, and the scoreboard can be watched or commanded from a phone.
+
 ### Added
 
-- **Remote web page** (⚙ → Remote): off by default; *View only* or *View and control* from a phone, tablet or another computer on the same network. It looks like the dock: same colors, same arrangement of the buttons, the progress border around the clock, the clock color and the clock font. Two links (view, control) whose keys are random or typed by the user. Covers the clock, periods, stoppage, scores, shots, fouls, team names and penalty cancellation. On a phone it can vibrate on each press (on iPhone through an iOS trick that is not guaranteed); the viewer switches that on or off. The clock runs in the page between two answers, so the tenths of the last minute are smooth.
-- *Check for updates now* (Settings → Updates), with a message for "up to date" and for "could not check". A newer release shows its changelog, taken from GitHub, and an "Update" button in the dock.
+- **Remote web page** (⚙ → Remote), off by default: *View only* or *View and control* from a phone, tablet or another computer on the same network.
+  - It looks like the dock: same colors, same arrangement of the buttons, the progress border around the clock, the clock color and the clock font. It follows the light and dark theme of the browser.
+  - Two links (view, control) whose keys are random or typed by the user; a view link can never change anything.
+  - It is told about every change at once (server-sent events), the clock runs in the page so the tenths of the last minute are smooth, and it answers in the language of OBS.
+  - On a phone it can vibrate on every press (Android; on iPhone through an iOS trick that is not guaranteed); the viewer switches it on or off.
+  - A badge in the footer of the dock shows how many remote devices have the page open, green while one of them can command.
+  - Plain HTTP on your network. See [docs/remote-control.md](docs/remote-control.md), also for reaching it through Tailscale or a Cloudflare tunnel.
+- **Check for updates now** (Settings → Updates). A newer release shows its changelog, taken from GitHub, and an "Update" button in the dock.
+- **Optional looks** (Settings → Look): an accent color for each team card, a border around the clock that shrinks with the time left of the period (or fills with the time played; on by default), and a clock color, off by default, that is one color or up to four steps by time left (for example amber at 1:00, red at 0:30), optionally blended.
 - The sport of the match is always shown in the dock.
-- Custom accent color for each team card (*Match settings → Look*).
-- A progress border around the clock: it shrinks with the time left of the period (or fills with the time played). On by default; mode and color in *Match settings → Look*, or off.
-- Clock color: off by default; one color, or steps by time left (for example amber at 1:00 and red at 0:30, up to four), optionally blended.
 - Penalty types in the add-penalty window are chips instead of a drop-down.
-- *Match settings → Look → Dock density*: Compact (as before) or Comfortable (taller buttons and fields).
+- *Settings → Look → Dock density*: Compact (as before) or Comfortable (taller buttons and fields).
 
 ### Changed
 
-- A badge in the footer of the dock shows how many remote devices have the page open ("Remote 2"), green while one of them can command; its tooltip says how many command and how many only watch. Clicking it opens the Remote page of the settings.
-- A new look for the dock and every window: one button style with a single height, segmented `[ -1 | 2 | +1 ]` counters with a larger score button, the clock in a framed display with the period and stoppage steppers under it, a card per team with its own accent color, icons drawn by the plugin (menu, plus, pencil, cross, play/pause, reset) instead of text glyphs, and a thin bar of the time left under each running penalty. Colors now come from the OBS theme, so the dock and the windows follow the dark and light themes (and the others OBS ships); only start green, stop red and the score and foul colors stay fixed.
-- Match settings, Penalty and Source links windows share the same look (tabs with an underline, a highlighted OK, colored swatches that show the color in use).
-- The ⋮ menu is replaced by a gear icon that opens the settings window, now with a vertical list of pages: Match, Texts, Look, Output, Remote, Source links, Match control (new, resume, end, event log) and Updates. Fields keep the size of their content. The About window is gone: the version is on the Updates page.
-- The sport, the source-link indicator and the settings button sit in a bordered footer at the bottom of the dock.
+- A new look for the dock and every window: one button style with a single height, segmented `[ -1 | 2 | +1 ]` counters with a larger score button, the clock in a framed display, a card per team with its own accent color, icons drawn by the plugin instead of text glyphs, and a thin bar of the time left under each running penalty. Colors come from the OBS theme, so everything follows the dark and light themes; only start green, stop red and the score and foul colors stay fixed.
+- The ⋮ menu is replaced by a gear icon that opens one settings window with a vertical list of pages: Match, Texts, Look, Output, Remote, Source links, Match control (new, resume, end, event log) and Updates. Fields keep the size of their content. The About window is gone: the version is on the Updates page.
+- The sport, the source-link indicator, the remote badge and the settings button sit in a bordered footer at the bottom of the dock.
 - Tooltips and descriptions are shorter, and the Italian ones are written in Italian rather than translated word for word.
-
-### Fixed
-
-- The remote page is told about every change at once (server-sent events) instead of asking every 350 ms, so what happens in the plugin shows up on the phone, and a press on the phone shows up in the plugin, with almost no delay.
-- On iPhone every control of the remote page carries its own haptic switch and runs its action from that same tap (the single cover that forwarded taps did not work).
-- The period selector and its "of N" label are laid out in a grid and cannot overlap.
-- On a touch screen the Start button no longer turns grey after a tap in the remote page, "of 3" next to the period no longer hides under the arrow, and the footer of the page sits at the very bottom.
 - The goal, shots and fouls cells line up with their buttons and have the same width; the Stop button is no longer cut at the bottom; the Reset icon is drawn properly.
+- The plugin now also uses Qt Network (shipped with OBS) for the remote page.
+
+### Compatibility
+
+OBS Studio 30.0 or newer, as in 1.0.0.
 
 ## [1.0.0] - 2026-10-19
 

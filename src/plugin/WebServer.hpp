@@ -42,6 +42,8 @@ public:
     // link.
     int controllers() const { return controllers_; }
     int viewers() const { return viewers_; }
+    // The texts of the remote page as the JSON object the page expects (by locale key).
+    static QString pageTexts();
     bool listening() const { return server_.isListening(); }
     // Why the port could not be opened ("" when it could, or when the server is off).
     QString error() const { return error_; }
@@ -70,7 +72,6 @@ private:
     void handle(const sb::HttpRequest& request, Connection* connection);
     void reply(Connection* connection, int status, const char* contentType,
                const std::string& body);
-    QString i18nJson() const;
 
     QPointer<ClockDriver> driver_;
     QPointer<VendorApi> api_;

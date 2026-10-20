@@ -46,10 +46,10 @@ so every change shows on the next frame. Your font, colors and position stay you
 | **Clock** | Tenths of a second, up or down; ±1 min / ±1 s arrows capped to the period; two-digit minutes; stoppage time. |
 | **Sports** | 14 editable presets: ice hockey, basketball, soccer, futsal, American football, lacrosse, rugby union and sevens, field hockey, water polo, handball, rink hockey, floorball, generic. |
 | **Penalties** | Up to 8 per team, 2 running; compound (2+2); edit or cancel each one; strength text (`5-4`). |
-| **Dock** | Compact, no scrolling; custom score and foul colors; match autosaved and resumable. |
+| **Dock** | Compact, no scrolling, follows the OBS theme; sport, links and settings in a footer; optional team colors, period-progress border and clock color; match autosaved and resumable. |
 | **Hotkeys** | 40, stored in the scene collection. |
 | **Remote control** | obs-websocket vendor, Stream Deck plugin, Bitfocus Companion module, web page for watching or commanding from a browser. |
-| **Extras** | Optional `.txt` output, event log with YouTube chapters export, update notice. |
+| **Extras** | Optional `.txt` output, event log with YouTube chapters export, update check with the changelog of the new version. |
 
 ### Sports
 
@@ -105,7 +105,12 @@ Enable the server under **Tools → WebSocket Server Settings**. The Stream Deck
 
 #### Web page
 
-<img src="docs/images/web-remote.png" width="340" alt="The remote page in a browser: the same layout as the dock">
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/remote-mobile-control.png" width="260" alt="The remote page on a phone with the control link"><br><sub>Control link</sub></td>
+    <td align="center"><img src="docs/images/remote-mobile-view.png" width="260" alt="The remote page on a phone with the view link, custom colors"><br><sub>View link, custom colors</sub></td>
+  </tr>
+</table>
 
 Off by default. Turn it on in **⚙ → Remote**: *View only* gives one link that can only watch; *View and control* adds a second link that also runs the clock, scores, periods and penalty cancellations. Open a link in any browser on your network, or copy it to a phone. The page looks like the dock (same colors, same arrangement of the buttons, the progress border and the clock color you chose). The keys of the two links are random, or you type your own (6–64 letters, digits, `-`, `_`). On a phone the page can vibrate when you press a button; a switch in its footer turns that on or off (Android; on iPhone it relies on an iOS trick and is not guaranteed). The connection is plain HTTP, so use it on a network you trust. A badge in the footer of the dock tells you when a device is connected. To reach it from outside your network (Tailscale, Cloudflare Tunnel, ngrok) see [docs/remote-control.md](docs/remote-control.md).
 
@@ -118,6 +123,8 @@ Off by default. Turn it on in **⚙ → Remote**: *View only* gives one link tha
 | Update check | Gear icon → *Updates* | *Check for updates now* asks GitHub on demand; *Check for updates at start* does it once per start. When a newer release exists, the page shows its changelog and the dock shows an "Update" button. Sends only the plugin version; notifies, never installs. |
 
 ### Look
+
+<img src="docs/images/settings-look.png" width="520" alt="Settings window, Look page: colors, period progress and clock color">
 
 | Feature | Where | Behavior |
 |---|---|---|
@@ -162,10 +169,10 @@ della sorgente tramite le API di OBS, così ogni cambio compare al fotogramma su
 | **Cronometro** | Decimi di secondo, avanti o indietro; frecce ±1 min / ±1 s limitate al periodo; minuti a due cifre; recupero. |
 | **Sport** | 14 preset modificabili: hockey su ghiaccio, basket, calcio, futsal, football americano, lacrosse, rugby a 15 e a 7, hockey su prato, pallanuoto, pallamano, hockey su pista, floorball, generico. |
 | **Penalità** | Fino a 8 per squadra, 2 in corso; composte (2+2); modifica o annulla ciascuna; testo di inferiorità (`5-4`). |
-| **Pannello** | Compatto, senza scorrimento; colori di punteggi e falli personalizzabili; partita salvata in automatico e riprendibile. |
+| **Pannello** | Compatto, senza scorrimento, segue il tema di OBS; sport, collegamenti e impostazioni in un piè di pagina; colori di squadra, bordo di avanzamento e colore del cronometro facoltativi; partita salvata in automatico e riprendibile. |
 | **Hotkey** | 40, salvate nella collezione di scene. |
-| **Controllo remoto** | Vendor obs-websocket, plugin Stream Deck, modulo Bitfocus Companion. |
-| **Extra** | Output `.txt` facoltativo, registro eventi con esportazione dei capitoli YouTube, avviso di aggiornamento. |
+| **Controllo remoto** | Vendor obs-websocket, plugin Stream Deck, modulo Bitfocus Companion, pagina web per guardare o comandare da un browser. |
+| **Extra** | Output `.txt` facoltativo, registro eventi con esportazione dei capitoli YouTube, controllo degli aggiornamenti con il changelog della nuova versione. |
 
 ### Sport
 
@@ -221,7 +228,12 @@ Attiva il server da **Strumenti → Impostazioni server WebSocket**. Il plugin S
 
 #### Pagina web
 
-<img src="docs/images/web-remote.png" width="340" alt="La pagina remota in un browser: lo stesso aspetto del pannello">
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/remote-mobile-control.png" width="260" alt="La pagina remota su smartphone con il link di controllo"><br><sub>Link di controllo</sub></td>
+    <td align="center"><img src="docs/images/remote-mobile-view.png" width="260" alt="La pagina remota su smartphone con il link di visione, colori personalizzati"><br><sub>Link di visione, colori personalizzati</sub></td>
+  </tr>
+</table>
 
 Spenta di default. Si attiva da **⚙ → Remoto**: *Solo visione* dà un link che può solo guardare; *Visione e controllo* aggiunge un secondo link che comanda anche cronometro, punteggi, periodi e annullamento delle penalità. Apri il link in un browser sulla tua rete, oppure copialo sul telefono. La pagina ha l'aspetto del pannello (stessi colori, stessa disposizione dei tasti, bordo di avanzamento e colore del cronometro che hai scelto). Le chiavi dei due link sono casuali oppure le scrivi tu (da 6 a 64 lettere, cifre, `-`, `_`). Sul telefono la pagina può vibrare alla pressione dei tasti; un interruttore nel piè di pagina lo attiva o disattiva (Android; su iPhone si basa su un trucco di iOS e non è garantita). La connessione è HTTP semplice: usala su una rete di cui ti fidi. Un badge nel piè di pagina del pannello indica quando un dispositivo è collegato. Per raggiungerla da fuori rete (Tailscale, Cloudflare Tunnel, ngrok) vedi [docs/remote-control.md](docs/remote-control.md).
 
@@ -234,6 +246,8 @@ Spenta di default. Si attiva da **⚙ → Remoto**: *Solo visione* dà un link c
 | Controllo aggiornamenti | Ingranaggio → *Aggiornamenti* | *Controlla aggiornamenti ora* interroga GitHub su richiesta; *Controlla gli aggiornamenti all'avvio* lo fa una volta per avvio. Se esiste una versione più nuova la pagina mostra il changelog e il pannello un pulsante "Aggiorna". Invia solo la versione del plugin; avvisa, non installa. |
 
 ### Aspetto
+
+<img src="docs/images/settings-look.png" width="520" alt="Finestra impostazioni, pagina Aspetto: colori, avanzamento del periodo e colore del cronometro">
 
 | Funzione | Dove | Comportamento |
 |---|---|---|
