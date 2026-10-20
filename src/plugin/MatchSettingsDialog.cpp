@@ -11,6 +11,7 @@
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -18,16 +19,24 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QTabWidget>
+#include <QListWidget>
+#include <QScrollArea>
+#include <QStackedWidget>
+#include <QTextBrowser>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <utility>
 
+#include "BindingsPage.hpp"
 #include "Format.hpp"
 #include "PanelModel.hpp"
 #include "SettingsChange.hpp"
 #include "SportCatalog.hpp"
+#include "UpdateChecker.hpp"
+#include "plugin-support.h"
 
 namespace {
 
@@ -41,15 +50,39 @@ QSpinBox* makeSpin(int min, int max, QWidget* parent) {
     return spin;
 }
 
+// A form whose fields keep the size of their content: a small number gets a small box.
+QFormLayout* makeForm(QWidget* parent) {
+    auto* form = new QFormLayout(parent);
+    form->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
+    form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    form->setHorizontalSpacing(16);
+    form->setVerticalSpacing(8);
+    return form;
+}
+
+// A titled group of a page, with its own form.
+QFormLayout* addGroup(QVBoxLayout* page, const QString& title, QWidget* parent) {
+    auto* group = new QGroupBox(title, parent);
+    auto* form = makeForm(group);
+    page->addWidget(group);
+    return form;
+}
+
+QLineEdit* makeLine(int minWidth, QWidget* parent) {
+    auto* edit = new QLineEdit(parent);
+    edit->setMinimumWidth(minWidth);
+    return edit;
+}
+
 } // namespace
 
 MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
                                          const sb::GlobalPrefs& prefs, Applier applier,
-                                         QWidget* parent)
+                                         Services services, QWidget* parent)
     : QDialog(parent), prefs_(prefs), base_(current), openedHome_(current.homeName),
-      openedAway_(current.awayName), applier_(std::move(applier)) {
+      openedAway_(current.awayName), applier_(std::move(applier)), services_(std::move(services)) {
     setWindowTitle(text("Settings.Title"));
-    setMinimumWidth(460);
+    resize(780, 620);
     setAttribute(Qt::WA_DeleteOnClose);
     scoreColor_ = prefs_.scoreColor;
     foulColor_ = prefs_.foulColor;
@@ -59,20 +92,48 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
     clockBase_ = prefs_.clockColor.base;
 
     auto* outer = new QVBoxLayout(this);
-    tabs_ = new QTabWidget(this);
-    auto* matchPage = new QWidget(tabs_);
-    auto* textsPage = new QWidget(tabs_);
-    auto* lookPage = new QWidget(tabs_);
-    auto* outputPage = new QWidget(tabs_);
+    auto* body = new QHBoxLayout();
+    nav_ = new QListWidget(this);
+    nav_->setFixedWidth(160);
+    dockstyle::setProp(nav_, "sbNav", QStringLiteral("1"));
+    pages_ = new QStackedWidget(this);
+    // Each page scrolls by itself when the window is smaller than its content.
+    const auto addPage = [this](const QString& title, QWidget* content, bool scrolls) {
+        QWidget* shown = content;
+        if (scrolls) {
+            auto* scroll = new QScrollArea(pages_);
+            scroll->setWidgetResizable(true);
+            scroll->setFrameShape(QFrame::NoFrame);
+            scroll->setWidget(content);
+            shown = scroll;
+        }
+        pages_->addWidget(shown);
+        nav_->addItem(title);
+    };
+    auto* matchPage = new QWidget(pages_);
+    auto* textsPage = new QWidget(pages_);
+    auto* lookPage = new QWidget(pages_);
+    auto* outputPage = new QWidget(pages_);
+    auto* actionsPage = new QWidget(pages_);
+    auto* updatesPage = new QWidget(pages_);
     buildMatchTab(matchPage);
     buildTextsTab(textsPage);
     buildLookTab(lookPage);
     buildOutputTab(outputPage);
-    tabs_->addTab(matchPage, text("Settings.Tab.Match"));
-    tabs_->addTab(textsPage, text("Settings.Tab.Texts"));
-    tabs_->addTab(lookPage, text("Settings.Tab.Look"));
-    tabs_->addTab(outputPage, text("Settings.Tab.Output"));
-    outer->addWidget(tabs_);
+    buildActionsPage(actionsPage);
+    buildUpdatesPage(updatesPage);
+    addPage(text("Settings.Tab.Match"), matchPage, true);
+    addPage(text("Settings.Tab.Texts"), textsPage, true);
+    addPage(text("Settings.Tab.Look"), lookPage, true);
+    addPage(text("Settings.Tab.Output"), outputPage, true);
+    addPage(text("Settings.Tab.Links"), new BindingsPage(services_.sinks, pages_), false);
+    addPage(text("Settings.Tab.Actions"), actionsPage, true);
+    addPage(text("Settings.Tab.Updates"), updatesPage, true);
+    connect(nav_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
+    nav_->setCurrentRow(0);
+    body->addWidget(nav_);
+    body->addWidget(pages_, 1);
+    outer->addLayout(body, 1);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, &QDialogButtonBox::accepted, this, &MatchSettingsDialog::accept);
@@ -94,8 +155,9 @@ MatchSettingsDialog::MatchSettingsDialog(const sb::MatchSettings& current,
 }
 
 void MatchSettingsDialog::buildMatchTab(QWidget* page) {
-    auto* form = new QFormLayout(page);
+    auto* outer = new QVBoxLayout(page);
 
+    QFormLayout* form = addGroup(outer, text("Settings.Group.Match"), page);
     sport_ = new QComboBox(page);
     for (const sb::SportPreset& s : sb::builtInSports()) {
         const std::string key = "Sport." + s.id;
@@ -104,15 +166,14 @@ void MatchSettingsDialog::buildMatchTab(QWidget* page) {
     }
     connect(sport_, &QComboBox::activated, this, [this](int) { sportActivated(); });
     form->addRow(text("Settings.Sport"), sport_);
-
-    home_ = new QLineEdit(page);
-    away_ = new QLineEdit(page);
+    home_ = makeLine(240, page);
+    away_ = makeLine(240, page);
     form->addRow(text("Settings.HomeName"), home_);
     form->addRow(text("Settings.AwayName"), away_);
 
+    form = addGroup(outer, text("Settings.Group.Time"), page);
     periods_ = makeSpin(1, 20, page);
     form->addRow(text("Settings.Periods"), periods_);
-
     auto* duration = new QHBoxLayout();
     durationMinutes_ = makeSpin(0, 240, page);
     durationSeconds_ = makeSpin(0, 59, page);
@@ -120,13 +181,12 @@ void MatchSettingsDialog::buildMatchTab(QWidget* page) {
     duration->addWidget(new QLabel(text("Settings.Minutes"), page));
     duration->addWidget(durationSeconds_);
     duration->addWidget(new QLabel(text("Settings.Seconds"), page));
+    duration->addStretch(1);
     form->addRow(text("Settings.Duration"), duration);
-
     direction_ = new QComboBox(page);
     direction_->addItem(text("Settings.Direction.Up"), static_cast<int>(sb::Direction::Up));
     direction_->addItem(text("Settings.Direction.Down"), static_cast<int>(sb::Direction::Down));
     form->addRow(text("Settings.Direction"), direction_);
-
     auto* overtime = new QHBoxLayout();
     overtimeUnlimited_ = new QCheckBox(text("Settings.OvertimeUnlimited"), page);
     overtimeCount_ = makeSpin(0, 9, page);
@@ -134,35 +194,35 @@ void MatchSettingsDialog::buildMatchTab(QWidget* page) {
             [this](bool unlimited) { overtimeCount_->setEnabled(!unlimited); });
     overtime->addWidget(overtimeCount_);
     overtime->addWidget(overtimeUnlimited_);
+    overtime->addStretch(1);
     form->addRow(text("Settings.Overtime"), overtime);
-
     overtimeMinutes_ = makeSpin(0, 120, page);
     form->addRow(text("Settings.OvertimeMinutes"), overtimeMinutes_);
 
+    form = addGroup(outer, text("Settings.Group.Players"), page);
     players_ = makeSpin(0, 99, page);
     minPlayers_ = makeSpin(0, 99, page);
     connect(players_, qOverload<int>(&QSpinBox::valueChanged), minPlayers_,
             [this](int value) { minPlayers_->setMaximum(value); });
     form->addRow(text("Settings.Players"), players_);
     form->addRow(text("Settings.MinPlayers"), minPlayers_);
-
-    scoreValues_ = new QLineEdit(page);
+    scoreValues_ = makeLine(140, page);
     scoreValues_->setToolTip(text("Settings.ScoreButtonsHelp"));
     form->addRow(text("Settings.ScoreButtons"), scoreValues_);
 
     auto* defaults = new QPushButton(text("Settings.Defaults"), page);
     connect(defaults, &QPushButton::clicked, this, &MatchSettingsDialog::resetToSportDefaults);
-    form->addRow(defaults);
+    auto* defaultsRow = new QHBoxLayout();
+    defaultsRow->addWidget(defaults);
+    defaultsRow->addStretch(1);
+    outer->addLayout(defaultsRow);
+    outer->addStretch(1);
 }
 
 void MatchSettingsDialog::buildTextsTab(QWidget* page) {
-    auto* form = new QFormLayout(page);
-    regulationLabels_ = new QLineEdit(page);
-    regulationLabels_->setToolTip(text("Settings.LabelsHelp"));
-    form->addRow(text("Settings.RegulationLabels"), regulationLabels_);
-    overtimeLabels_ = new QLineEdit(page);
-    overtimeLabels_->setToolTip(text("Settings.LabelsHelp"));
-    form->addRow(text("Settings.OvertimeLabels"), overtimeLabels_);
+    auto* outer = new QVBoxLayout(page);
+
+    QFormLayout* form = addGroup(outer, text("Settings.Group.Clock"), page);
     twoDigit_ = new QCheckBox(text("Settings.TwoDigit"), page);
     form->addRow(twoDigit_);
     tenths_ = new QCheckBox(text("Settings.Tenths"), page);
@@ -175,34 +235,47 @@ void MatchSettingsDialog::buildTextsTab(QWidget* page) {
     stoppage_->addItem(text("Settings.Stoppage.RunPast"),
                        static_cast<int>(sb::StoppageMode::RunPastDuration));
     form->addRow(text("Settings.Stoppage"), stoppage_);
-    penaltyFormat_ = new QLineEdit(page);
-    penaltyFormat_->setToolTip(text("Settings.PenaltyHelp"));
-    form->addRow(text("Settings.PenaltyFormat"), penaltyFormat_);
-    penaltyPreview_ = new QLabel(page);
-    form->addRow(QString(), penaltyPreview_);
-    strengthEven_ = new QLineEdit(page);
-    form->addRow(text("Settings.StrengthEven"), strengthEven_);
-    strengthUneven_ = new QLineEdit(page);
-    form->addRow(text("Settings.StrengthUneven"), strengthUneven_);
     playTime_ = new QComboBox(page);
     playTime_->addItem(text("Settings.PlayTime.MS"),
                        static_cast<int>(sb::TimeFormat::MinutesSeconds));
     playTime_->addItem(text("Settings.PlayTime.HMS"),
                        static_cast<int>(sb::TimeFormat::HoursMinutesSeconds));
     form->addRow(text("Settings.PlayTime"), playTime_);
+
+    form = addGroup(outer, text("Settings.Group.Labels"), page);
+    regulationLabels_ = makeLine(200, page);
+    regulationLabels_->setToolTip(text("Settings.LabelsHelp"));
+    form->addRow(text("Settings.RegulationLabels"), regulationLabels_);
+    overtimeLabels_ = makeLine(200, page);
+    overtimeLabels_->setToolTip(text("Settings.LabelsHelp"));
+    form->addRow(text("Settings.OvertimeLabels"), overtimeLabels_);
+
+    form = addGroup(outer, text("Settings.Group.Penalties"), page);
+    penaltyFormat_ = makeLine(260, page);
+    penaltyFormat_->setToolTip(text("Settings.PenaltyHelp"));
+    form->addRow(text("Settings.PenaltyFormat"), penaltyFormat_);
+    penaltyPreview_ = new QLabel(page);
+    form->addRow(QString(), penaltyPreview_);
+    strengthEven_ = makeLine(100, page);
+    form->addRow(text("Settings.StrengthEven"), strengthEven_);
+    strengthUneven_ = makeLine(160, page);
+    form->addRow(text("Settings.StrengthUneven"), strengthUneven_);
+    outer->addStretch(1);
 }
 
 QPushButton* MatchSettingsDialog::addColorRow(QFormLayout* form, const QString& label,
                                               std::string* target, const std::string& fallback) {
     auto* swatch = new QPushButton(this);
+    swatch->setFixedWidth(150);
     swatchDefaults_.emplace_back(swatch, fallback);
     connect(swatch, &QPushButton::clicked, this,
             [this, target, swatch]() { pickColor(*target, swatch); });
     if (form) { // a row of the form has a "default" button; the interval rows lay out their own
         auto* reset = new QPushButton(text("Settings.Default"), this);
         auto* row = new QHBoxLayout();
-        row->addWidget(swatch, 1);
+        row->addWidget(swatch);
         row->addWidget(reset);
+        row->addStretch(1);
         connect(reset, &QPushButton::clicked, this, [this, target, swatch]() {
             target->clear();
             showColor(swatch, *target);
@@ -218,7 +291,7 @@ void MatchSettingsDialog::buildLookTab(QWidget* page) {
 
     // --- Colors of the dock -----------------------------------------------------------------
     auto* colors = new QGroupBox(text("Settings.Group.Colors"), page);
-    auto* colorsForm = new QFormLayout(colors);
+    auto* colorsForm = makeForm(colors);
     scoreSwatch_ = addColorRow(colorsForm, text("Settings.ScoreColor"), &scoreColor_,
                                std::string(sb::kDefaultScoreColor));
     foulSwatch_ = addColorRow(colorsForm, text("Settings.FoulColor"), &foulColor_,
@@ -237,7 +310,7 @@ void MatchSettingsDialog::buildLookTab(QWidget* page) {
 
     // --- Period progress on the border of the clock frame -----------------------------------
     auto* frame = new QGroupBox(text("Settings.Group.Frame"), page);
-    auto* frameForm = new QFormLayout(frame);
+    auto* frameForm = makeForm(frame);
     periodBar_ = new QComboBox(frame);
     periodBar_->addItem(text("Settings.PeriodBar.Off"), static_cast<int>(sb::PeriodBarMode::Off));
     periodBar_->addItem(text("Settings.PeriodBar.Remaining"),
@@ -259,7 +332,7 @@ void MatchSettingsDialog::buildLookTab(QWidget* page) {
 
     // --- Color of the clock digits ------------------------------------------------------------
     auto* digits = new QGroupBox(text("Settings.Group.Digits"), page);
-    auto* digitsForm = new QFormLayout(digits);
+    auto* digitsForm = makeForm(digits);
     clockMode_ = new QComboBox(digits);
     clockMode_->addItem(text("Settings.ClockColor.Theme"),
                         static_cast<int>(sb::ClockColorMode::Theme));
@@ -291,7 +364,8 @@ void MatchSettingsDialog::buildLookTab(QWidget* page) {
         line->addWidget(row.on);
         line->addWidget(row.seconds);
         row.swatch = addColorRow(nullptr, QString(), &row.color, kRuleDefaults[i].second);
-        line->addWidget(row.swatch, 1);
+        line->addWidget(row.swatch);
+        line->addStretch(1);
         digitsForm->addRow(line);
         connect(row.on, &QCheckBox::toggled, this, [this](bool) { updateClockColorEnabled(); });
     }
@@ -318,7 +392,8 @@ void MatchSettingsDialog::updateClockColorEnabled() {
 }
 
 void MatchSettingsDialog::buildOutputTab(QWidget* page) {
-    auto* form = new QFormLayout(page);
+    auto* outer = new QVBoxLayout(page);
+    QFormLayout* form = addGroup(outer, text("Settings.Group.FileOutput"), page);
     fileOutput_ = new QCheckBox(text("Settings.FileOutput"), page);
     connect(fileOutput_, &QCheckBox::toggled, this, [this](bool) { refreshFileOutput(); });
     form->addRow(fileOutput_);
@@ -329,17 +404,136 @@ void MatchSettingsDialog::buildOutputTab(QWidget* page) {
     connect(fileOutputChoose_, &QPushButton::clicked, this,
             &MatchSettingsDialog::chooseFileOutputDir);
     auto* row = new QHBoxLayout();
-    row->addWidget(fileOutputDirLabel_, 1);
+    row->setSpacing(10);
     row->addWidget(fileOutputChoose_);
+    row->addWidget(fileOutputDirLabel_, 1);
     form->addRow(text("Settings.FileOutputFolder"), row);
 
     auto* help = new QLabel(text("Settings.FileOutputHelp"), page);
     help->setWordWrap(true);
+    dockstyle::setProp(help, dockstyle::kText, QStringLiteral("muted"));
     form->addRow(help);
+    outer->addStretch(1);
 
     fileOutput_->setChecked(prefs_.fileOutputEnabled);
     fileOutputDir_ = prefs_.fileOutputDir;
     refreshFileOutput();
+}
+
+// A page of buttons for what happens to the match as a whole.
+void MatchSettingsDialog::buildActionsPage(QWidget* page) {
+    auto* outer = new QVBoxLayout(page);
+    auto* group = new QGroupBox(text("Settings.Group.Actions"), page);
+    auto* grid = new QGridLayout(group);
+    grid->setHorizontalSpacing(16);
+    grid->setVerticalSpacing(10);
+    struct Entry {
+        const char* label;
+        const char* help;
+        std::function<void()> action;
+        bool closeFirst;
+    };
+    const Entry entries[] = {
+        {"Menu.NewMatch", "Settings.Action.NewMatch", services_.newMatch, true},
+        {"Dock.Resume", "Settings.Action.Resume", services_.resumePrevious, true},
+        {"Menu.EndMatch", "Settings.Action.EndMatch", services_.endMatch, true},
+        {"Menu.EventLog", "Settings.Action.EventLog", services_.eventLog, false},
+    };
+    int row = 0;
+    for (const Entry& entry : entries) {
+        auto* button = new QPushButton(text(entry.label), group);
+        button->setMinimumWidth(190);
+        auto* help = new QLabel(text(entry.help), group);
+        help->setWordWrap(true);
+        dockstyle::setProp(help, dockstyle::kText, QStringLiteral("muted"));
+        connect(button, &QPushButton::clicked, this,
+                [this, action = entry.action, closeFirst = entry.closeFirst]() {
+                    runAction(action, closeFirst);
+                });
+        grid->addWidget(button, row, 0);
+        grid->addWidget(help, row, 1);
+        grid->setColumnStretch(1, 1);
+        ++row;
+    }
+    outer->addWidget(group);
+    outer->addStretch(1);
+}
+
+void MatchSettingsDialog::runAction(const std::function<void()>& action, bool closeFirst) {
+    if (!action) return;
+    const std::function<void()> copy = action; // this window may be gone once it closes
+    if (closeFirst) reject();
+    copy();
+}
+
+void MatchSettingsDialog::buildUpdatesPage(QWidget* page) {
+    auto* outer = new QVBoxLayout(page);
+    auto* group = new QGroupBox(text("Settings.Group.Updates"), page);
+    auto* layout = new QVBoxLayout(group);
+    auto* version = new QLabel(text("Menu.Version").arg(QString::fromUtf8(PLUGIN_VERSION)), group);
+    dockstyle::setProp(version, dockstyle::kText, QStringLiteral("strong"));
+    layout->addWidget(version);
+    updateAtStart_ = new QCheckBox(text("Menu.UpdateCheck"), group);
+    updateAtStart_->setChecked(prefs_.updateCheck);
+    layout->addWidget(updateAtStart_);
+
+    auto* row = new QHBoxLayout();
+    auto* check = new QPushButton(text("Menu.UpdateNow"), group);
+    updateStatus_ = new QLabel(group);
+    updateStatus_->setWordWrap(true);
+    updateOpen_ = new QPushButton(text("Settings.Updates.OpenPage"), group);
+    updateOpen_->hide();
+    row->addWidget(check);
+    row->addWidget(updateStatus_, 1);
+    row->addWidget(updateOpen_);
+    layout->addLayout(row);
+
+    updateNotes_ = new QTextBrowser(group);
+    updateNotes_->setOpenExternalLinks(true);
+    updateNotes_->setMinimumHeight(220);
+    updateNotes_->hide();
+    layout->addWidget(updateNotes_, 1);
+    outer->addWidget(group, 1);
+
+    connect(updateOpen_, &QPushButton::clicked, this, [this]() {
+        if (!updateUrl_.isEmpty()) QDesktopServices::openUrl(QUrl(updateUrl_));
+    });
+    connect(check, &QPushButton::clicked, this, [this]() {
+        if (!services_.updater) {
+            updateStatus_->setText(text("Update.Failed"));
+            return;
+        }
+        updateStatus_->setText(text("Update.Checking"));
+        services_.updater->start(PLUGIN_VERSION, true);
+    });
+    if (services_.updater) {
+        connect(services_.updater, &UpdateChecker::updateAvailable, this,
+                [this](QString version, QString url, QString notes) {
+                    showUpdateInfo(version, url, notes);
+                });
+        connect(services_.updater, &UpdateChecker::noUpdate, this, [this]() {
+            updateStatus_->setText(text("Update.None").arg(QString::fromUtf8(PLUGIN_VERSION)));
+            updateNotes_->hide();
+            updateOpen_->hide();
+        });
+        connect(services_.updater, &UpdateChecker::failed, this,
+                [this]() { updateStatus_->setText(text("Update.Failed")); });
+    }
+    if (!services_.updateVersion.isEmpty())
+        showUpdateInfo(services_.updateVersion, services_.updateUrl, services_.updateNotes);
+}
+
+void MatchSettingsDialog::showUpdateInfo(const QString& version, const QString& url,
+                                         const QString& notes) {
+    updateUrl_ = url;
+    updateStatus_->setText(text("Settings.Updates.Available").arg(version));
+    updateOpen_->setVisible(!url.isEmpty());
+    updateNotes_->setMarkdown(notes.isEmpty() ? text("Settings.Updates.NoNotes") : notes);
+    updateNotes_->show();
+}
+
+void MatchSettingsDialog::showPage(Page page) {
+    nav_->setCurrentRow(static_cast<int>(page));
 }
 
 void MatchSettingsDialog::refreshFileOutput() {
@@ -498,6 +692,7 @@ bool MatchSettingsDialog::collect(Result& out, QString* problem) const {
     out.scoreColor = scoreColor_;
     out.foulColor = foulColor_;
     out.comfortableDock = density_ && density_->currentData().toInt() == 1;
+    out.updateCheck = updateAtStart_->isChecked();
     out.homeColor = homeColor_;
     out.awayColor = awayColor_;
     out.periodBar = static_cast<sb::PeriodBarMode>(periodBar_->currentData().toInt());

@@ -87,8 +87,8 @@ target_sources(
   PRIVATE
     src/plugin/AtomicFile.cpp
     src/plugin/AtomicFile.hpp
-    src/plugin/BindingsDialog.cpp
-    src/plugin/BindingsDialog.hpp
+    src/plugin/BindingsPage.cpp
+    src/plugin/BindingsPage.hpp
     src/plugin/BindingStore.cpp
     src/plugin/BindingStore.hpp
     src/plugin/ClockDriver.cpp

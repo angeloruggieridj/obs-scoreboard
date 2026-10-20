@@ -5,6 +5,7 @@
 #include <charconv>
 #include <cstddef>
 #include <system_error>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -72,6 +73,42 @@ int compareVersions(const Version& a, const Version& b) {
     const PreParts pb = splitPre(b.pre);
     if (pa.letters != pb.letters) return pa.letters < pb.letters ? -1 : 1;
     return cmp(pa.number, pb.number);
+}
+
+std::vector<ReleaseInfo> newerReleases(std::string_view releasesJson, const Version& current,
+                                       bool includePrereleases) {
+    std::vector<ReleaseInfo> found;
+    const nlohmann::json doc = nlohmann::json::parse(releasesJson, nullptr, false);
+    if (!doc.is_array()) return found;
+    std::vector<Version> versions;
+    for (const nlohmann::json& entry : doc) {
+        if (!entry.is_object()) continue;
+        const auto tag = entry.find("tag_name");
+        if (tag == entry.end() || !tag->is_string()) continue;
+        const auto draft = entry.find("draft");
+        if (draft != entry.end() && draft->is_boolean() && draft->get<bool>()) continue;
+        const auto pre = entry.find("prerelease");
+        const bool isPre = pre != entry.end() && pre->is_boolean() && pre->get<bool>();
+        if (isPre && !includePrereleases) continue;
+        const std::optional<Version> version = parseVersion(tag->get<std::string>());
+        if (!version || compareVersions(*version, current) <= 0) continue;
+
+        ReleaseInfo info;
+        info.version = tag->get<std::string>();
+        const auto name = entry.find("name");
+        if (name != entry.end() && name->is_string()) info.name = name->get<std::string>();
+        const auto url = entry.find("html_url");
+        if (url != entry.end() && url->is_string()) info.url = url->get<std::string>();
+        const auto body = entry.find("body");
+        if (body != entry.end() && body->is_string()) info.body = body->get<std::string>();
+        info.prerelease = isPre;
+        // Insertion keeps the list sorted, newest first.
+        std::size_t at = 0;
+        while (at < versions.size() && compareVersions(versions[at], *version) >= 0) ++at;
+        versions.insert(versions.begin() + static_cast<std::ptrdiff_t>(at), *version);
+        found.insert(found.begin() + static_cast<std::ptrdiff_t>(at), std::move(info));
+    }
+    return found;
 }
 
 std::optional<ReleaseInfo> newestRelease(std::string_view releasesJson, const Version& current,

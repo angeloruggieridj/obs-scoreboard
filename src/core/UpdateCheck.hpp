@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace sb {
 
@@ -31,6 +32,7 @@ struct ReleaseInfo {
     std::string name;
     std::string url; // the release page (html_url)
     bool prerelease = false;
+    std::string body; // the release notes (Markdown), as written on GitHub
 };
 
 // Picks the newest release of `releasesJson` (the array of GET /repos/{owner}/{repo}/releases)
@@ -39,5 +41,10 @@ struct ReleaseInfo {
 // document is not a releases array.
 std::optional<ReleaseInfo> newestRelease(std::string_view releasesJson, const Version& current,
                                          bool includePrereleases);
+
+// Every release newer than `current` (same filters as newestRelease), newest first, each with its
+// notes. Empty when nothing is newer or the document is not a releases array.
+std::vector<ReleaseInfo> newerReleases(std::string_view releasesJson, const Version& current,
+                                       bool includePrereleases);
 
 } // namespace sb

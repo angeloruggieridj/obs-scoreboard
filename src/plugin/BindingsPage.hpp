@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
-#include <QDialog>
+#include <QWidget>
 #include <QPointer>
 
 #include <array>
@@ -12,11 +12,11 @@ class FieldSinks;
 class SourcePicker;
 
 // "Source links": one row per scoreboard field, each with its Text source and a "create" button.
-// Non-modal, so the clock and the dock stay usable while it is open.
-class BindingsDialog : public QDialog {
+// A page of the settings window; changes apply at once.
+class BindingsPage : public QWidget {
     Q_OBJECT
 public:
-    BindingsDialog(FieldSinks* sinks, QWidget* parent = nullptr);
+    explicit BindingsPage(FieldSinks* sinks, QWidget* parent = nullptr);
 
 private:
     void choose(sb::FieldId field);

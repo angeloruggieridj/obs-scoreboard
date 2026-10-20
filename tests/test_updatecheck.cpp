@@ -103,3 +103,23 @@ TEST_CASE("a running pre-release is offered the final release of its own numbers
     REQUIRE(found.has_value());
     CHECK(found->version == "1.0.1");
 }
+
+TEST_CASE("every newer release comes with its notes, newest first") {
+    const std::string releases = R"([
+      {"tag_name":"1.0.1","html_url":"u1","body":"Fixes","prerelease":false,"draft":false},
+      {"tag_name":"1.2.0","html_url":"u3","body":"Big one","prerelease":false,"draft":false},
+      {"tag_name":"1.1.0","html_url":"u2","prerelease":false,"draft":false},
+      {"tag_name":"1.0.0","html_url":"u0","body":"Old","prerelease":false,"draft":false},
+      {"tag_name":"1.3.0","html_url":"u4","body":"Draft","prerelease":false,"draft":true}
+    ])";
+    const auto list = newerReleases(releases, v("1.0.0"), false);
+    REQUIRE(list.size() == 3);
+    CHECK(list[0].version == "1.2.0");
+    CHECK(list[0].body == "Big one");
+    CHECK(list[1].version == "1.1.0");
+    CHECK(list[1].body.empty()); // no notes written
+    CHECK(list[2].version == "1.0.1");
+    CHECK(list[2].body == "Fixes");
+    CHECK(newerReleases("not json", v("1.0.0"), true).empty());
+    CHECK(newerReleases(releases, v("1.2.0"), false).empty());
+}

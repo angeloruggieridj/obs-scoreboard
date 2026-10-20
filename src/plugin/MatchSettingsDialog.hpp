@@ -19,14 +19,36 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 class QSpinBox;
-class QTabWidget;
+class QGroupBox;
+class QListWidget;
+class QStackedWidget;
+class QTextBrowser;
+class FieldSinks;
+class UpdateChecker;
 
-// Match settings in four tabs (Match / Texts / Look / Output). Non-modal: the clock keeps running,
-// so the dialog keeps no copy of the game state; it hands the edited settings to an Applier (the
-// dock), which classifies the change against the match as it is at that moment.
+// Everything the dock offers, in one window with a list of pages on the left: Match, Texts, Look,
+// Output, Source links, Match actions (new, resume, end, event log) and Updates. Non-modal: the
+// clock keeps running, so the dialog keeps no copy of the game state; it hands the edited settings
+// to an Applier (the dock), which classifies the change against the match as it is at that moment.
 class MatchSettingsDialog : public QDialog {
     Q_OBJECT
 public:
+    enum class Page { Match, Texts, Look, Output, Links, Actions, Updates };
+
+    // What the window needs from the rest of the plugin.
+    struct Services {
+        FieldSinks* sinks = nullptr;
+        UpdateChecker* updater = nullptr;
+        std::function<void()> newMatch;
+        std::function<void()> resumePrevious;
+        std::function<void()> endMatch;
+        std::function<void()> eventLog;
+        // The newest release the update check has found so far (empty version: none).
+        QString updateVersion;
+        QString updateUrl;
+        QString updateNotes;
+    };
+
     struct Result {
         sb::MatchSettings settings;
         bool homeNameEdited = false; // false: keep the engine's current name
@@ -36,6 +58,7 @@ public:
         bool fileOutputEnabled = false;
         std::string fileOutputDir;
         bool comfortableDock = false;
+        bool updateCheck = true;
         std::string homeColor; // "#RRGGBB" or empty = the side's default
         std::string awayColor;
         sb::PeriodBarMode periodBar = sb::PeriodBarMode::Remaining;
@@ -45,7 +68,8 @@ public:
     using Applier = std::function<bool(const Result&)>;
 
     MatchSettingsDialog(const sb::MatchSettings& current, const sb::GlobalPrefs& prefs,
-                        Applier applier, QWidget* parent = nullptr);
+                        Applier applier, Services services, QWidget* parent = nullptr);
+    void showPage(Page page);
     void accept() override;
 
 private:
@@ -53,6 +77,10 @@ private:
     void buildTextsTab(QWidget* page);
     void buildLookTab(QWidget* page);
     void buildOutputTab(QWidget* page);
+    void buildActionsPage(QWidget* page);
+    void buildUpdatesPage(QWidget* page);
+    void showUpdateInfo(const QString& version, const QString& url, const QString& notes);
+    void runAction(const std::function<void()>& action, bool closeFirst);
     void chooseFileOutputDir();
     void refreshFileOutput();
     void loadFrom(const sb::MatchSettings& settings, bool keepNames);
@@ -75,7 +103,14 @@ private:
     std::string openedHome_;
     std::string openedAway_;
     Applier applier_;
-    QTabWidget* tabs_ = nullptr;
+    Services services_;
+    QListWidget* nav_ = nullptr;
+    QStackedWidget* pages_ = nullptr;
+    QLabel* updateStatus_ = nullptr;
+    QTextBrowser* updateNotes_ = nullptr;
+    QPushButton* updateOpen_ = nullptr;
+    QCheckBox* updateAtStart_ = nullptr;
+    QString updateUrl_;
 
     QComboBox* sport_ = nullptr;
     QLineEdit* home_ = nullptr;

@@ -18,7 +18,8 @@ param(
     [string]$ObsVersion = '32.2.2',
     [string]$Dll,
     [string]$Language = 'en-US',
-    [ValidateSet('dark', 'light')][string]$Theme = 'dark'
+    [ValidateSet('dark', 'light')][string]$Theme = 'dark',
+    [double]$Scale = 1
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -45,6 +46,7 @@ Install-Plugin -Root $root -Layout legacy -Dll $Dll -LocaleDir (Join-Path $repo 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 Remove-Item -Path (Join-Path $OutDir "*-$Theme*.png"), (Join-Path $OutDir 'grab.done') -Force -ErrorAction SilentlyContinue
 $env:OBS_SCOREBOARD_NO_PICKER = '1'
+if ($Scale -ne 1) { $env:QT_SCALE_FACTOR = [string]$Scale } else { Remove-Item Env:QT_SCALE_FACTOR -ErrorAction SilentlyContinue }
 $env:OBS_SCOREBOARD_GRAB = (Resolve-Path $OutDir).Path
 $env:OBS_SCOREBOARD_GRAB_THEME = $Theme
 $p = Start-Process -FilePath (Join-Path $root 'bin\64bit\obs64.exe') -WorkingDirectory (Join-Path $root 'bin\64bit') `

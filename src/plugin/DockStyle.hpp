@@ -37,6 +37,11 @@ void setDensity(Density density);
 // Heights that follow the density.
 int controlHeight();
 int smallHeight();
+// Gives a button or value cell the exact height of its role (and size) at the current density.
+// Style-sheet heights are not reliable across styles (a button's min-height counts the border and
+// padding differently from a label's), so the heights of the controls that must line up are set
+// here. Called by setProp() and again for every child when the density changes.
+void fitHeight(QWidget* widget);
 
 // The style sheet for widgets whose palette is `palette`.
 QString styleSheet(const QPalette& palette, Density density);
@@ -63,7 +68,7 @@ void styleDialog(QDialog* dialog);
 void setProp(QWidget* widget, const char* name, const QString& value);
 
 // Icons drawn with QPainter (crisp at any scale, independent of the UI font's glyphs).
-enum class Icon { Menu, Plus, Cross, Pencil, Play, Pause, Reset, Prev, Next };
+enum class Icon { Menu, Gear, Plus, Cross, Pencil, Play, Pause, Reset, Prev, Next };
 
 // A button whose icon is one of the above, tinted with the button's text color and redrawn when the
 // theme or the enabled state changes.

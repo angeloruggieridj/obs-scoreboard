@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <mutex>
+#include <vector>
 
 #include "UpdateCheck.hpp"
 #include "plugin-support.h"
@@ -54,7 +55,11 @@ UpdateChecker::~UpdateChecker() {
 }
 
 void UpdateChecker::start(const std::string& currentVersion, bool manual) {
-    if (running_.exchange(true)) return;    // one check at a time
+    if (running_.exchange(true)) { // one check at a time: the running one reports to a manual ask
+        if (manual) manualAsked_ = true;
+        return;
+    }
+    manualAsked_ = manual;
     if (thread_.joinable()) thread_.join(); // the previous one has finished
     thread_ = std::thread([this, currentVersion, manual]() {
         run(currentVersion, manual);
@@ -67,14 +72,14 @@ void UpdateChecker::run(std::string currentVersion, bool manual) {
     if (!current) {
         obs_log(LOG_INFO, "update check skipped: '%s' is not a release version",
                 currentVersion.c_str());
-        if (manual) emit failed();
+        if (manual || manualAsked_) emit failed();
         return;
     }
 
     ensureCurl();
     CURL* curl = curl_easy_init();
     if (!curl) {
-        if (manual) emit failed();
+        if (manual || manualAsked_) emit failed();
         return;
     }
 
@@ -112,19 +117,25 @@ void UpdateChecker::run(std::string currentVersion, bool manual) {
     if (result != CURLE_OK || status != 200) {
         obs_log(LOG_INFO, "update check failed (curl %d, HTTP %ld)", static_cast<int>(result),
                 status);
-        if (manual) emit failed();
+        if (manual || manualAsked_) emit failed();
         return;
     }
 
     // A running pre-release is also offered newer pre-releases; a final build only finals.
-    const std::optional<sb::ReleaseInfo> release =
-        sb::newestRelease(transfer.body, *current, !current->pre.empty());
-    if (!release) {
+    const std::vector<sb::ReleaseInfo> releases =
+        sb::newerReleases(transfer.body, *current, !current->pre.empty());
+    if (releases.empty()) {
         obs_log(LOG_INFO, "update check: %s is the newest release", currentVersion.c_str());
-        if (manual) emit noUpdate();
+        if (manual || manualAsked_) emit noUpdate();
         return;
     }
-    obs_log(LOG_INFO, "update check: %s is available", release->version.c_str());
-    emit updateAvailable(QString::fromStdString(release->version),
-                         QString::fromStdString(release->url));
+    const sb::ReleaseInfo& release = releases.front();
+    obs_log(LOG_INFO, "update check: %s is available", release.version.c_str());
+    std::string notes;
+    for (const sb::ReleaseInfo& entry : releases) {
+        if (!notes.empty()) notes += "\n\n";
+        notes += "## " + entry.version + "\n\n" + (entry.body.empty() ? "-" : entry.body);
+    }
+    emit updateAvailable(QString::fromStdString(release.version),
+                         QString::fromStdString(release.url), QString::fromStdString(notes));
 }

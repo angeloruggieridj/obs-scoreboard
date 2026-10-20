@@ -30,7 +30,8 @@ public:
 
 signals:
     // Emitted from the worker thread (delivered queued on the UI thread).
-    void updateAvailable(QString version, QString url);
+    // `notes` is the Markdown of every release newer than this build, newest first.
+    void updateAvailable(QString version, QString url, QString notes);
     void noUpdate();
     void failed();
 
@@ -40,4 +41,5 @@ private:
     std::thread thread_;
     std::atomic<bool> abort_{false};
     std::atomic<bool> running_{false};
+    std::atomic<bool> manualAsked_{false}; // a manual check asked while an automatic one ran
 };

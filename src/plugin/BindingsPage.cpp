@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-#include "BindingsDialog.hpp"
+#include "BindingsPage.hpp"
 #include "DockStyle.hpp"
 
 #include <obs-module.h>
@@ -30,12 +30,11 @@ QString fieldLabel(sb::FieldId field) {
 
 } // namespace
 
-BindingsDialog::BindingsDialog(FieldSinks* sinks, QWidget* parent)
-    : QDialog(parent), sinks_(sinks) {
-    setWindowTitle(text("Bindings.Title"));
-    setAttribute(Qt::WA_DeleteOnClose);
+BindingsPage::BindingsPage(FieldSinks* sinks, QWidget* parent) : QWidget(parent), sinks_(sinks) {
     auto* outer = new QVBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 0);
     auto* scroll = new QScrollArea(this);
+    scroll->setFrameShape(QFrame::NoFrame);
     scroll->setWidgetResizable(true);
     auto* page = new QWidget(scroll);
     auto* form = new QFormLayout(page);
@@ -56,8 +55,6 @@ BindingsDialog::BindingsDialog(FieldSinks* sinks, QWidget* parent)
     }
     scroll->setWidget(page);
     outer->addWidget(scroll);
-    resize(560, 520);
-    dockstyle::styleDialog(this);
     if (sinks_) {
         connect(sinks_, &FieldSinks::bindingChanged, this, [this](int index) {
             if (index < 0 || static_cast<std::size_t>(index) >= sb::kFieldCount || !sinks_) return;
@@ -65,10 +62,9 @@ BindingsDialog::BindingsDialog(FieldSinks* sinks, QWidget* parent)
                 sinks_->sink(static_cast<sb::FieldId>(index)));
         });
     }
-    resize(520, 640);
 }
 
-void BindingsDialog::choose(sb::FieldId field) {
+void BindingsPage::choose(sb::FieldId field) {
     if (!sinks_) return;
     const auto binding = pickers_[static_cast<std::size_t>(field)]->selected();
     if (binding)
@@ -77,7 +73,7 @@ void BindingsDialog::choose(sb::FieldId field) {
         sinks_->unbind(field);
 }
 
-void BindingsDialog::create(sb::FieldId field) {
+void BindingsPage::create(sb::FieldId field) {
     if (!sinks_) return;
     std::string error;
     const QString name = text("Bindings.SourceName").arg(fieldLabel(field));

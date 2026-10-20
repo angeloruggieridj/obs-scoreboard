@@ -3,17 +3,13 @@
 
 #include <obs-module.h>
 
-#include <QAction>
 #include <QCheckBox>
-#include <QDesktopServices>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
-#include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QToolButton>
-#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -21,7 +17,6 @@
 #include <variant>
 
 #include "AtomicFile.hpp"
-#include "BindingsDialog.hpp"
 #include "ClockDriver.hpp"
 #include "ClockPanel.hpp"
 #include "EventLogDialog.hpp"
@@ -67,24 +62,36 @@ ScoreboardDock::ScoreboardDock(ClockDriver* driver, FieldSinks* sinks, GlobalSet
 
     link_ = new QPushButton(this);
     dockstyle::setProp(link_, dockstyle::kText, QStringLiteral("pill"));
-    connect(link_, &QPushButton::clicked, this, &ScoreboardDock::openBindings);
+    connect(link_, &QPushButton::clicked, this,
+            [this]() { openSettings(MatchSettingsDialog::Page::Links); });
 
-    menu_ = new dockstyle::IconButton(dockstyle::Icon::Menu, this);
-    dockstyle::setProp(menu_, dockstyle::kRole, QStringLiteral("iconghost"));
-    menu_->setToolTip(text("Menu.Tooltip"));
-    buildMenu();
+    // The sport of the match, as plain text on the left of the header.
+    sport_ = new QLabel(this);
+    dockstyle::setProp(sport_, dockstyle::kText, QStringLiteral("sport"));
+    sport_->setToolTip(text("Panel.Sport.Tooltip"));
+    sport_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred); // long names are cut
 
-    // OBS shows the dock title itself; the first row of the dock holds the link indicator and the
-    // menu.
+    // Shown only when the update check found a newer release.
+    update_ = new QPushButton(this);
+    dockstyle::setProp(update_, dockstyle::kText, QStringLiteral("pill"));
+    dockstyle::setProp(update_, dockstyle::kLink, QStringLiteral("ok"));
+    update_->hide();
+    connect(update_, &QPushButton::clicked, this,
+            [this]() { openSettings(MatchSettingsDialog::Page::Updates); });
+
+    settingsButton_ = new dockstyle::IconButton(dockstyle::Icon::Gear, this);
+    dockstyle::setProp(settingsButton_, dockstyle::kRole, QStringLiteral("iconghost"));
+    settingsButton_->setToolTip(text("Settings.Tooltip"));
+    connect(settingsButton_, &QPushButton::clicked, this, [this]() { openSettings(); });
+
+    // OBS shows the dock title itself; the first row of the dock holds the sport, the link
+    // indicator and the settings button.
     auto* header = new QHBoxLayout();
     header->setSpacing(6);
+    header->addWidget(sport_, 1);
+    header->addWidget(update_);
     header->addWidget(link_);
-    sport_ = new QLabel(this);
-    dockstyle::setProp(sport_, dockstyle::kText, QStringLiteral("pillLabel"));
-    sport_->setToolTip(text("Panel.Sport.Tooltip"));
-    header->addWidget(sport_);
-    header->addStretch(1);
-    header->addWidget(menu_);
+    header->addWidget(settingsButton_);
     layout->addLayout(header);
 
     clock_ = new ClockPanel(this);
@@ -198,94 +205,10 @@ TeamPanel* ScoreboardDock::panel(sb::Team team) const {
     return team == sb::Team::Home ? home_ : away_;
 }
 
-namespace {
-
-// A non-clickable title for a group of menu entries. Plain disabled actions look the same in every
-// style, unlike QMenu::addSection, which some styles draw without its text.
-void addHeading(QMenu* menu, const QString& title) {
-    if (!menu->isEmpty()) menu->addSeparator();
-    QAction* heading = menu->addAction(title);
-    heading->setEnabled(false);
-}
-
-} // namespace
-
-void ScoreboardDock::buildMenu() {
-    auto* menu = new QMenu(menu_);
-
-    addHeading(menu, text("Menu.Section.Match"));
-    connect(menu->addAction(text("Menu.NewMatch")), &QAction::triggered, this,
-            &ScoreboardDock::newMatch);
-    connect(menu->addAction(text("Dock.Resume")), &QAction::triggered, this,
-            &ScoreboardDock::resumePrevious);
-    connect(menu->addAction(text("Menu.EndMatch")), &QAction::triggered, this,
-            &ScoreboardDock::endMatch);
-    connect(menu->addAction(text("Menu.EventLog")), &QAction::triggered, this,
-            &ScoreboardDock::openEventLog);
-
-    addHeading(menu, text("Menu.Section.Settings"));
-    connect(menu->addAction(text("Menu.Settings")), &QAction::triggered, this,
-            &ScoreboardDock::openSettings);
-    connect(menu->addAction(text("Dock.Bindings")), &QAction::triggered, this,
-            &ScoreboardDock::openBindings);
-
-    addHeading(menu, text("Menu.Section.Output"));
-    fileOutputAction_ = menu->addAction(text("Menu.FileOutput"));
-    fileOutputAction_->setCheckable(true);
-    fileOutputAction_->setChecked(settings_ && settings_->prefs().fileOutputEnabled);
-    connect(fileOutputAction_, &QAction::toggled, this, [this](bool on) {
-        if (!settings_ || settings_->prefs().fileOutputEnabled == on) return;
-        if (on && settings_->prefs().fileOutputDir.empty()) {
-            showMessage(text("Output.NoFolder"));
-            openSettings();
-            refresh(); // the entry goes back to unchecked: nothing was enabled
-            return;
-        }
-        settings_->setFileOutputEnabled(on);
-        if (output_) {
-            output_->apply(settings_->prefs());
-            if (driver_) output_->publish(driver_->fields());
-        }
-        showMessage(on ? text("Output.Enabled") : text("Output.Disabled"));
-    });
-
-    addHeading(menu, text("Menu.Section.Updates"));
-    connect(menu->addAction(text("Menu.UpdateNow")), &QAction::triggered, this,
-            &ScoreboardDock::checkForUpdates);
-    // Hidden until a check finds a newer release (showUpdate).
-    updateAction_ = menu->addAction(QString());
-    updateAction_->setVisible(false);
-    connect(updateAction_, &QAction::triggered, this, [this]() {
-        if (!updateUrl_.isEmpty()) QDesktopServices::openUrl(QUrl(updateUrl_));
-    });
-    QAction* updateCheck = menu->addAction(text("Menu.UpdateCheck"));
-    updateCheck->setCheckable(true);
-    updateCheck->setChecked(settings_ && settings_->prefs().updateCheck);
-    connect(updateCheck, &QAction::toggled, this, [this](bool on) {
-        if (settings_) settings_->setUpdateCheck(on);
-    });
-    menu->addAction(text("Menu.Version").arg(QString::fromUtf8(PLUGIN_VERSION)))->setEnabled(false);
-
-    menu_->setMenu(menu);
-}
-
-void ScoreboardDock::checkForUpdates() {
-    if (!updater_) {
-        showMessage(text("Update.Failed"));
-        return;
-    }
-    showMessage(text("Update.Checking"));
-    updater_->start(PLUGIN_VERSION, true);
-}
-
 void ScoreboardDock::setUpdateChecker(UpdateChecker* checker) {
     updater_ = checker;
     if (!updater_) return;
     connect(updater_, &UpdateChecker::updateAvailable, this, &ScoreboardDock::showUpdate);
-    connect(updater_, &UpdateChecker::noUpdate, this,
-            [this]() { showMessage(text("Update.None").arg(QString::fromUtf8(PLUGIN_VERSION))); });
-    connect(updater_, &UpdateChecker::failed, this,
-            [this]() { showMessage(text("Update.Failed")); });
 }
 
 void ScoreboardDock::connectTeam(sb::Team team) {
@@ -444,10 +367,6 @@ void ScoreboardDock::refresh() {
     const bool runPast = engine.settings().stoppage == sb::StoppageMode::RunPastDuration;
     if (runPast_->isChecked() != runPast) runPast_->setChecked(runPast);
 
-    if (fileOutputAction_) {
-        const bool on = settings_ && settings_->prefs().fileOutputEnabled;
-        if (fileOutputAction_->isChecked() != on) fileOutputAction_->setChecked(on);
-    }
     if (outputFailing_) {
         showMessage(outputError_); // the I/O error stays until the output recovers
     } else if (!outputError_.isEmpty() && status_->text() == outputError_) {
@@ -489,17 +408,6 @@ bool ScoreboardDock::applySettings(const sb::MatchSettings& next) {
     return true;
 }
 
-void ScoreboardDock::openBindings() {
-    if (!sinks_) return;
-    if (bindings_) {
-        bindings_->raise();
-        bindings_->activateWindow();
-        return;
-    }
-    bindings_ = new BindingsDialog(sinks_, this);
-    bindings_->show();
-}
-
 void ScoreboardDock::openEventLog() {
     if (!driver_) return;
     if (eventLog_) {
@@ -520,12 +428,13 @@ void ScoreboardDock::setStreamStartsProvider(std::function<StreamStarts()> provi
     streamStartsProvider_ = std::move(provider);
 }
 
-void ScoreboardDock::showUpdate(const QString& version, const QString& url) {
+void ScoreboardDock::showUpdate(const QString& version, const QString& url, const QString& notes) {
+    updateVersion_ = version;
     updateUrl_ = url;
-    if (updateAction_) {
-        updateAction_->setText(text("Menu.UpdateAvailable").arg(version));
-        updateAction_->setVisible(true);
-    }
+    updateNotes_ = notes;
+    update_->setText(text("Panel.UpdatePill").arg(version));
+    update_->setToolTip(text("Panel.UpdatePill.Tooltip"));
+    update_->show();
     showMessage(text("Update.Available").arg(version));
 }
 
@@ -604,17 +513,30 @@ void ScoreboardDock::editPenalty(sb::Team team, unsigned id) {
     dialog->activateWindow();
 }
 
-void ScoreboardDock::openSettings() {
+void ScoreboardDock::openSettings(std::optional<MatchSettingsDialog::Page> page) {
     if (!driver_) return;
     if (settingsDialog_) {
+        if (page) settingsDialog_->showPage(*page);
         settingsDialog_->raise();
         settingsDialog_->activateWindow();
         return;
     }
     const sb::GlobalPrefs none;
+    MatchSettingsDialog::Services services;
+    services.sinks = sinks_;
+    services.updater = updater_;
+    services.newMatch = [this]() { newMatch(); };
+    services.resumePrevious = [this]() { resumePrevious(); };
+    services.endMatch = [this]() { endMatch(); };
+    services.eventLog = [this]() { openEventLog(); };
+    services.updateVersion = updateVersion_;
+    services.updateUrl = updateUrl_;
+    services.updateNotes = updateNotes_;
     settingsDialog_ = new MatchSettingsDialog(
         driver_->engine().settings(), settings_ ? settings_->prefs() : none,
-        [this](const MatchSettingsDialog::Result& r) { return applyDialogResult(r); }, this);
+        [this](const MatchSettingsDialog::Result& r) { return applyDialogResult(r); },
+        std::move(services), this);
+    if (page) settingsDialog_->showPage(*page);
     settingsDialog_->show();
 }
 
@@ -633,6 +555,7 @@ bool ScoreboardDock::applyDialogResult(const MatchSettingsDialog::Result& r) {
         settings_->setPeriodBar(r.periodBar, r.periodBarColor);
         settings_->setClockColor(r.clockColor);
         settings_->setComfortableDock(r.comfortableDock);
+        settings_->setUpdateCheck(r.updateCheck);
         dockstyle::setDensity(r.comfortableDock ? dockstyle::Density::Comfortable
                                                 : dockstyle::Density::Compact);
         settings_->setFileOutput(r.fileOutputEnabled, r.fileOutputDir);

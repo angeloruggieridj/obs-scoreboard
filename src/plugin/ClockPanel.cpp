@@ -133,6 +133,7 @@ private:
 QPushButton* ClockPanel::makeArrow(const QString& label, const QString& tooltip,
                                    qint64 deltaTenths) {
     auto* button = new QPushButton(label, this);
+    button->setProperty("sbFill", true); // these two columns take the height of the clock
     dockstyle::setProp(button, dockstyle::kRole, QStringLiteral("btn"));
     button->setMinimumWidth(kArrowColumn);
     button->setFocusPolicy(Qt::TabFocus);
@@ -238,13 +239,15 @@ ClockPanel::ClockPanel(QWidget* parent) : QWidget(parent) {
     controls->setSpacing(6);
     auto* startStop = new dockstyle::IconButton(dockstyle::Icon::Play, this);
     startStop->setTint(QColor(Qt::white));
-    startStop->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    startStop->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     startStop_ = startStop;
     connect(startStop_, &QPushButton::clicked, this, [this]() { emit toggleRequested(); });
     reset_ = new dockstyle::IconButton(dockstyle::Icon::Reset, this);
     reset_->setText(text("Dock.Reset"));
     reset_->setToolTip(text("Dock.Reset"));
     dockstyle::setProp(reset_, dockstyle::kRole, QStringLiteral("ghost"));
+    dockstyle::setProp(reset_, dockstyle::kSize, QStringLiteral("large")); // as tall as Start/Stop
+    reset_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     connect(reset_, &QPushButton::clicked, this, [this]() { emit resetRequested(); });
     controls->addWidget(startStop_, 1);
     controls->addWidget(reset_);

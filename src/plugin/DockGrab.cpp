@@ -8,11 +8,9 @@
 #include <QLayout>
 #include <QPalette>
 #include <QPixmap>
-#include <QTabWidget>
 
 #include "ClockDriver.hpp"
 #include "DockStyle.hpp"
-#include "BindingsDialog.hpp"
 #include "GlobalSettings.hpp"
 #include "MatchSettingsDialog.hpp"
 #include "PenaltyDialog.hpp"
@@ -68,6 +66,24 @@ bool save(ScoreboardDock* dock, int width, const QString& path) {
     QApplication::processEvents();
     obs_log(LOG_INFO, "grab rows home=%zu away=%zu", dock->penaltyRowCount(sb::Team::Home),
             dock->penaltyRowCount(sb::Team::Away));
+    for (QWidget* w : dock->findChildren<QWidget*>()) {
+        const QString role = w->property("sbRole").toString();
+        if (role == QLatin1String("segval") || role == QLatin1String("seg") ||
+            role == QLatin1String("go") || role == QLatin1String("stop") ||
+            role == QLatin1String("ghost"))
+            obs_log(LOG_INFO, "geometry %s y=%d h=%d min=%d max=%d w=%d", qPrintable(role),
+                    w->mapTo(dock, QPoint()).y(), w->height(), w->minimumHeight(),
+                    w->maximumHeight(), w->width());
+    }
+    for (QFrame* card : dock->findChildren<QFrame*>()) {
+        if (card->property("sbCard").toString() != QLatin1String("team")) continue;
+        for (QWidget* w : card->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
+            if (w->isVisibleTo(card))
+                obs_log(LOG_INFO, "team %s %s y=%d h=%d min=%d max=%d",
+                        qPrintable(card->property("sbTeam").toString()),
+                        w->metaObject()->className(), w->y(), w->height(), w->minimumHeight(),
+                        w->maximumHeight());
+    }
     const bool ok = dock->grab().save(path);
     dock->hide();
     return ok;
@@ -120,6 +136,16 @@ int run(ClockDriver* driver, FieldSinks* sinks, const QString& directory) {
     shoot("ice_hockey", 440, dockstyle::Density::Compact);
     shoot("ice_hockey", 360, dockstyle::Density::Comfortable);
     dockstyle::setDensity(dockstyle::Density::Compact);
+    {
+        // The clock running: the button reads "Stop".
+        stage(driver, *sb::findSport("ice_hockey"));
+        driver->apply(sb::cmd::ClockStart{});
+        QApplication::processEvents();
+        if (save(dock, 360,
+                 QDir(directory).filePath(QStringLiteral("dock-running-%1.png").arg(theme))))
+            ++written;
+        driver->apply(sb::cmd::ClockStop{});
+    }
 
     // The windows of the plugin.
     {
@@ -139,20 +165,31 @@ int run(ClockDriver* driver, FieldSinks* sinks, const QString& directory) {
             if (saveWindow(&edit, file(QStringLiteral("win-penalty-edit")))) ++written;
         }
         {
-            MatchSettingsDialog settings(driver->engine().settings(), scratch.prefs(),
-                                         [](const MatchSettingsDialog::Result&) { return true; });
-            const std::pair<int, const char*> tabsToShow[] = {{0, "match"}, {2, "look"}};
-            for (const auto& tab : tabsToShow) {
-                if (auto* tabs = settings.findChild<QTabWidget*>())
-                    tabs->setCurrentIndex(tab.first);
+            MatchSettingsDialog::Services services;
+            services.sinks = sinks;
+            services.updateVersion = QStringLiteral("1.1.0");
+            services.updateUrl = QStringLiteral("https://example.org");
+            services.updateNotes = QStringLiteral(
+                "## 1.1.0\n\n### Added\n\n- A progress border around the clock.\n"
+                "- Check for updates now.\n\n### Fixed\n\n- The counters line up with their "
+                "buttons.");
+            MatchSettingsDialog settings(
+                driver->engine().settings(), scratch.prefs(),
+                [](const MatchSettingsDialog::Result&) { return true; }, services);
+            const std::pair<MatchSettingsDialog::Page, const char*> pagesToShow[] = {
+                {MatchSettingsDialog::Page::Match, "match"},
+                {MatchSettingsDialog::Page::Texts, "texts"},
+                {MatchSettingsDialog::Page::Look, "look"},
+                {MatchSettingsDialog::Page::Output, "output"},
+                {MatchSettingsDialog::Page::Links, "links"},
+                {MatchSettingsDialog::Page::Actions, "actions"},
+                {MatchSettingsDialog::Page::Updates, "updates"}};
+            for (const auto& entry : pagesToShow) {
+                settings.showPage(entry.first);
                 if (saveWindow(&settings,
-                               file(QStringLiteral("win-settings-") + QLatin1String(tab.second))))
+                               file(QStringLiteral("win-settings-") + QLatin1String(entry.second))))
                     ++written;
             }
-        }
-        {
-            BindingsDialog bindings(sinks);
-            if (saveWindow(&bindings, file(QStringLiteral("win-bindings")))) ++written;
         }
     }
     // The optional looks, switched on: team colors, a consumed-time border and a clock that turns
@@ -174,9 +211,11 @@ int run(ClockDriver* driver, FieldSinks* sinks, const QString& directory) {
         if (save(&colored, 360,
                  QDir(directory).filePath(QStringLiteral("dock-custom-%1.png").arg(theme))))
             ++written;
-        MatchSettingsDialog settings(driver->engine().settings(), scratch.prefs(),
-                                     [](const MatchSettingsDialog::Result&) { return true; });
-        if (auto* tabs = settings.findChild<QTabWidget*>()) tabs->setCurrentIndex(2);
+        MatchSettingsDialog::Services services;
+        MatchSettingsDialog settings(
+            driver->engine().settings(), scratch.prefs(),
+            [](const MatchSettingsDialog::Result&) { return true; }, services);
+        settings.showPage(MatchSettingsDialog::Page::Look);
         if (saveWindow(&settings,
                        QDir(directory).filePath(
                            QStringLiteral("win-settings-look-custom-%1.png").arg(theme))))

@@ -23,7 +23,7 @@ CounterControl::CounterControl(QWidget* parent) : QWidget(parent) {
     value_ = new QLabel(this);
     value_->setAlignment(Qt::AlignCenter);
     value_->setMinimumWidth(32);
-    value_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    value_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     dockstyle::setProp(value_, dockstyle::kRole, QStringLiteral("segval"));
     top_->addWidget(value_, 1);
     outer->addLayout(top_);
@@ -36,7 +36,8 @@ CounterControl::CounterControl(QWidget* parent) : QWidget(parent) {
 
 QPushButton* CounterControl::makeButton(const QString& text, int delta) {
     auto* button = new QPushButton(text, this);
-    button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    button->setSizePolicy(QSizePolicy::Expanding,
+                          QSizePolicy::Fixed); // QSS max-height is not enforced on buttons
     button->setFocusPolicy(Qt::TabFocus);
     dockstyle::setProp(button, dockstyle::kRole, QStringLiteral("seg"));
     connect(button, &QPushButton::clicked, this, [this, delta]() { emit deltaRequested(delta); });

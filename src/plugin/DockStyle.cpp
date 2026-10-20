@@ -12,6 +12,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace dockstyle {
@@ -108,15 +109,13 @@ QColor stopColor(const QPalette& pal) {
 QString styleSheet(const QPalette& pal, Density density) {
     const Tokens t = tokensFor(pal);
     const int h = density == Density::Compact ? 26 : 30;
-    const int s = density == Density::Compact ? 20 : 22;
     QString css;
     const auto add = [&css](const QString& rule) { css += rule + QLatin1Char('\n'); };
 
     // --- Buttons --------------------------------------------------------------------------
     add(QStringLiteral("QPushButton[sbRole]{border:1px solid %1;border-radius:4px;background:%1;"
-                       "color:%2;padding:0 10px;min-height:%3px;font-weight:600;}")
-            .arg(hex(t.btn), hex(t.txt))
-            .arg(h));
+                       "color:%2;padding:0 10px;font-weight:600;}")
+            .arg(hex(t.btn), hex(t.txt)));
     add(QStringLiteral("QPushButton[sbRole]:hover{background:%1;border-color:%2;}")
             .arg(hex(t.btnHi), hex(t.bdrHi)));
     add(QStringLiteral("QPushButton[sbRole]:pressed{background:%1;}").arg(hex(t.btnDn)));
@@ -133,49 +132,30 @@ QString styleSheet(const QPalette& pal, Density density) {
             "QPushButton[sbRole=\"stop\"]{background:%1;border-color:%1;color:#FFFFFF;"
             "font-size:13px;}QPushButton[sbRole=\"stop\"]:hover{background:%2;border-color:%2;}")
             .arg(hex(t.stop), hex(t.stopHi)));
-    add(QStringLiteral("QPushButton[sbRole=\"icon\"]{padding:0;min-width:%1px;max-width:%1px;}")
-            .arg(h));
+    add(QStringLiteral("QPushButton[sbRole=\"icon\"]{padding:0;}"));
     add(QStringLiteral(
             "QPushButton[sbRole=\"iconghost\"]{background:transparent;border:1px solid %1;"
-            "padding:0;min-width:%2px;max-width:%2px;}"
-            "QPushButton[sbRole=\"iconghost\"]:hover{background:%3;}"
-            "QPushButton[sbRole=\"iconghost\"]::menu-indicator{image:none;width:0;}")
-            .arg(hex(t.bdr))
-            .arg(h)
-            .arg(hex(t.btn)));
-    add(QStringLiteral("QPushButton[sbRole=\"go\"],QPushButton[sbRole=\"stop\"]{min-height:%1px;}")
-            .arg(h + 6));
-    add(QStringLiteral("QPushButton[sbRole=\"small\"]{padding:0;min-height:%1px;max-height:%1px;"
-                       "min-width:%1px;max-width:%1px;font-size:11px;}")
-            .arg(s));
+            "padding:0;}"
+            "QPushButton[sbRole=\"iconghost\"]:hover{background:%2;}")
+            .arg(hex(t.bdr), hex(t.btn)));
+    add(QStringLiteral("QPushButton[sbRole=\"small\"]{padding:0;font-size:11px;}"));
     // Segmented controls: [ -1 | value | +1 ] is one rounded group with thin separators.
-    add(QStringLiteral(
-            "QPushButton[sbRole=\"seg\"]{border-radius:0;border:1px solid %1;"
-            "border-left-width:0;padding:0;min-width:26px;min-height:%2px;max-height:%2px;}")
-            .arg(hex(t.bdr))
-            .arg(h));
+    add(QStringLiteral("QPushButton[sbRole=\"seg\"]{border-radius:0;border:1px solid %1;"
+                       "border-left-width:0;padding:0;}")
+            .arg(hex(t.bdr)));
     add(QStringLiteral("QPushButton[sbRole=\"seg\"][sbPos=\"first\"]{border-left-width:1px;"
                        "border-top-left-radius:4px;border-bottom-left-radius:4px;}"));
     add(QStringLiteral("QPushButton[sbRole=\"seg\"][sbPos=\"last\"]{border-top-right-radius:4px;"
                        "border-bottom-right-radius:4px;}"));
-    add(QStringLiteral(
-            "QLabel[sbRole=\"segval\"]{background:%1;color:%2;border:1px solid %3;"
-            "border-left-width:0;font-weight:700;padding:0 6px;min-height:%4px;max-height:%4px;}")
-            .arg(hex(t.inset), hex(t.txt), hex(t.bdr))
-            .arg(h));
+    add(QStringLiteral("QLabel[sbRole=\"segval\"]{background:%1;color:%2;border:1px solid %3;"
+                       "border-left-width:0;font-weight:700;padding:0 6px;}")
+            .arg(hex(t.inset), hex(t.txt), hex(t.bdr)));
     add(QStringLiteral(
         "QPushButton[sbRole=\"seg\"][sbPos=\"only\"]{border-left-width:1px;border-radius:4px;}"));
     // The score counter is the most used control of a match: a little larger than the rest.
-    add(QStringLiteral(
-            "QPushButton[sbRole=\"seg\"][sbSize=\"large\"]{min-width:38px;font-size:13px;"
-            "min-height:%1px;max-height:%1px;}")
-            .arg(h + 6));
-    add(QStringLiteral("QLabel[sbRole=\"segval\"][sbSize=\"large\"]{font-size:20px;min-height:%1px;"
-                       "max-height:%1px;}")
-            .arg(h + 6));
+    add(QStringLiteral("QPushButton[sbRole=\"seg\"][sbSize=\"large\"]{font-size:13px;}"));
+    add(QStringLiteral("QLabel[sbRole=\"segval\"][sbSize=\"large\"]{font-size:20px;}"));
     // Penalty type chips (add window).
-    add(QStringLiteral(
-        "QPushButton[sbRole=\"chip\"],QPushButton[sbRole=\"chipOn\"]{min-width:44px;}"));
     add(QStringLiteral(
             "QPushButton[sbRole=\"chipOn\"]{background:%1;border-color:%1;color:#FFFFFF;}")
             .arg(hex(t.prim)));
@@ -226,6 +206,8 @@ QString styleSheet(const QPalette& pal, Density density) {
             "QLabel[sbText=\"pillLabel\"]{background:%1;border:1px solid %2;border-radius:10px;"
             "padding:1px 10px;color:%3;font-size:11px;}")
             .arg(hex(t.base), hex(t.bdr), hex(t.txt2)));
+    add(QStringLiteral("QLabel[sbText=\"sport\"]{color:%1;font-size:12px;font-weight:600;}")
+            .arg(hex(t.txt)));
     add(QStringLiteral("QLabel[sbText=\"status\"]{color:%1;font-size:11px;}").arg(hex(t.muted)));
     return css;
 }
@@ -244,6 +226,23 @@ static QString dialogSheet(const QPalette& pal) {
             "QTabBar::tab:selected{color:%1;font-weight:600;border-bottom:2px solid %2;}")
             .arg(hex(t.txt), hex(t.prim)));
     add(QStringLiteral("QTabBar::tab:hover:!selected{color:%1;}").arg(hex(t.txt)));
+    // The list of pages on the left of the settings window.
+    add(QStringLiteral("QListWidget[sbNav]{background:%1;border:0;border-right:1px solid %2;"
+                       "outline:0;}")
+            .arg(hex(t.base), hex(t.bdr)));
+    add(QStringLiteral("QListWidget[sbNav]::item{padding:9px 14px;color:%1;border:0;"
+                       "border-left:3px solid transparent;}")
+            .arg(hex(t.txt2)));
+    add(QStringLiteral("QListWidget[sbNav]::item:hover{color:%1;background:%2;}")
+            .arg(hex(t.txt), hex(t.btn)));
+    add(QStringLiteral("QListWidget[sbNav]::item:selected{color:%1;font-weight:600;"
+                       "background:%2;border-left:3px solid %3;}")
+            .arg(hex(t.txt), hex(t.btn), hex(t.prim)));
+    add(QStringLiteral("QGroupBox{border:1px solid %1;border-radius:6px;margin-top:14px;"
+                       "padding:14px 12px 10px 12px;}"
+                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;"
+                       "color:%2;font-weight:600;}")
+            .arg(hex(t.bdr), hex(t.txt2)));
     add(QStringLiteral("QLabel[sbText=\"section\"]{color:%1;font-size:10px;font-weight:600;"
                        "padding-top:6px;}")
             .arg(hex(t.muted)));
@@ -275,6 +274,12 @@ public:
         applying_ = true;
         root_->setStyleSheet(sheet);
         applying_ = false;
+        // New heights and fonts: every layout of the window measures again.
+        for (QWidget* child : root_->findChildren<QWidget*>()) {
+            fitHeight(child);
+            child->updateGeometry();
+        }
+        root_->updateGeometry();
     }
 
 protected:
@@ -327,11 +332,69 @@ void styleDialog(QDialog* dialog) {
     install(dialog, true);
 }
 
+namespace {
+
+// A widget polished or shown later gets its limits from the style sheet again: this puts ours back.
+class HeightKeeper : public QObject {
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        switch (event->type()) {
+        case QEvent::Polish:
+        case QEvent::Show:
+        case QEvent::StyleChange:
+            if (auto* widget = qobject_cast<QWidget*>(watched)) fitHeight(widget);
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+};
+
+} // namespace
+
+void fitHeight(QWidget* widget) {
+    if (!widget) return;
+    static HeightKeeper* keeper = new HeightKeeper(); // lives as long as the plugin
+    if (!widget->property("sbKept").toBool()) {
+        widget->setProperty("sbKept", true);
+        widget->installEventFilter(keeper);
+    }
+    const QString role = widget->property(kRole).toString();
+    const bool large = widget->property(kSize).toString() == QLatin1String("large");
+    int height = 0;
+    if (role == QLatin1String("seg") || role == QLatin1String("segval"))
+        height = controlHeight() + (large ? 6 : 0);
+    else if (role == QLatin1String("go") || role == QLatin1String("stop") ||
+             (role == QLatin1String("ghost") && large))
+        height = controlHeight() + 6;
+    else if (role == QLatin1String("icon") || role == QLatin1String("iconghost") ||
+             role == QLatin1String("ghost") || role == QLatin1String("primary") ||
+             role == QLatin1String("chip") || role == QLatin1String("chipOn") ||
+             (role == QLatin1String("btn") && !widget->property("sbFill").toBool()))
+        height = controlHeight();
+    else if (role == QLatin1String("small"))
+        height = smallHeight();
+    // (A style sheet that sets any width or height also resets the other limits of the widget, so
+    // the sheet sets none of them and the sizes below are the only ones.)
+    if (height > 0 && (widget->minimumHeight() != height || widget->maximumHeight() != height))
+        widget->setFixedHeight(height);
+    if (role == QLatin1String("seg"))
+        widget->setMinimumWidth(34);
+    else if (role == QLatin1String("chip") || role == QLatin1String("chipOn"))
+        widget->setMinimumWidth(44);
+    else if (role == QLatin1String("icon") || role == QLatin1String("iconghost"))
+        widget->setFixedWidth(controlHeight());
+    else if (role == QLatin1String("small"))
+        widget->setFixedWidth(smallHeight());
+}
+
 void setProp(QWidget* widget, const char* name, const QString& value) {
     if (!widget || widget->property(name).toString() == value) return;
     widget->setProperty(name, value);
     widget->style()->unpolish(widget);
     widget->style()->polish(widget);
+    fitHeight(widget);
     widget->update();
 }
 
@@ -384,11 +447,43 @@ QPixmap drawIcon(Icon icon, int size, const QColor& color, qreal dpr) {
         p.drawRect(QRectF(3.5, 3, 3, 10));
         p.drawRect(QRectF(9.5, 3, 3, 10));
         break;
-    case Icon::Reset:
-        p.drawArc(QRectF(3, 3, 10, 10), 40 * 16, 290 * 16);
-        p.drawLine(QPointF(3, 2.5), QPointF(3, 5.5));
-        p.drawLine(QPointF(3, 5.5), QPointF(6, 5.5));
+    case Icon::Reset: {
+        // The usual "again" arrow: a circle open at the top right, clockwise, with an arrow head at
+        // its end (the top) pointing right.
+        p.drawArc(QRectF(2.8, 2.8, 10.4, 10.4), 20 * 16, -290 * 16);
+        QPainterPath head;
+        head.moveTo(QPointF(11.4, 2.8));
+        head.lineTo(QPointF(7.6, 0.6));
+        head.lineTo(QPointF(7.6, 5.0));
+        head.closeSubpath();
+        p.setBrush(color);
+        p.drawPath(head);
         break;
+    }
+    case Icon::Gear: {
+        // Eight teeth around a body, with the hole in the middle.
+        QPainterPath gear;
+        constexpr double kPi = 3.14159265358979;
+        for (int i = 0; i < 8; ++i) {
+            const double a = i * kPi / 4;
+            const double d = kPi / 180;
+            const double angles[4] = {a - 15 * d, a - 9 * d, a + 9 * d, a + 15 * d};
+            const double radii[4] = {4.7, 6.8, 6.8, 4.7};
+            for (int k = 0; k < 4; ++k) {
+                const QPointF point(8 + radii[k] * std::cos(angles[k]),
+                                    8 + radii[k] * std::sin(angles[k]));
+                if (i == 0 && k == 0)
+                    gear.moveTo(point);
+                else
+                    gear.lineTo(point);
+            }
+        }
+        gear.closeSubpath();
+        p.setPen(QPen(color, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.drawPath(gear);
+        p.drawEllipse(QPointF(8, 8), 2.0, 2.0);
+        break;
+    }
     case Icon::Prev: {
         QPainterPath path;
         path.moveTo(10, 3);

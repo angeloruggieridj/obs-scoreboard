@@ -16,7 +16,6 @@
 #include "MatchSettingsDialog.hpp"
 #include "PanelLayout.hpp"
 
-class BindingsDialog;
 class ClockDriver;
 class ClockPanel;
 class EventLogDialog;
@@ -74,7 +73,7 @@ public:
     void setFileOutput(FileOutput* output);
 
     // A release newer than this build exists: shows it in the menu and the status line.
-    void showUpdate(const QString& version, const QString& url);
+    void showUpdate(const QString& version, const QString& url, const QString& notes);
 
     // The update checker lives as long as the module; the dock reports its verdicts and asks it for
     // a manual check. Safe with a null pointer.
@@ -92,9 +91,9 @@ private:
     void showMessage(const QString& message);
     void clearMessage();
     void resumePrevious();
-    void openBindings();
     void openEventLog();
-    void openSettings();
+    // `page`: the page of the settings window to show (none: leave it as it is).
+    void openSettings(std::optional<MatchSettingsDialog::Page> page = std::nullopt);
     void addPenalty(sb::Team team);
     void editPenalty(sb::Team team, unsigned id);
     bool applyDialogResult(const MatchSettingsDialog::Result& result);
@@ -105,23 +104,21 @@ private:
     void showLinkState();
     void newMatch();
     void endMatch();
-    void checkForUpdates();
-    void buildMenu();
 
     QPointer<ClockDriver> driver_;
     QPointer<FieldSinks> sinks_;
     GlobalSettings* settings_ = nullptr; // lives for the whole module
     QPointer<MatchStateSaver> saver_;    // deleted in tearDown() while the dock still exists
-    QPointer<BindingsDialog> bindings_;
     QPointer<MatchSettingsDialog> settingsDialog_;
     QPointer<QInputDialog> sportPicker_;
     QPointer<PenaltyDialog> penaltyDialog_;
     QPointer<FileOutput> output_;
     QPointer<EventLogDialog> eventLog_;
     QPushButton* link_ = nullptr;
-    QPushButton* menu_ = nullptr;
-    QAction* fileOutputAction_ = nullptr;
-    QAction* updateAction_ = nullptr;
+    QPushButton* settingsButton_ = nullptr;
+    QPushButton* update_ = nullptr;
+    QString updateVersion_;
+    QString updateNotes_;
     QPointer<UpdateChecker> updater_;
     QLabel* sport_ = nullptr;
     QString shownSport_;
