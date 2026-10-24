@@ -4,8 +4,12 @@
 # Runs the in-OBS fps selftest with the system OBS under xvfb (Linux).
 #
 #   run-selftest.sh --fps N [--seconds 20] --plugin <.so> --locale <dir> --fonts <dir>
-#                       [--artifacts <dir>] [--canvas WxH] [--reopen]
+#                       [--artifacts <dir>] [--canvas WxH] [--reopen] [--installed]
 #                       (default canvas 1280x720; CI uses a smaller one on software rendering)
+#
+# With --installed the plugin is NOT copied into the throw-away config: OBS must find the copy
+# `cmake --install` put in its own prefix (this tests the install layout OBS 33+ searches).
+# --plugin is then only checked for existence, and --locale/--fonts are not needed.
 #
 # With --reopen, after a first run that passed, OBS is started a second time on
 # the SAME throw-away config with OBS_SCOREBOARD_SELFTEST_PASS=reopen: it
@@ -27,9 +31,10 @@ fonts=""
 artifacts=""
 canvas="1280x720"
 reopen=0
+installed=0
 
 usage() {
-    echo "usage: $0 --fps N [--seconds S] --plugin <obs-scoreboard.so> --locale <dir> --fonts <dir> [--artifacts <dir>] [--canvas WxH] [--reopen]" >&2
+    echo "usage: $0 --fps N [--seconds S] --plugin <obs-scoreboard.so> --locale <dir> --fonts <dir> [--artifacts <dir>] [--canvas WxH] [--reopen] [--installed]" >&2
     exit 2
 }
 
@@ -43,10 +48,12 @@ while [ $# -gt 0 ]; do
         --artifacts) artifacts="${2:-}"; shift 2 ;;
         --canvas) canvas="${2:-}"; shift 2 ;;
         --reopen) reopen=1; shift ;;
+        --installed) installed=1; shift ;;
         *) usage ;;
     esac
 done
-[ -n "$fps" ] && [ -n "$plugin" ] && [ -n "$locale" ] && [ -n "$fonts" ] || usage
+[ -n "$fps" ] && [ -n "$plugin" ] || usage
+[ "$installed" -eq 1 ] || { [ -n "$locale" ] && [ -n "$fonts" ] || usage; }
 case "$fps" in
     25|30|50|60) ;;
     *) echo "invalid --fps '$fps' (expected 25, 30, 50 or 60)" >&2; usage ;;
@@ -65,15 +72,19 @@ esac
 canvas_w="${canvas%x*}"
 canvas_h="${canvas#*x}"
 [ -f "$plugin" ] || { echo "missing plugin: $plugin" >&2; exit 2; }
-[ -d "$locale" ] || { echo "missing locale dir: $locale" >&2; exit 2; }
-[ -d "$fonts" ] || { echo "missing fonts dir: $fonts" >&2; exit 2; }
+if [ "$installed" -eq 0 ]; then
+    [ -d "$locale" ] || { echo "missing locale dir: $locale" >&2; exit 2; }
+    [ -d "$fonts" ] || { echo "missing fonts dir: $fonts" >&2; exit 2; }
+fi
 for tool in obs xvfb-run python3 sha256sum; do
     command -v "$tool" >/dev/null || { echo "missing tool: $tool" >&2; exit 2; }
 done
 
 plugin="$(realpath "$plugin")"
-locale="$(realpath "$locale")"
-fonts="$(realpath "$fonts")"
+if [ "$installed" -eq 0 ]; then
+    locale="$(realpath "$locale")"
+    fonts="$(realpath "$fonts")"
+fi
 [ -n "$artifacts" ] || artifacts="${TMPDIR:-/tmp}/obs-scoreboard-selftest/artifacts"
 mkdir -p "$artifacts"
 artifacts="$(realpath "$artifacts")"
@@ -102,11 +113,13 @@ printf '[General]\nEnableAutoUpdates=false\n' > "$cfg/global.ini"
 printf '[General]\nName=SBSelftest\n\n[Video]\nBaseCX=%s\nBaseCY=%s\nOutputCX=%s\nOutputCY=%s\nFPSType=1\nFPSInt=%s\n' \
     "$canvas_w" "$canvas_h" "$canvas_w" "$canvas_h" "$fps" > "$cfg/basic/profiles/SBSelftest/basic.ini"
 
-dest="$cfg/plugins/obs-scoreboard"
-mkdir -p "$dest/bin/64bit" "$dest/data"
-cp "$plugin" "$dest/bin/64bit/obs-scoreboard.so"
-cp -r "$locale" "$dest/data/locale"
-cp -r "$fonts" "$dest/data/fonts"
+if [ "$installed" -eq 0 ]; then
+    dest="$cfg/plugins/obs-scoreboard"
+    mkdir -p "$dest/bin/64bit" "$dest/data"
+    cp "$plugin" "$dest/bin/64bit/obs-scoreboard.so"
+    cp -r "$locale" "$dest/data/locale"
+    cp -r "$fonts" "$dest/data/fonts"
+fi
 
 # $! is xvfb-run, not OBS: find the real obs process, looking only among the
 # descendants of xvfb-run so that an OBS the developer runs is never touched.

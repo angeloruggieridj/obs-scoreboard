@@ -77,9 +77,88 @@ jobs:
           path: ${{ github.workspace }}/selftest-artifacts/
           if-no-files-found: warn
 
+  # OBS 33 dropped Ubuntu 24.04: its only Linux package is the .deb for 26.04, which
+  # installs under /usr/local and carries the development files (headers, CMake
+  # configs). So this job builds the plugin against that very OBS, installs it with
+  # `cmake --install` (the same tree the release packages ship: new obs-modules/plugins
+  # layout plus the legacy obs-plugins links) and has OBS find it there, rather than
+  # copying it into the test config. Runs the same 25/30/50/60 fps selftest and the
+  # restart check.
+  selftest-linux-obs33:
+    name: Selftest on Linux (Ubuntu 26.04, OBS 33) 🐧
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    env:
+      OBS_VERSION: 33.0.0
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install OBS Studio 33 📺
+        run: |
+          : Install OBS Studio 33 📺
+          deb="OBS-Studio-${OBS_VERSION}-Ubuntu-26.04-x86_64.deb"
+          gh release download "${OBS_VERSION}" -R obsproject/obs-studio -p "${deb}"
+          sudo apt-get update
+          sudo apt-get install -y "./${deb}" xvfb fonts-dejavu-core             cmake ninja-build pkg-config g++ qt6-base-dev libcurl4-openssl-dev python3
+          sudo ldconfig
+          obs --version || true
+
+      - name: Build and install the plugin 🧱
+        run: |
+          : Build and install the plugin 🧱
+          cmake -S . -B build_obs33 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo             -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu             -DENABLE_TESTS=OFF
+          cmake --build build_obs33
+          sudo cmake --install build_obs33 --prefix /usr/local
+          echo "installed layout:"
+          find /usr/local -path '*obs-scoreboard*' | sort
+
+      - name: Run Selftest at 25/30/50/60 fps 🏒
+        run: |
+          : Run Selftest at 25/30/50/60 fps 🏒
+          plugin="$(find build_obs33 -type f -name obs-scoreboard.so | head -n 1)"
+          if [[ -z "${plugin}" ]]; then
+            echo "::error::obs-scoreboard.so not found under build_obs33"
+            exit 2
+          fi
+
+          status=0
+          for fps in 25 30 50 60; do
+            echo "::group::selftest ${fps} fps (OBS ${OBS_VERSION})"
+            rc=0
+            args=(--fps "${fps}" --seconds 20 --plugin "${plugin}" --installed
+              --artifacts selftest-artifacts --canvas 640x360)
+            if [[ "${fps}" -eq 30 ]]; then args+=(--reopen); fi
+            scripts/run-selftest.sh "${args[@]}" || rc=$?
+            echo "::endgroup::"
+            if [[ "${rc}" -ne 0 ]]; then
+              echo "::error::selftest at ${fps} fps exited with ${rc}"
+              if [[ "${status}" -eq 0 ]]; then status="${rc}"; fi
+            fi
+          done
+          exit "${status}"
+
+      - name: Upload Selftest Artifacts 📡
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: selftest-linux-obs33
+          path: ${{ github.workspace }}/selftest-artifacts/
+          if-no-files-found: warn
+
   selftest-windows:
-    name: Selftest on Windows 🪟
+    name: Selftest on Windows (OBS ${{ matrix.obs }}) 🪟
     runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        obs: ['32.2.2', '33.0.0']
     timeout-minutes: 45
     defaults:
       run:
@@ -120,7 +199,7 @@ jobs:
             # The restart does not depend on the framerate: only 30 fps exercises it.
             $extra = @()
             if ($fps -eq 30) { $extra = @('-Reopen') }
-            pwsh -File scripts/run-selftest.ps1 -Fps $fps -Seconds 20 -Dll $dll.FullName -ArtifactDir $artifacts @extra
+            pwsh -File scripts/run-selftest.ps1 -Fps $fps -Seconds 20 -ObsVersion '${{ matrix.obs }}' -Dll $dll.FullName -ArtifactDir $artifacts @extra
             $rc = $LASTEXITCODE
             Write-Host '::endgroup::'
             if ($rc -ne 0) {
@@ -134,6 +213,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: selftest-windows
+          name: selftest-windows-obs${{ matrix.obs }}
           path: ${{ github.workspace }}/selftest-artifacts/
           if-no-files-found: warn
