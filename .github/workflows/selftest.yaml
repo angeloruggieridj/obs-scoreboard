@@ -106,7 +106,7 @@ jobs:
           deb="OBS-Studio-${OBS_VERSION}-Ubuntu-26.04-x86_64.deb"
           gh release download "${OBS_VERSION}" -R obsproject/obs-studio -p "${deb}"
           sudo apt-get update
-          sudo apt-get install -y "./${deb}" xvfb fonts-dejavu-core             cmake ninja-build pkg-config g++ qt6-base-dev libcurl4-openssl-dev python3
+          sudo apt-get install -y "./${deb}" xvfb fonts-dejavu-core             cmake ninja-build pkg-config g++ qt6-base-dev libcurl4-openssl-dev libsimde-dev python3
           sudo ldconfig
           obs --version || true
 
