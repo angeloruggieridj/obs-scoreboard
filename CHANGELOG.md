@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Project website** at <https://angeloruggieridj.github.io/obs-scoreboard/> (English and Italian), published from `site/`.
+
 ## [1.1.0] - 2026-10-21
 
 The dock and every window have a new look, the settings are in one window, and the scoreboard can be watched or commanded from a phone.
