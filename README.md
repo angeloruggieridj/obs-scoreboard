@@ -5,7 +5,7 @@
 **Scoreboard for OBS Studio that writes straight into your Text sources, the moment a value changes.**
 **Tabellone per OBS Studio che scrive direttamente nelle tue sorgenti Text, nel momento in cui un valore cambia.**
 
-[English](#english) · [Italiano](#italiano)
+[Website](https://angeloruggieridj.github.io/obs-scoreboard/) · [English](#english) · [Italiano](#italiano)
 
 [![Latest release](https://img.shields.io/github/v/release/angeloruggieridj/obs-scoreboard?include_prereleases&sort=semver&label=release)](https://github.com/angeloruggieridj/obs-scoreboard/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/angeloruggieridj/obs-scoreboard/total?label=downloads)](https://github.com/angeloruggieridj/obs-scoreboard/releases)

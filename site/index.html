@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScoreBoard for OBS</title>
+  <meta name="description" content="A scoreboard for OBS Studio that writes straight into your Text sources, so the clock never skips a second.">
+  <meta property="og:title" content="ScoreBoard for OBS — Never skip a second on air.">
+  <meta property="og:description" content="A scoreboard for OBS Studio that writes straight into your Text sources, so the clock never skips a second.">
+  <meta property="og:image" content="https://angeloruggieridj.github.io/obs-scoreboard/img/dock-hockey.png">
+  <meta property="og:type" content="website">
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='12' font-weight='700' fill='%23fff' text-anchor='middle'%3E20:00%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">ScoreBoard for OBS</a>
+    <nav class="nav-links">
+      <a href="#why" data-i18n="nav.why">Why</a>
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#sports" data-i18n="nav.sports">Sports</a>
+      <a href="#remote" data-i18n="nav.remote">Remote</a>
+      <a href="https://github.com/angeloruggieridj/obs-scoreboard">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="it" aria-pressed="false">IT</button>
+    </div>
+    <a class="btn btn-small" href="#download" data-i18n="nav.download">Download</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <h1 class="hero-name">ScoreBoard for OBS</h1>
+    <p class="hero-tag" data-i18n="hero.title">Never skip a second on air.</p>
+    <p class="lead" data-i18n="hero.lead">A scoreboard that writes straight into your Text sources, so the clock on your stream never jumps. No .txt files in between.</p>
+    <div class="cta">
+      <a class="btn btn-dl" href="https://github.com/angeloruggieridj/obs-scoreboard/releases/latest" data-dl><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10"/></svg><span data-dl-label>Download for Windows</span></a>
+      <a class="link" href="#why" data-i18n="hero.how">See how it works ›</a>
+    </div>
+    <div class="duel" id="duel">
+      <figure class="screen screen-file">
+        <div class="field" aria-hidden="true">
+          <div class="bug">
+            <span class="team team-home">HOME</span><span class="pts">2</span>
+            <span class="pts">1</span><span class="team team-away">AWAY</span>
+            <span class="bug-clock" data-clock="file">20:00</span><span class="period"><span class="period-label">2nd</span></span>
+            <span class="ghost" data-ghost></span>
+          </div>
+          <span class="live">LIVE</span>
+        </div>
+        <figcaption>
+          <span class="screen-label" data-i18n="duel.file">Text source reading a .txt file</span>
+          <span class="lost"><span data-i18n="duel.lost">Seconds lost</span> <b data-lost>0</b></span>
+        </figcaption>
+      </figure>
+      <figure class="screen screen-direct">
+        <div class="field" aria-hidden="true">
+          <div class="bug">
+            <span class="team team-home">HOME</span><span class="pts">2</span>
+            <span class="pts">1</span><span class="team team-away">AWAY</span>
+            <span class="bug-clock" data-clock="direct">20:00</span><span class="period"><span class="period-label">2nd</span></span>
+          </div>
+          <span class="live">LIVE</span>
+        </div>
+        <figcaption>
+          <span class="screen-label" data-i18n="duel.direct">ScoreBoard for OBS</span>
+          <span class="lost lost-zero"><span data-i18n="duel.lost">Seconds lost</span> <b>0</b></span>
+        </figcaption>
+      </figure>
+    </div>
+    <p class="duel-note" data-i18n="duel.note">Both clocks start together. The left one is shown the way OBS reads a file: about once a second, by its timestamp.</p>
+  </section>
+
+  <section class="miss" id="why">
+    <div class="miss-pin">
+      <div class="wrap narrow center">
+        <p class="eyebrow" data-i18n="why.eyebrow">The problem</p>
+        <h2 data-i18n="why.title">Text files make clocks skip.</h2>
+        <div class="miss-clock" aria-hidden="true">
+          <span class="miss-ghost">19:28</span>
+          <span class="miss-digits" data-miss>19:30</span>
+        </div>
+        <p class="miss-cap" data-i18n="miss.cap">19:28 never made it to air.</p>
+        <p class="body" data-i18n="why.body">OBS re-reads the file about once a second and compares its modification time, to the second. Two updates in one second lose one. The request to fix it was closed as “not planned” (<a href="https://github.com/obsproject/obs-studio/issues/3012">obs-studio #3012</a>).</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="center narrow">
+        <p class="eyebrow" data-i18n="sol.eyebrow">The fix</p>
+        <h2 data-i18n="sol.title">Keep your Text sources.</h2>
+        <p class="body" data-i18n="sol.body">ScoreBoard changes only their text, through the OBS API, the moment a value changes. Font, colors and position stay yours; OBS shows the change on the next frame.</p>
+      </div>
+      <div class="shots">
+        <figure><img src="img/dock-hockey.png" width="360" height="568" alt="The ScoreBoard dock in OBS Studio: ice hockey, dark theme" loading="lazy"><figcaption data-i18n="sol.cap1">Ice hockey, dark theme</figcaption></figure>
+        <figure><img src="img/dock-soccer-light.png" width="360" height="520" alt="The ScoreBoard dock in OBS Studio: soccer, light theme" loading="lazy"><figcaption data-i18n="sol.cap2">Soccer, light theme</figcaption></figure>
+        <figure><img src="img/dock-custom.png" width="360" height="480" alt="The dock with team colors, a progress border and a red clock" loading="lazy"><figcaption data-i18n="sol.cap3">Team colors, period progress</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-alt" id="sports">
+    <div class="wrap">
+      <div class="center narrow">
+        <p class="eyebrow" data-i18n="sp.eyebrow">Sports</p>
+        <h2 data-i18n="sp.title">Pick your sport. It’s set up.</h2>
+        <p class="body" data-i18n="sp.body">14 sports come ready with their periods, clock, points and penalties. Pick one and run the match: this demo uses the same defaults, and every value can be changed in OBS.</p>
+      </div>
+      <div class="play" id="play">
+        <div class="picker" role="group" aria-label="Sport">
+          <button type="button" data-sport="hockey" aria-pressed="true"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.5l6.2 14.8a2 2 0 0 0 1.9 1.2H17"/><rect x="16.5" y="19.8" width="5" height="1.8" rx=".9"/></svg><span data-i18n="sp.hockey">Ice hockey</span></button>
+          <button type="button" data-sport="basketball" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M5.6 5.6c3 3 3 9.8 0 12.8M18.4 5.6c-3 3-3 9.8 0 12.8"/></svg><span data-i18n="sp.basketball">Basketball</span></button>
+          <button type="button" data-sport="soccer" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8.2l3.6 2.6-1.4 4.2H9.8l-1.4-4.2zM12 8.2V3.2M15.6 10.8l4.6-1.5M14.2 15l2.9 3.9M9.8 15l-2.9 3.9M8.4 10.8 3.8 9.3"/></svg><span data-i18n="sp.soccer">Soccer</span></button>
+          <button type="button" data-sport="futsal" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><path d="M12 5v14M2.5 9a3 3 0 0 1 0 6M21.5 9a3 3 0 0 0 0 6"/><circle cx="12" cy="12" r="2.5"/></svg><span>Futsal</span></button>
+          <button type="button" data-sport="football" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5c-1.5-6 3-13.5 15-15 1.5 6-3 13.5-15 15z"/><path d="M8.5 15.5l7-7M10 12l2 2M12 10l2 2"/></svg><span data-i18n="sp.football">American football</span></button>
+          <button type="button" data-sport="lacrosse" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5l8.5-8.5"/><path d="M12 12c-1.5-3.5.5-8 4-9 3.5-1 6 1.5 5 5-1 3.5-5.5 5.5-9 4z"/><path d="M14.5 5.5l4.5 4.5M13.5 8.5l3-3M15.5 10.5l3-3"/></svg><span>Lacrosse</span></button>
+          <button type="button" data-sport="rugby" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2.5v19M17 2.5v19M7 14h10"/><path d="M4 21.5h6M14 21.5h6"/></svg><span data-i18n="sp.rugby">Rugby union</span></button>
+          <button type="button" data-sport="sevens" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="10" cy="10" rx="8" ry="5" transform="rotate(-40 10 10)"/><path d="M5.9 14.1l8.2-8.2"/><path d="M16 15.5h5l-3 7"/></svg><span data-i18n="sp.sevens">Rugby sevens</span></button>
+          <button type="button" data-sport="field" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2.5v13a3.5 3.5 0 0 1-7 0"/><circle cx="17" cy="17.5" r="2.5"/></svg><span data-i18n="sp.field">Field hockey</span></button>
+          <button type="button" data-sport="waterpolo" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M6.3 7.2c3.8 1.3 7.6 1.3 11.4 0M12 3c-2.2 2.5-2.2 9.5 0 12"/><path d="M2 19.5c2-1.6 3.5-1.6 5 0s3 1.6 5 0 3-1.6 5 0 3 1.6 5 0"/></svg><span data-i18n="sp.waterpolo">Water polo</span></button>
+          <button type="button" data-sport="handball" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 20V5h19v15"/><path d="M2.5 9.5h19M2.5 14h19M7 5v15M12 5v3M17 5v15" opacity=".4"/><circle cx="12" cy="16" r="3.2"/></svg><span data-i18n="sp.handball">Handball</span></button>
+          <button type="button" data-sport="rink" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h5v8l7.2 2.1a2.5 2.5 0 0 1 1.8 2.4v1H5z"/><path d="M5 13h4"/><circle cx="7.5" cy="20" r="1.6"/><circle cx="16.5" cy="20" r="1.6"/></svg><span data-i18n="sp.rink">Rink hockey</span></button>
+          <button type="button" data-sport="floorball" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle class="f" cx="12" cy="7.3" r="1.25"/><circle class="f" cx="7.6" cy="10.4" r="1.25"/><circle class="f" cx="16.4" cy="10.4" r="1.25"/><circle class="f" cx="9.3" cy="15.6" r="1.25"/><circle class="f" cx="14.7" cy="15.6" r="1.25"/><circle class="f" cx="12" cy="12" r="1.25"/></svg><span>Floorball</span></button>
+          <button type="button" data-sport="generic" aria-pressed="false"><svg class="pick-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M9.5 2.5h5M12 2.5V6M18 7.5l1.6-1.6"/></svg><span data-i18n="sp.generic">Generic</span></button>
+        </div>
+        <div class="spec" aria-live="polite">
+          <p class="spec-time"><span data-spec-time>3 × 20:00</span> <span class="dir" data-spec-dir>↓</span> <span class="spec-dir" data-spec-dirlabel>counts down</span></p>
+          <p class="spec-x"><span data-spec-ot>Overtime 1 × 5:00</span> · <span data-spec-x>Shots; penalties 2′, 5′, 10′, 2+2, 2+5, 2+10; strength</span></p>
+        </div>
+        <div class="field play-field" data-field="hockey">
+          <div class="bug">
+            <span class="team team-home">HOME</span><span class="pts" data-score="home">0</span>
+            <span class="pts" data-score="away">0</span><span class="team team-away">AWAY</span>
+            <span class="bug-clock" data-play-clock aria-live="off">20:00</span><span class="period"><span class="period-label" data-period>1st</span></span>
+          </div>
+          <div class="pens" data-pens></div>
+          <span class="live">LIVE</span>
+        </div>
+        <div class="controls">
+          <div class="side" data-side="home"><span class="side-name">HOME</span><span class="side-btns" data-btns="home"></span></div>
+          <button type="button" class="run" data-run><span data-i18n="try.start">Start</span></button>
+          <div class="side" data-side="away"><span class="side-name">AWAY</span><span class="side-btns" data-btns="away"></span></div>
+        </div>
+        <p class="play-note" data-i18n="try.note">Defaults from the presets: every value can be changed in the plugin.</p>
+        <div hidden data-strings>
+          <span data-i18n="sp.ot">Overtime</span><span data-i18n="sp.noot">No overtime</span><span data-i18n="sp.open">Open segment</span>
+          <span data-i18n="sp.down">counts down</span><span data-i18n="sp.up">counts up</span>
+          <span data-i18n="sp.ot.basketball">5:00, as many as needed</span><span data-i18n="sp.ot.lacrosse">4:00, as many as needed</span><span data-i18n="sp.ot.sevens">5:00, as many as needed</span>
+          <span data-i18n="sp.hockey.x">Shots; penalties 2′, 5′, 10′, 2+2, 2+5, 2+10; strength</span>
+          <span data-i18n="sp.basketball.x">Team fouls per quarter; points +1 / +2 / +3</span>
+          <span data-i18n="sp.soccer.x">Yellow and red cards; strength from red cards</span>
+          <span data-i18n="sp.futsal.x">Accumulated fouls, reset for the 2nd half</span>
+          <span data-i18n="sp.football.x">Flags; points +6 / +1 / +2 / +3</span>
+          <span data-i18n="sp.lacrosse.x">Shots; penalties 30″, 1′, 2′, 3′; strength</span>
+          <span data-i18n="sp.rugby.x">Points +5 / +2 / +3; penalties 10′, 20′; strength</span>
+          <span data-i18n="sp.sevens.x">Points +5 / +2 / +3; penalty 2′; strength</span>
+          <span data-i18n="sp.field.x">Penalties 2′, 5′, 10′; strength</span>
+          <span data-i18n="sp.waterpolo.x">Shots; 20″ exclusion; strength</span>
+          <span data-i18n="sp.handball.x">Penalty 2′; strength</span>
+          <span data-i18n="sp.rink.x">Team fouls; penalties 2′, 4′; strength</span>
+          <span data-i18n="sp.floorball.x">Shots; penalties 2′, 5′, 10′, 2+2, 2+10; strength</span>
+          <span data-i18n="sp.generic.x">A plain clock and score for any other sport</span>
+          <span data-i18n="dl.for">Download for</span><span data-i18n="dl.other">Also for</span><span data-i18n="dl.win">Installer .exe, or .zip for portable OBS</span><span data-i18n="dl.mac">Universal .pkg, Apple silicon and Intel</span><span data-i18n="dl.linux">.deb for Ubuntu 24.04</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap stats">
+      <div><strong>28</strong><span data-i18n="stats.values">values you can link</span></div>
+      <div><strong>14</strong><span data-i18n="stats.sports">sports, ready to go</span></div>
+      <div><strong>40</strong><span data-i18n="stats.hotkeys">hotkeys</span></div>
+      <div><strong>1/10</strong><span data-i18n="stats.tenths">of a second, clock resolution</span></div>
+    </div>
+  </section>
+
+  <section class="band" id="features">
+    <div class="wrap">
+      <div class="center narrow">
+        <p class="eyebrow" data-i18n="feat.eyebrow">Features</p>
+        <h2 data-i18n="feat.title">Made for live matches.</h2>
+      </div>
+      <div class="grid">
+        <article><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><h3 data-i18n="feat.rename.t">Links survive renames.</h3><p data-i18n="feat.rename.b">Links survive renames, scene changes, restarts and scene collections. Delete the source and the link simply lets go.</p></article>
+        <article><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 4.5v3l1.5-1z M4 10.5v3l1.5-1z M4 16.5v3l1.5-1z"/></svg><h3 data-i18n="feat.chap.t">Chapters, written for you.</h3><p data-i18n="feat.chap.b">The event log keeps periods, goals and penalties with their times, and exports them as YouTube chapters.</p></article>
+        <article><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3c0 4.5 8 5.5 8 9s-8 4.5-8 9M16 3c0 4.5-8 5.5-8 9s8 4.5 8 9"/></svg><h3 data-i18n="feat.pen.t">Penalties that queue themselves.</h3><p data-i18n="feat.pen.b">Up to 8 per team, two running at once, the rest waiting. 2+2, 2+5 and 2+10 handled, with the strength text (5-4) worked out for you.</p></article>
+        <article><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M9.5 2.5h5M12 2.5V6M18 7.5l1.6-1.6"/></svg><h3 data-i18n="feat.clock.t">Tenths of a second.</h3><p data-i18n="feat.clock.b">Up or down, from a monotonic clock. The arrows never go past the period length or below zero.</p></article>
+        <article><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h1M10.5 10h1M14.5 10h1M7 14h10"/></svg><h3 data-i18n="feat.hot.t">Control by hotkey.</h3><p data-i18n="feat.hot.b">40 OBS hotkeys for clock, scores, periods and penalties, saved with your scene collection.</p></article>
+        <article><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"/></svg><h3 data-i18n="feat.only.t">No needless redraws.</h3><p data-i18n="feat.only.b">A source is written only when its text really changes, so nothing redraws for no reason. A .txt output is still there if another tool needs it.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-dark" id="remote">
+    <div class="wrap split">
+      <div>
+        <p class="eyebrow" data-i18n="rem.eyebrow">Remote control</p>
+        <h2 data-i18n="rem.title">Run it from a phone.</h2>
+        <p class="body" data-i18n="rem.body">Open a link on a phone on the same network. One link only watches; the other also runs the clock, scores and periods.</p>
+        <ul class="ticks">
+          <li data-i18n="rem.sd">Stream Deck plugin, with keys that show the live score.</li>
+          <li data-i18n="rem.comp">Bitfocus Companion module: actions, feedbacks, variables, presets.</li>
+          <li data-i18n="rem.ws">obs-websocket requests and events for your own tools.</li>
+        </ul>
+      </div>
+      <div class="hub" id="hub" data-score="2">
+        <div class="hub-phone">
+          <img src="img/remote-mobile-control.png" width="390" height="700" alt="The remote page on a phone, control link" loading="lazy">
+          <span class="phone-score" data-s aria-hidden="true">2</span>
+          <span class="tap" aria-hidden="true"></span>
+        </div>
+        <svg class="wires" viewBox="0 0 100 300" preserveAspectRatio="none" aria-hidden="true">
+          <g class="wire-base">
+            <path d="M0,150 C50,150 50,50 100,50"/>
+            <path d="M0,150 L100,150"/>
+            <path d="M0,150 C50,150 50,250 100,250"/>
+          </g>
+          <g class="wire-pulse">
+            <path d="M0,150 C50,150 50,50 100,50"/>
+            <path d="M0,150 L100,150"/>
+            <path d="M0,150 C50,150 50,250 100,250"/>
+          </g>
+        </svg>
+        <div class="hub-nodes" aria-hidden="true">
+          <div class="node">
+            <span class="node-label">OBS</span>
+            <div class="mini-bug"><span class="team-home">HOME</span><b data-s>2</b><b>1</b><span class="team-away">AWAY</span></div>
+          </div>
+          <div class="node">
+            <span class="node-label">Stream Deck</span>
+            <div class="keys">
+              <span class="key key-score"><small>HOME</small><b data-s>2</b></span>
+              <span class="key">+1</span><span class="key">▶</span>
+            </div>
+          </div>
+          <div class="node">
+            <span class="node-label">Companion</span>
+            <div class="comp"><span class="comp-btn"><small>HOME</small><b data-s>2</b></span><span class="comp-btn comp-dim">AWAY<b>1</b></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="download">
+    <div class="wrap">
+      <div class="center narrow">
+        <h2 data-i18n="dl.title">Free. Open source. OBS 30 or newer.</h2>
+        <p class="body" data-i18n="dl.body">Close OBS, install, then turn on Docks → ScoreBoard. The first launch asks for your sport.</p>
+      </div>
+      <div class="get" id="get">
+        <a class="btn btn-big" href="https://github.com/angeloruggieridj/obs-scoreboard/releases/latest" data-dl><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10"/></svg><span data-dl-label>Download for Windows</span></a>
+        <p class="get-pkg" data-dl-pkg>Installer .exe, or .zip for portable OBS</p>
+        <p class="get-others" data-dl-others><a href="https://github.com/angeloruggieridj/obs-scoreboard/releases/latest" data-os="mac">macOS</a><a href="https://github.com/angeloruggieridj/obs-scoreboard/releases/latest" data-os="linux">Linux</a></p>
+      </div>
+      <a class="sd-row">
+        <span class="sd-keys" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="sd-text"><strong>Stream Deck</strong><span data-i18n="dl.sd">Optional plugin for Stream Deck 7.1 or newer, with live keys. Needs the obs-websocket server on in OBS.</span></span>
+        <span class="sd-go"><span class="sd-soon" data-sd-soon data-i18n="dl.soon">Coming soon</span><span data-sd-ready hidden><span data-i18n="dl.go">Download</span> ›</span></span>
+      </a>
+      <p class="fine" data-i18n="dl.fine">The macOS package is not signed: the first time, right-click it and choose Open. Every release ships with SHA-256 checksums and a build attestation.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <span data-i18n="foot.license">GPL-2.0-or-later. Not affiliated with the OBS Project.</span>
+    <nav>
+      <a href="https://github.com/angeloruggieridj/obs-scoreboard">GitHub</a>
+      <a href="https://github.com/angeloruggieridj/obs-scoreboard/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/angeloruggieridj/obs-scoreboard/blob/main/docs/remote-control.md" data-i18n="foot.remote">Remote control docs</a>
+      <a href="https://github.com/angeloruggieridj/obs-scoreboard/issues" data-i18n="foot.issues">Report an issue</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>
